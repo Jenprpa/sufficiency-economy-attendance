@@ -103,24 +103,31 @@ class AttendanceApp {
 
         // 1. Bases
         const bases = [
-            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "ครูนงนุช รักษ์ดิน", teacherId: "teacher1" },
-            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "ครูวรรณนา ภาษาไทย", teacherId: "teacher2" },
-            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "ครูสมชาย เงาดี", teacherId: "teacher3" },
-            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "ครูอนันต์ ใจดี", teacherId: "teacher4" },
-            { id: "base5", name: "หรรษาสุรารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "ครูสุรพล เลิศรส", teacherId: "teacher5" },
-            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "ครูประยุทธ์ กล้าหาญ", teacherId: "teacher6" },
-            { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "ครูวิไล เกื้อกูล", teacherId: "teacher7" }
+            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "ครูนงนุช รักษ์ดิน, ครูเกื้อกูล ดินดี", teacherId: "teacher1, teacher1_2" },
+            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "ครูวรรณนา ภาษาไทย, ครูรักไทย เขียนดี", teacherId: "teacher2, teacher2_2" },
+            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "ครูสมชาย เงาดี, ครูเกรียงไกร สอนน้ำ", teacherId: "teacher3, teacher3_2" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "ครูอนันต์ ใจดี, ครูสุขใจ เลี้ยงไก่", teacherId: "teacher4, teacher4_2" },
+            { id: "base5", name: "หรรษาสุรารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "ครูสุรพล เลิศรส, ครูชิมเห็ด อร่อยดี", teacherId: "teacher5, teacher5_2" },
+            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "ครูประยุทธ์ กล้าหาญ, ครูรักชาติ ยิ่งชีพ", teacherId: "teacher6, teacher6_2" },
+            { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "ครูวิไล เกื้อกูล, ครูใจดี มีธรรม", teacherId: "teacher7, teacher7_2" }
         ];
 
         // 2. Teachers
         const teachers = [
             { username: "teacher1", name: "ครูนงนุช รักษ์ดิน", role: "teacher" },
+            { username: "teacher1_2", name: "ครูเกื้อกูล ดินดี", role: "teacher" },
             { username: "teacher2", name: "ครูวรรณนา ภาษาไทย", role: "teacher" },
+            { username: "teacher2_2", name: "ครูรักไทย เขียนดี", role: "teacher" },
             { username: "teacher3", name: "ครูสมชาย เงาดี", role: "teacher" },
+            { username: "teacher3_2", name: "ครูเกรียงไกร สอนน้ำ", role: "teacher" },
             { username: "teacher4", name: "ครูอนันต์ ใจดี", role: "teacher" },
+            { username: "teacher4_2", name: "ครูสุขใจ เลี้ยงไก่", role: "teacher" },
             { username: "teacher5", name: "ครูสุรพล เลิศรส", role: "teacher" },
+            { username: "teacher5_2", name: "ครูชิมเห็ด อร่อยดี", role: "teacher" },
             { username: "teacher6", name: "ครูประยุทธ์ กล้าหาญ", role: "teacher" },
+            { username: "teacher6_2", name: "ครูรักชาติ ยิ่งชีพ", role: "teacher" },
             { username: "teacher7", name: "ครูวิไล เกื้อกูล", role: "teacher" },
+            { username: "teacher7_2", name: "ครูใจดี มีธรรม", role: "teacher" },
             { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
             { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
             { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
@@ -201,7 +208,7 @@ class AttendanceApp {
                         baseId: sch.baseId,
                         studentId: st.studentId,
                         status: statuses[Math.floor(Math.random() * statuses.length)],
-                        checkedBy: sch.teacherId,
+                        checkedBy: (sch.teacherId || "").split(',')[0].trim() || "admin",
                         timestamp: `${dateKey}T09:15:00`
                     });
                 });
@@ -315,19 +322,14 @@ class AttendanceApp {
 
     // Bind UI actions and navigation
     bindEvents() {
-        // Sidebar View Router
-        const menuItems = document.querySelectorAll('.sidebar-menu li');
+        // Top Nav Bar View Router
+        const menuItems = document.querySelectorAll('.nav-menu .nav-item');
         menuItems.forEach(item => {
             item.addEventListener('click', (e) => {
                 e.preventDefault();
                 const view = item.getAttribute('data-view');
                 this.switchView(view);
             });
-        });
-
-        // Sidebar responsive toggle
-        document.getElementById('sidebar-toggle').addEventListener('click', () => {
-            document.getElementById('app-sidebar').classList.toggle('active');
         });
 
         // Date Simulator Changer
@@ -437,8 +439,8 @@ class AttendanceApp {
     switchView(viewId) {
         this.currentView = viewId;
         
-        // Update sidebar active class
-        const menuItems = document.querySelectorAll('.sidebar-menu li');
+        // Update active class on Top Bar menu items
+        const menuItems = document.querySelectorAll('.nav-menu .nav-item');
         menuItems.forEach(item => {
             if (item.getAttribute('data-view') === viewId) {
                 item.classList.add('active');
@@ -447,19 +449,19 @@ class AttendanceApp {
             }
         });
 
-        // Close sidebar on mobile
-        document.getElementById('app-sidebar').classList.remove('active');
-
-        // Update top title
-        const titles = {
-            dashboard: 'แผงควบคุม (Dashboard)',
-            rotation: 'ตารางการหมุนฐาน (Rotation Calendar)',
-            checkin: 'เช็กชื่อนักเรียนประจำฐาน',
-            admin: 'ผู้บริหารโรงเรียน (Director Overview)',
-            reports: 'รายงานและการส่งออกข้อมูล',
-            manage: 'ระบบจัดการข้อมูล (Admin Console)'
-        };
-        document.getElementById('current-view-title').textContent = titles[viewId] || 'ระบบเช็กชื่อ';
+        // Update top title if element exists
+        const viewTitleEl = document.getElementById('current-view-title');
+        if (viewTitleEl) {
+            const titles = {
+                dashboard: 'แผงควบคุม (Dashboard)',
+                rotation: 'ตารางการหมุนฐาน (Rotation Calendar)',
+                checkin: 'เช็กชื่อนักเรียนประจำฐาน',
+                admin: 'ผู้บริหารโรงเรียน (Director Overview)',
+                reports: 'รายงานและการส่งออกข้อมูล',
+                manage: 'ระบบจัดการข้อมูล (Admin Console)'
+            };
+            viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
+        }
 
         // Toggle container classes
         const viewContainers = document.querySelectorAll('.view-container');
@@ -480,6 +482,8 @@ class AttendanceApp {
         
         // Specific modal preparations
         if (modalId === 'login-modal') {
+            const pwdInput = document.getElementById('login-password');
+            if (pwdInput) pwdInput.value = '';
             const select = document.getElementById('login-user-select');
             if (select) {
                 const teachersList = this.db.teachers.filter(t => t.role === 'teacher');
@@ -490,10 +494,13 @@ class AttendanceApp {
                 
                 html += '<optgroup label="ครูประจำฐานการเรียนรู้">';
                 teachersList.forEach(t => {
-                    const base = this.db.bases.find(b => b.teacherId === t.username);
-                    const baseName = base ? ` (ฐาน ${base.name})` : '';
-                    html += `<option value="${t.username}">${t.name}${baseName}</option>`;
-                });
+                      const bases = this.db.bases.filter(b => {
+                          const ids = (b.teacherId || "").split(',').map(x => x.trim());
+                          return ids.includes(t.username);
+                      });
+                      const baseName = bases.length > 0 ? ` (ฐาน ${bases.map(b => b.name).join(', ')})` : '';
+                      html += `<option value="${t.username}">${t.name}${baseName}</option>`;
+                  });
                 html += '</optgroup>';
                 
                 html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
@@ -517,11 +524,18 @@ class AttendanceApp {
         }
         if (modalId === 'base-modal') {
             // Populate teacher select dropdown in form
-            const select = document.getElementById('base-form-teacher');
-            select.innerHTML = this.db.teachers
-                .filter(t => t.role === 'teacher')
-                .map(t => `<option value="${t.name}">${t.name}</option>`)
-                .join('');
+            const container = document.getElementById('base-form-teachers-container');
+              if (container) {
+                  container.innerHTML = this.db.teachers
+                      .filter(t => t.role === 'teacher')
+                      .map(t => `
+                          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: normal; margin: 0; padding: 4px 0;">
+                              <input type="checkbox" name="base-teachers" value="${t.username}">
+                              <span>${t.name}</span>
+                          </label>
+                      `)
+                      .join('');
+              }
         }
         if (modalId === 'schedule-modal') {
             // Populate bases dropdown
@@ -572,6 +586,14 @@ class AttendanceApp {
         const userObj = this.db.teachers.find(t => t.username === selectedId);
 
         if (userObj) {
+            const passwordInput = document.getElementById('login-password').value;
+            const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
+            
+            if (passwordInput !== expectedPassword) {
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
+                return;
+            }
+
             this.currentUser = userObj;
             sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
             this.updateUserUI();
@@ -653,6 +675,57 @@ class AttendanceApp {
             menuCheckin.style.display = 'none';
             menuAdmin.style.display = 'none';
             menuManage.style.display = 'none';
+        }
+
+        const changePwdBtn = document.getElementById('btn-change-password');
+        if (this.currentUser && this.currentUser.role !== 'admin') {
+            if (changePwdBtn) changePwdBtn.style.display = 'flex';
+        } else {
+            if (changePwdBtn) changePwdBtn.style.display = 'none';
+        }
+    }
+
+    openChangePasswordModal() {
+        document.getElementById('change-pwd-current').value = '';
+        document.getElementById('change-pwd-new').value = '';
+        document.getElementById('change-pwd-confirm').value = '';
+        this.openModal('change-password-modal');
+    }
+
+    changePasswordSubmit() {
+        const current = document.getElementById('change-pwd-current').value;
+        const newPwd = document.getElementById('change-pwd-new').value;
+        const confirmPwd = document.getElementById('change-pwd-confirm').value;
+
+        if (!current || !newPwd || !confirmPwd) {
+            this.showStatusModal('error', 'กรอกข้อมูลไม่ครบ', 'กรุณากรอกรหัสผ่านให้ครบทุกช่อง!');
+            return;
+        }
+
+        const expectedCurrent = this.currentUser.password || this.currentUser.username;
+        if (current !== expectedCurrent) {
+            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านปัจจุบันไม่ถูกต้อง!');
+            return;
+        }
+
+        if (newPwd !== confirmPwd) {
+            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน!');
+            return;
+        }
+
+        if (newPwd.length < 4) {
+            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร!');
+            return;
+        }
+
+        const t = this.db.teachers.find(x => x.username === this.currentUser.username);
+        if (t) {
+            t.password = newPwd;
+            this.currentUser.password = newPwd;
+            sessionStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
+            this.saveDatabase();
+            this.closeModal('change-password-modal');
+            this.showStatusModal('success', 'เปลี่ยนรหัสผ่านสำเร็จ', 'เปลี่ยนรหัสผ่านผู้ใช้งานเรียบร้อยแล้ว!');
         }
     }
 
@@ -740,8 +813,19 @@ class AttendanceApp {
         });
 
         // Update stats card UI
-        document.getElementById('dash-checked-bases').textContent = `${checkedCount}/${activeBasesCount} ฐาน`;
-        document.getElementById('dash-total-students').textContent = `${totalStudentsCount} คน`;
+        const totalStudEl = document.getElementById('dash-total-students');
+        if (totalStudEl) totalStudEl.textContent = `${this.db.students.length} คน`;
+
+        const totalTeachEl = document.getElementById('dash-total-teachers');
+        if (totalTeachEl) totalTeachEl.textContent = `${this.db.teachers.filter(t => t.role === 'teacher').length} คน`;
+
+        const totalBasesEl = document.getElementById('dash-total-bases');
+        if (totalBasesEl) totalBasesEl.textContent = `${this.db.bases.length} ฐาน`;
+
+        const weekTextEl = document.getElementById('dash-banner-week-text');
+        if (weekTextEl) {
+            weekTextEl.textContent = `สัปดาห์เรียนที่ ${week} | ${this.currentWeekInfo.dates}`;
+        }
 
         // Render bases table
         const tbody = document.getElementById('dash-bases-table-body');
@@ -787,7 +871,8 @@ class AttendanceApp {
 
         const totalChecked = present + absent + leave + late + activity;
         const presentRate = totalChecked > 0 ? Math.round((present / totalChecked) * 100) : 0;
-        document.getElementById('dash-present-rate').textContent = `${presentRate}%`;
+        const presentRateEl = document.getElementById('dash-present-rate');
+        if (presentRateEl) presentRateEl.textContent = `${presentRate}%`;
 
         // Initialize or Update Chart.js Doughnut
         if (this.dashChart) this.dashChart.destroy();
@@ -879,7 +964,11 @@ class AttendanceApp {
 
         // Find schedule for this teacher today
         const scheduleRow = this.db.rotation_schedule.find(
-            s => s.week === week && s.teacherId === this.currentUser.username
+            s => {
+                if (s.week !== week) return false;
+                const ids = (s.teacherId || "").split(',').map(x => x.trim());
+                return ids.includes(this.currentUser.username);
+            }
         );
 
         if (!scheduleRow) {
@@ -1178,7 +1267,11 @@ class AttendanceApp {
 
         // Find teacher's schedule to get baseId
         const scheduleRow = this.db.rotation_schedule.find(
-            s => s.week === week && s.teacherId === this.currentUser.username
+            s => {
+                if (s.week !== week) return false;
+                const ids = (s.teacherId || "").split(',').map(x => x.trim());
+                return ids.includes(this.currentUser.username);
+            }
         );
 
         if (!scheduleRow) return;
@@ -1338,8 +1431,8 @@ class AttendanceApp {
                 datasets: [{
                     label: 'อัตราการเข้าเรียน (%)',
                     data: gradeRates,
-                    backgroundColor: 'rgba(139, 92, 246, 0.7)',
-                    borderColor: 'rgb(139, 92, 246)',
+                    backgroundColor: '#A61E22', // Royal Crimson
+                    borderColor: '#841417',
                     borderWidth: 1.5,
                     borderRadius: 8
                 }]
@@ -2144,6 +2237,11 @@ class AttendanceApp {
         document.getElementById('base-form-name').value = "";
         document.getElementById('base-form-room').value = "";
         this.openModal('base-modal');
+        // Uncheck all checkboxes
+        const checkboxes = document.querySelectorAll('input[name="base-teachers"]');
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
     }
 
     openEditBaseModal(id) {
@@ -2156,33 +2254,45 @@ class AttendanceApp {
         document.getElementById('base-form-room').value = b.defaultRoom;
         
         this.openModal('base-modal');
-        document.getElementById('base-form-teacher').value = b.defaultTeacher;
+        // Check the checkboxes for assigned teachers
+        const teacherIds = (b.teacherId || "").split(',').map(x => x.trim());
+        const checkboxes = document.querySelectorAll('input[name="base-teachers"]');
+        checkboxes.forEach(cb => {
+            cb.checked = teacherIds.includes(cb.value);
+        });
     }
 
     saveBaseFromForm() {
         const id = document.getElementById('base-form-id').value;
         const name = document.getElementById('base-form-name').value.trim();
         const room = document.getElementById('base-form-room').value.trim();
-        const teacherName = document.getElementById('base-form-teacher').value;
 
-        if (!name || !room || !teacherName) {
-            alert("กรุณากรอกข้อมูลให้ครบถ้วน!");
+        // Get all checked teachers
+        const checkedCheckboxes = document.querySelectorAll('input[name="base-teachers"]:checked');
+        if (!name || !room || checkedCheckboxes.length === 0) {
+            this.showStatusModal('error', 'กรอกข้อมูลไม่ครบ', 'กรุณากรอกชื่อฐาน สถานที่เรียน และเลือกคุณครูผู้ดูแลอย่างน้อย 1 ท่าน!');
             return;
         }
 
-        const teacherObj = this.db.teachers.find(t => t.name === teacherName);
-        const teacherId = teacherObj ? teacherObj.username : '';
+        const teacherIds = Array.from(checkedCheckboxes).map(cb => cb.value);
+        const teacherNames = teacherIds.map(uname => {
+            const t = this.db.teachers.find(x => x.username === uname);
+            return t ? t.name : uname;
+        });
+
+        const teacherIdStr = teacherIds.join(', ');
+        const teacherNameStr = teacherNames.join(', ');
 
         if (id === "") { // Create
             const newId = `base${Date.now()}`;
-            this.db.bases.push({ id: newId, name, defaultRoom: room, defaultTeacher: teacherName, teacherId });
+            this.db.bases.push({ id: newId, name, defaultRoom: room, defaultTeacher: teacherNameStr, teacherId: teacherIdStr });
         } else { // Edit
             const b = this.db.bases.find(x => x.id === id);
             if (b) {
                 b.name = name;
                 b.defaultRoom = room;
-                b.defaultTeacher = teacherName;
-                b.teacherId = teacherId;
+                b.defaultTeacher = teacherNameStr;
+                b.teacherId = teacherIdStr;
             }
         }
 

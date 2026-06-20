@@ -23,77 +23,54 @@
 <body>
     <div class="app-container">
         
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar" id="app-sidebar">
-            <div class="sidebar-header">
+        <!-- Top Navigation Bar -->
+        <header class="top-nav-bar">
+            <div class="nav-left">
                 <div class="logo-icon">
-                    <i class="fa-solid fa-leaf"></i>
+                    <img src="logo.png" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
                 </div>
                 <div class="logo-text">
                     <h1>เศรษฐกิจพอเพียง</h1>
-                    <p>ร.ร.ปายวิทยาคาร</p>
-                    <p style="font-size: 10px; opacity: 0.85; margin-top: 2px; font-weight: 500;">ภาคเรียนที่ 1/2569</p>
+                    <p>ร.ร.ปายวิทยาคาร <span style="font-size: 9px; opacity: 0.8; font-weight: normal;">ภาคเรียนที่ 1/2569</span></p>
                 </div>
             </div>
             
-            <ul class="sidebar-menu">
-                <li class="active" data-view="dashboard">
-                    <a href="#"><i class="fa-solid fa-chart-pie"></i><span>แผงควบคุม (Dashboard)</span></a>
-                </li>
-                <li data-view="rotation" id="menu-rotation">
-                    <a href="#"><i class="fa-solid fa-arrows-spin"></i><span>ตารางหมุนฐาน</span></a>
-                </li>
-                <li data-view="checkin" id="menu-checkin">
-                    <a href="#"><i class="fa-solid fa-calendar-check"></i><span>เช็กชื่อนักเรียน</span></a>
-                </li>
-                <li data-view="admin" id="menu-admin">
-                    <a href="#"><i class="fa-solid fa-user-tie"></i><span>ผู้บริหาร (Overview)</span></a>
-                </li>
-                <li data-view="reports">
-                    <a href="#"><i class="fa-solid fa-file-invoice"></i><span>รายงานและการส่งออก</span></a>
-                </li>
-                <li data-view="manage" id="menu-manage">
-                    <a href="#"><i class="fa-solid fa-sliders"></i><span>จัดการข้อมูลระบบ</span></a>
-                </li>
-            </ul>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-view="dashboard">🏠 หน้าหลัก</a>
+                <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;">📋 เช็กชื่อ</a>
+                <a href="#" class="nav-item" data-view="rotation" id="menu-rotation">🏫 ฐานเรียนรู้</a>
+                <a href="#" class="nav-item" data-view="reports" id="menu-reports">📊 รายงาน</a>
+                <a href="#" class="nav-item" data-view="admin" id="menu-admin" style="display: none;">👨‍🏫 ครู</a>
+                <a href="#" class="nav-item" data-view="manage" id="menu-manage" style="display: none;">⚙ ตั้งค่า</a>
+            </nav>
             
-            <div class="sidebar-footer">
-                <div class="user-profile" id="user-profile-section">
+            <div class="nav-right">
+                <!-- Date Simulation Widget -->
+                <div class="date-simulator" title="จำลองวันที่ปัจจุบันของระบบเพื่อทดสอบการเช็กชื่อในสัปดาห์อื่น">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <input type="date" id="system-date-input" value="2026-06-20">
+                </div>
+                
+                <div class="user-profile-widget" id="user-profile-section" style="display: none;">
                     <div class="user-avatar" id="profile-avatar">U</div>
-                    <div class="user-info">
-                        <div class="user-name" id="profile-name">ไม่ได้เข้าสู่ระบบ</div>
-                        <div class="user-role" id="profile-role">กรุณาเข้าสู่ระบบ</div>
+                    <div class="user-info-text">
+                        <span class="user-name" id="profile-name">ชื่อผู้ใช้</span>
+                        <span class="user-role" id="profile-role">ครูประจำฐาน</span>
                     </div>
                 </div>
+                
+                <button class="btn btn-outline btn-sm" id="btn-change-password" style="display: none; border-color: #E8DDD0; color: #A61E22; padding: 6px 12px; font-size: 13px;" onclick="app.openChangePasswordModal()">
+                    <i class="fa-solid fa-key"></i> เปลี่ยนรหัส
+                </button>
+                
                 <button class="btn-logout" id="auth-action-btn">
                     <i class="fa-solid fa-right-to-bracket"></i> <span id="auth-btn-text">เข้าสู่ระบบ</span>
                 </button>
             </div>
-        </aside>
+        </header>
 
         <!-- Main Workspace -->
         <main class="main-content">
-            
-            <!-- Top Header -->
-            <header class="top-header">
-                <div style="display: flex; align-items: center; gap: 16px;">
-                    <button class="menu-toggle" id="sidebar-toggle">
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
-                    <div class="header-title">
-                        <h2 id="current-view-title">แผงควบคุม (Dashboard)</h2>
-                    </div>
-                </div>
-                
-                <div class="header-actions">
-                    <!-- Date Simulation Widget -->
-                    <div class="date-simulator" title="จำลองวันที่ปัจจุบันของระบบเพื่อทดสอบการเช็กชื่อในสัปดาห์อื่น">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
-                        <span>วันที่ปัจจุบัน:</span>
-                        <input type="date" id="system-date-input" value="2026-06-20">
-                    </div>
-                </div>
-            </header>
 
             <!-- Banner Alert (System Notice) -->
             <div id="demo-notification" class="alert-banner" style="margin: 20px 32px 0 32px; display: none;">
@@ -106,41 +83,53 @@
 
             <!-- VIEW: Dashboard -->
             <section class="view-container active" id="view-dashboard">
+                <!-- Hero Banner -->
+                <div class="hero-banner">
+                    <div class="hero-banner-content">
+                        <h2 style="color: #A61E22; margin-bottom: 8px; font-size: 24px; font-weight: 700;">งานขับเคลื่อนศูนย์การเรียนรู้ตามหลักปรัชญาของเศรษฐกิจพอเพียง</h2>
+                        <h3 style="color: #D4A017; margin-bottom: 16px; font-size: 18px; font-weight: 600;">ด้านการศึกษา โรงเรียนปายวิทยาคาร</h3>
+                        <div style="background: #A61E22; color: white; border-radius: var(--radius-full); padding: 6px 20px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #D4A017;">
+                            <i class="fa-solid fa-calendar-days"></i>
+                            <span id="dash-banner-week-text">สัปดาห์เรียนที่ 6 | 15 มิ.ย. - 21 มิ.ย. 69</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Dashboard Statistics Cards -->
                 <div class="stat-grid">
                     <div class="card stat-card">
                         <div class="stat-info">
-                            <h3>สัปดาห์เรียนที่</h3>
-                            <p id="dash-week-num">Week -</p>
-                        </div>
-                        <div class="stat-icon primary">
-                            <i class="fa-solid fa-calendar-days"></i>
-                        </div>
-                    </div>
-                    <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>จำนวนฐานที่เช็กแล้ว</h3>
-                            <p id="dash-checked-bases">0/7 ฐาน</p>
-                        </div>
-                        <div class="stat-icon success">
-                            <i class="fa-solid fa-circle-check"></i>
-                        </div>
-                    </div>
-                    <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>จำนวนนักเรียนทั้งหมด</h3>
+                            <h3>นักเรียนทั้งหมด</h3>
                             <p id="dash-total-students">0 คน</p>
                         </div>
-                        <div class="stat-icon info">
+                        <div class="stat-icon" style="background-color: var(--primary-bg); color: var(--primary); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                             <i class="fa-solid fa-users"></i>
                         </div>
                     </div>
                     <div class="card stat-card">
                         <div class="stat-info">
-                            <h3>มาเรียนวันนี้</h3>
+                            <h3>ครูทั้งหมด</h3>
+                            <p id="dash-total-teachers">0 คน</p>
+                        </div>
+                        <div class="stat-icon" style="background-color: var(--warning-bg); color: var(--warning); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid fa-chalkboard-user"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>ฐานเรียนรู้</h3>
+                            <p id="dash-total-bases">7 ฐาน</p>
+                        </div>
+                        <div class="stat-icon" style="background-color: var(--success-bg); color: var(--success); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid fa-school"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>สถิติการเข้าเรียน</h3>
                             <p id="dash-present-rate">0%</p>
                         </div>
-                        <div class="stat-icon warning">
+                        <div class="stat-icon" style="background-color: var(--info-bg); color: var(--info); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
                             <i class="fa-solid fa-user-check"></i>
                         </div>
                     </div>
@@ -707,13 +696,41 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="login-password">รหัสผ่าน (จำลองเพื่อความปลอดภัย)</label>
-                    <input type="password" id="login-password" value="password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
+                    <label for="login-password">รหัสผ่าน</label>
+                    <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="app.closeModal('login-modal')">ยกเลิก</button>
                 <button class="btn btn-primary" id="btn-login-submit">ตกลงเข้าสู่ระบบ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CHANGE PASSWORD -->
+    <div class="modal" id="change-password-modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>เปลี่ยนรหัสผ่านผู้ใช้งาน</h3>
+                <button class="modal-close" onclick="app.closeModal('change-password-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="change-pwd-current">รหัสผ่านปัจจุบัน</label>
+                    <input type="password" id="change-pwd-current" placeholder="กรอกรหัสผ่านปัจจุบัน..." style="width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label for="change-pwd-new">รหัสผ่านใหม่</label>
+                    <input type="password" id="change-pwd-new" placeholder="กรอกรหัสผ่านใหม่..." style="width: 100%;">
+                </div>
+                <div class="form-group">
+                    <label for="change-pwd-confirm">ยืนยันรหัสผ่านใหม่</label>
+                    <input type="password" id="change-pwd-confirm" placeholder="กรอกยืนยันรหัสผ่านใหม่..." style="width: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('change-password-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.changePasswordSubmit()">บันทึกรหัสผ่านใหม่</button>
             </div>
         </div>
     </div>
@@ -814,10 +831,10 @@
                     <input type="text" id="base-form-room" placeholder="เช่น ห้อง 1208, แปลงเกษตร...">
                 </div>
                 <div class="form-group">
-                    <label for="base-form-teacher">คุณครูผู้ดูแลหลัก</label>
-                    <select id="base-form-teacher">
-                        <!-- JS fills with teacher list -->
-                    </select>
+                    <label>คุณครูผู้ดูแลฐาน (เลือกได้หลายคน)</label>
+                    <div id="base-form-teachers-container" style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border-color); padding: 8px; border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 8px; background: white;">
+                        <!-- JS fills with teacher checkboxes -->
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
