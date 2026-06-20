@@ -96,6 +96,63 @@ class AttendanceApp {
                 }
             });
 
+            // Migration for Base 5 teachers and name
+            const newBase5Teachers = [
+                { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
+                { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
+                { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
+                { username: "phetcharin", name: "ครูเพชรดารินทร์ เดชชลธี", role: "teacher" },
+                { username: "duangsuda", name: "ครูดวงสุดา เรืองวุฒิ", role: "teacher" },
+                { username: "kongphop", name: "ครูก้องภพ มูลศรี", role: "teacher" },
+                { username: "thanchanok", name: "ครูธัญชนก พงษ์ศรี", role: "teacher" },
+                { username: "parichart", name: "ครูปาริชาติ แก้วศักดิ์", role: "teacher" }
+            ];
+
+            newBase5Teachers.forEach(tInfo => {
+                const found = this.db.teachers.find(t => t.username === tInfo.username);
+                if (!found) {
+                    this.db.teachers.push(tInfo);
+                    dbChanged = true;
+                } else if (found.name !== tInfo.name) {
+                    found.name = tInfo.name;
+                    dbChanged = true;
+                }
+            });
+
+            const base5 = this.db.bases.find(b => b.id === 'base5');
+            if (base5) {
+                if (base5.name !== 'หรรษาสุธารสเห็ด') {
+                    base5.name = 'หรรษาสุธารสเห็ด';
+                    dbChanged = true;
+                }
+                const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์";
+                const teacherIdStr = "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart";
+                if (base5.defaultTeacher !== defaultTeacherStr || base5.teacherId !== teacherIdStr) {
+                    base5.defaultTeacher = defaultTeacherStr;
+                    base5.teacherId = teacherIdStr;
+                    dbChanged = true;
+                }
+            }
+
+            // Sync rotation schedule Base 5 details
+            if (this.db.rotation_schedule) {
+                this.db.rotation_schedule.forEach(sch => {
+                    if (sch.baseId === 'base5') {
+                        if (sch.baseName !== 'หรรษาสุธารสเห็ด') {
+                            sch.baseName = 'หรรษาสุธารสเห็ด';
+                            dbChanged = true;
+                        }
+                        const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์";
+                        const teacherIdStr = "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart";
+                        if (sch.teacherName !== defaultTeacherStr || sch.teacherId !== teacherIdStr) {
+                            sch.teacherName = defaultTeacherStr;
+                            sch.teacherId = teacherIdStr;
+                            dbChanged = true;
+                        }
+                    }
+                });
+            }
+
             if (dbChanged) {
                 this.saveDatabase();
             }
@@ -123,7 +180,7 @@ class AttendanceApp {
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "ครูวรรณนา ภาษาไทย, ครูรักไทย เขียนดี", teacherId: "teacher2, teacher2_2" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "ครูสมชาย เงาดี, ครูเกรียงไกร สอนน้ำ", teacherId: "teacher3, teacher3_2" },
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "ครูอนันต์ ใจดี, ครูสุขใจ เลี้ยงไก่", teacherId: "teacher4, teacher4_2" },
-            { id: "base5", name: "หรรษาสุรารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "ครูสุรพล เลิศรส, ครูชิมเห็ด อร่อยดี", teacherId: "teacher5, teacher5_2" },
+            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์", teacherId: "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "ครูประยุทธ์ กล้าหาญ, ครูรักชาติ ยิ่งชีพ", teacherId: "teacher6, teacher6_2" },
             { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "ครูวิไล เกื้อกูล, ครูใจดี มีธรรม", teacherId: "teacher7, teacher7_2" }
         ];
@@ -138,8 +195,14 @@ class AttendanceApp {
             { username: "teacher3_2", name: "ครูเกรียงไกร สอนน้ำ", role: "teacher" },
             { username: "teacher4", name: "ครูอนันต์ ใจดี", role: "teacher" },
             { username: "teacher4_2", name: "ครูสุขใจ เลี้ยงไก่", role: "teacher" },
-            { username: "teacher5", name: "ครูสุรพล เลิศรส", role: "teacher" },
-            { username: "teacher5_2", name: "ครูชิมเห็ด อร่อยดี", role: "teacher" },
+            { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
+            { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
+            { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
+            { username: "phetcharin", name: "ครูเพชรดารินทร์ เดชชลธี", role: "teacher" },
+            { username: "duangsuda", name: "ครูดวงสุดา เรืองวุฒิ", role: "teacher" },
+            { username: "kongphop", name: "ครูก้องภพ มูลศรี", role: "teacher" },
+            { username: "thanchanok", name: "ครูธัญชนก พงษ์ศรี", role: "teacher" },
+            { username: "parichart", name: "ครูปาริชาติ แก้วศักดิ์", role: "teacher" },
             { username: "teacher6", name: "ครูประยุทธ์ กล้าหาญ", role: "teacher" },
             { username: "teacher6_2", name: "ครูรักชาติ ยิ่งชีพ", role: "teacher" },
             { username: "teacher7", name: "ครูวิไล เกื้อกูล", role: "teacher" },
@@ -308,7 +371,7 @@ class AttendanceApp {
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "", teacherId: "" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "", teacherId: "" },
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
-            { id: "base5", name: "หรรษาสุรารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
+            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
             { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "", teacherId: "" }
         ];
@@ -3327,7 +3390,7 @@ class AttendanceApp {
             roomB = "ห้อง 2201";
             roomC = "ห้อง 2102-2103";
             roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 2104" : "ห้อง 2104-2105") : "";
-        } else if (baseId === 'base5') { // หรรษาสุรารสเห็ด
+        } else if (baseId === 'base5') { // หรรษาสุธารสเห็ด
             roomA = "ห้อง 1103";
             roomB = "ห้องคหกรรม";
             roomC = "ห้อง 1105";
