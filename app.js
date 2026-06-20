@@ -1386,7 +1386,7 @@ class AttendanceApp {
                 menuManage.style.display = 'block';
             } else if (this.currentUser.role === 'director') {
                 roleLabel.textContent = "ผู้บริหารโรงเรียน";
-                menuCheckin.style.display = 'block';
+                menuCheckin.style.display = 'none';
                 menuAdmin.style.display = 'block';
                 menuManage.style.display = 'none'; // Hidden for directors
             } else {
@@ -1792,13 +1792,13 @@ class AttendanceApp {
         const buttonsContainer = document.getElementById('checkin-class-buttons-container');
         if (selectorCard) selectorCard.style.display = 'none';
 
-        // Permissions Guard: Must be teacher, admin, or director
-        if (!this.currentUser || (this.currentUser.role !== 'teacher' && this.currentUser.role !== 'admin' && this.currentUser.role !== 'director')) {
+        // Permissions Guard: Must be teacher or admin
+        if (!this.currentUser || (this.currentUser.role !== 'teacher' && this.currentUser.role !== 'admin')) {
             checkinView.innerHTML = `
                 <div class="alert-banner" style="background-color: var(--danger-bg); border-color: var(--danger); color: var(--danger); margin: 0 0 24px 0;">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <div>
-                        <strong>ปฏิเสธการเข้าถึง!</strong> เฉพาะคุณครูผู้สอนหรือผู้ดูแลระบบ/ผู้บริหารเท่านั้นที่สามารถเข้าใช้งานหน้าเช็กชื่อนี้ได้
+                        <strong>ปฏิเสธการเข้าถึง!</strong> เฉพาะคุณครูผู้สอนหรือผู้ดูแลระบบเท่านั้นที่สามารถเข้าใช้งานหน้าเช็กชื่อนี้ได้
                     </div>
                 </div>
                 <div style="text-align: center; padding: 48px 0;">
@@ -1820,12 +1820,12 @@ class AttendanceApp {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
 
-        // Admin/Director Base Selector Logic
+        // Admin Base Selector Logic
         const adminCard = document.getElementById('checkin-admin-base-selector-card');
         const adminSelect = document.getElementById('checkin-admin-base-select');
         
         let scheduleRow;
-        if (this.currentUser.role === 'admin' || this.currentUser.role === 'director') {
+        if (this.currentUser.role === 'admin') {
             if (adminCard && adminSelect) {
                 adminCard.style.display = 'block';
                 if (adminSelect.children.length === 0) {
@@ -2166,7 +2166,7 @@ class AttendanceApp {
 
         // Find schedule to get baseId
         let scheduleRow;
-        if (this.currentUser.role === 'admin' || this.currentUser.role === 'director') {
+        if (this.currentUser.role === 'admin') {
             const baseId = this.adminSelectedBaseId || (this.currentUser.username === 'admin' ? 'base5' : 'base1');
             scheduleRow = this.db.rotation_schedule.find(s => s.week === week && s.baseId === baseId);
         } else {
