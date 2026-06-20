@@ -182,224 +182,7 @@ class AttendanceApp {
         });
 
         // 4. Real Rotation Schedule (20 weeks)
-        const rotation_schedule = [];
-        const weekDates = [
-            { week: 1, dates: "19 พฤษภาคม 2569", start: "2026-05-16", end: "2026-05-22", special: "เตรียมความพร้อมครูแกนนำ นักเรียนแกนนำ" },
-            { week: 2, dates: "26 พฤษภาคม 2569", start: "2026-05-23", end: "2026-05-29", special: "นำเสนอวิธีการสอน และรูปแบบการสอนของแต่ละฐาน ห้องประชุมธนี พหลโยธิน" },
-            { week: 3, dates: "2 มิถุนายน 2569", start: "2026-05-30", end: "2026-06-05", special: "จัดการเรียนการสอนแบบ Online On-Demand" },
-            { week: 4, dates: "9 มิถุนายน 2569", start: "2026-06-06", end: "2026-06-12", block: 0, isB: false },
-            { week: 5, dates: "16 มิถุนายน 2569", start: "2026-06-13", end: "2026-06-19", block: 0, isB: true },
-            { week: 6, dates: "23 มิถุนายน 2569", start: "2026-06-20", end: "2026-06-26", block: 1, isB: false }, // Today Week 6!
-            { week: 7, dates: "30 มิถุนายน 2569", start: "2026-06-27", end: "2026-07-03", block: 1, isB: true },
-            { week: 8, dates: "7 กรกฎาคม 2569", start: "2026-07-04", end: "2026-07-10", block: 2, isB: false },
-            { week: 9, dates: "14 กรกฎาคม 2569", start: "2026-07-11", end: "2026-07-17", block: 2, isB: true },
-            { week: 10, dates: "21 กรกฎาคม 2569", start: "2026-07-18", end: "2026-07-24", special: "สอบกลางภาค" },
-            { week: 11, dates: "28 กรกฎาคม 2569", start: "2026-07-25", end: "2026-07-31", special: "วันหยุดราชการ" },
-            { week: 12, dates: "4 สิงหาคม 2569", start: "2026-08-01", end: "2026-08-07", block: 3, isB: false },
-            { week: 13, dates: "11 สิงหาคม 2569", start: "2026-08-08", end: "2026-08-14", block: 3, isB: true },
-            { week: 14, dates: "18 สิงหาคม 2569", start: "2026-08-15", end: "2026-08-21", block: 4, isB: false },
-            { week: 15, dates: "25 สิงหาคม 2569", start: "2026-08-22", end: "2026-08-28", block: 4, isB: true },
-            { week: 16, dates: "1 กันยายน 2569", start: "2026-08-29", end: "2026-09-04", block: 5, isB: false },
-            { week: 17, dates: "8 กันยายน 2569", start: "2026-09-05", end: "2026-09-11", block: 5, isB: true },
-            { week: 18, dates: "15 กันยายน 2569", start: "2026-09-12", end: "2026-09-18", block: 6, isB: false },
-            { week: 19, dates: "22 กันยายน 2569", start: "2026-09-19", end: "2026-09-25", block: 6, isB: true },
-            { week: 20, dates: "29 กันยายน 2569", start: "2026-09-26", end: "2026-10-02", special: "สอบปลายภาค" }
-        ];
-
-        const grades = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ว่าง"];
-
-        // Helper function for rotation mapping
-        const getClassesForBaseAndGrade = (baseId, grade, isWeekB) => {
-            const allGradeClasses = {
-                "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9"],
-                "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9"],
-                "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8"],
-                "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7"],
-                "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6"],
-                "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
-            };
-
-            if (baseId === 'base1') { // ไฟเบอร์ ทรงพลัง
-                const cls = allGradeClasses[grade] || [];
-                const rooms = {};
-                cls.forEach(c => { rooms[c] = "หอประชุมพุทธรักษา"; });
-                return {
-                    classes: cls,
-                    classRooms: rooms,
-                    classesLabel: `${grade} (หอประชุมพุทธรักษา)`
-                };
-            }
-
-            if (baseId === 'base7') { // หลู่ล่างกานเครือ เกื้อบุญ
-                const cls = allGradeClasses[grade] || [];
-                const rooms = {};
-                cls.forEach(c => { rooms[c] = "หอประชุมศุภเมธี"; });
-                return {
-                    classes: cls,
-                    classRooms: rooms,
-                    classesLabel: `${grade} (หอประชุมศุภเมธี)`
-                };
-            }
-
-            const group1 = [];
-            const group2 = [];
-            const group3 = [];
-            const group4 = [];
-            
-            if (grade === 'ม.1' || grade === 'ม.2') {
-                group1.push(`${grade}/1`, `${grade}/9`);
-                group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
-                group3.push(`${grade}/5`, `${grade}/6`);
-                group4.push(`${grade}/7`, `${grade}/8`);
-            } else if (grade === 'ม.3') {
-                group1.push(`${grade}/1`, `${grade}/8`);
-                group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
-                group3.push(`${grade}/5`, `${grade}/6`);
-                group4.push(`${grade}/7`);
-            } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
-                if (grade === 'ม.4') {
-                    group1.push("ม.4/1", "ม.4/7");
-                    group2.push("ม.4/2", "ม.4/5", "ม.4/6");
-                    group3.push("ม.4/3", "ม.4/4");
-                } else {
-                    group1.push(`${grade}/1`, `${grade}/6`);
-                    group2.push(`${grade}/2`, `${grade}/5`);
-                    group3.push(`${grade}/3`, `${grade}/4`);
-                }
-            }
-
-            const classesList = [];
-            const classRooms = {};
-            let roomA = '', roomB = '', roomC = '', roomD = '';
-
-            const isJunior = (grade === 'ม.1' || grade === 'ม.2' || grade === 'ม.3');
-
-            if (baseId === 'base2') { // อาณาจักรอักษร
-                roomA = "ห้อง 2206";
-                roomB = "ห้องสมุด";
-                roomC = "ห้อง 2202-2203";
-                roomD = "ห้อง 2204-2205";
-                if (!isJunior) {
-                    roomA = "ห้อง 2202-2203";
-                    roomB = "ห้องสมุด";
-                    roomC = "ห้อง 2204-2205";
-                    roomD = "";
-                }
-            } else if (baseId === 'base3') { // เงาในน้ำ
-                roomA = "ห้อง 1208";
-                roomB = "ห้อง 1201";
-                roomC = "ห้อง 1203-1204";
-                roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 1205" : "ห้อง 1205-1206") : "";
-            } else if (baseId === 'base4') { // ไก่ไข่อารมณ์ดี
-                roomA = "ห้อง 2101";
-                roomB = "ห้อง 2201";
-                roomC = "ห้อง 2102-2103";
-                roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 2104" : "ห้อง 2104-2105") : "";
-            } else if (baseId === 'base5') { // หรรษาสุรารสเห็ด
-                roomA = "ห้อง 1103";
-                roomB = "ห้องคหกรรม";
-                roomC = "ห้อง 1105";
-                roomD = isJunior ? "ห้อง 1107" : "";
-            } else if (baseId === 'base6') { // ต้นกล้าประชาธิปไตย
-                roomA = isJunior ? "ห้อง 2306" : "ห้อง 2301";
-                roomB = "ห้องประชุมธนี พหลโยธิน";
-                roomC = "ห้องคอมพิวเตอร์ 1 4101";
-                roomD = isJunior ? "ห้อง 2301" : "";
-            }
-
-            if (!isWeekB) {
-                classesList.push(...group1, ...group2);
-                group1.forEach(c => { classRooms[c] = roomA; });
-                group2.forEach(c => { classRooms[c] = roomB; });
-            } else {
-                classesList.push(...group3, ...group4);
-                group3.forEach(c => { classRooms[c] = roomC; });
-                group4.forEach(c => { classRooms[c] = roomD; });
-            }
-
-            let label = '';
-            if (!isWeekB) {
-                label = `${group1.join(', ')} (${roomA}) | ${group2.join(', ')} (${roomB})`;
-            } else {
-                if (group4.length > 0) {
-                    label = `${group3.join(', ')} (${roomC}) | ${group4.join(', ')} (${roomD})`;
-                } else {
-                    label = `${group3.join(', ')} (${roomC})`;
-                }
-            }
-
-            return {
-                classes: classesList,
-                classRooms: classRooms,
-                classesLabel: label
-            };
-        };
-
-        weekDates.forEach((w) => {
-            if (w.special) {
-                bases.forEach(b => {
-                    rotation_schedule.push({
-                        week: w.week,
-                        dates: w.dates,
-                        startDate: w.start,
-                        endDate: w.end,
-                        baseId: b.id,
-                        baseName: b.name,
-                        classes: w.special,
-                        attendingClasses: [],
-                        classRooms: {},
-                        room: b.defaultRoom,
-                        teacherName: b.defaultTeacher,
-                        teacherId: b.teacherId,
-                        isSpecial: true
-                    });
-                });
-            } else {
-                for (let bIdx = 0; bIdx < 7; bIdx++) {
-                    const b = bases[bIdx];
-                    const gIdx = (bIdx - w.block + 7) % 7;
-                    const grade = grades[gIdx];
-
-                    if (grade === "ว่าง") {
-                        rotation_schedule.push({
-                            week: w.week,
-                            dates: w.dates,
-                            startDate: w.start,
-                            endDate: w.end,
-                            baseId: b.id,
-                            baseName: b.name,
-                            classes: "ว่าง (ไม่มีการจัดเรียน)",
-                            attendingClasses: [],
-                            classRooms: {},
-                            room: "-",
-                            teacherName: b.defaultTeacher,
-                            teacherId: b.teacherId,
-                            isEmpty: true
-                        });
-                    } else {
-                        const classData = getClassesForBaseAndGrade(b.id, grade, w.isB);
-                        
-                        // Find first room key to display as main room label
-                        const mainRoom = Object.values(classData.classRooms)[0] || b.defaultRoom;
-
-                        rotation_schedule.push({
-                            week: w.week,
-                            dates: w.dates,
-                            startDate: w.start,
-                            endDate: w.end,
-                            baseId: b.id,
-                            baseName: b.name,
-                            classes: classData.classesLabel,
-                            attendingClasses: classData.classes,
-                            classRooms: classData.classRooms,
-                            room: mainRoom,
-                            teacherName: b.defaultTeacher,
-                            teacherId: b.teacherId
-                        });
-                    }
-                }
-            }
-        });
+        const rotation_schedule = this.generateDefaultRotationSchedule(bases);
 
         // 5. Pre-seed logs (Weeks 4 and 5 active, Week 6 partially checked)
         const attendance_logs = [];
@@ -510,7 +293,7 @@ class AttendanceApp {
         this.db.students = [];
         this.db.teachers = systemTeachers;
         this.db.bases = bases;
-        this.db.rotation_schedule = [];
+        this.db.rotation_schedule = this.generateDefaultRotationSchedule();
         this.db.attendance_logs = [];
 
         this.saveDatabase();
@@ -3326,6 +3109,101 @@ class AttendanceApp {
             classRooms: classRooms,
             classesLabel: label
         };
+    }
+
+    generateDefaultRotationSchedule(customBases = null) {
+        const rotation_schedule = [];
+        const weekDates = [
+            { week: 1, dates: "19 พฤษภาคม 2569", start: "2026-05-16", end: "2026-05-22", special: "เตรียมความพร้อมครูแกนนำ นักเรียนแกนนำ" },
+            { week: 2, dates: "26 พฤษภาคม 2569", start: "2026-05-23", end: "2026-05-29", special: "นำเสนอวิธีการสอน และรูปแบบการสอนของแต่ละฐาน ห้องประชุมธนี พหลโยธิน" },
+            { week: 3, dates: "2 มิถุนายน 2569", start: "2026-05-30", end: "2026-06-05", special: "จัดการเรียนการสอนแบบ Online On-Demand" },
+            { week: 4, dates: "9 มิถุนายน 2569", start: "2026-06-06", end: "2026-06-12", block: 0, isB: false },
+            { week: 5, dates: "16 มิถุนายน 2569", start: "2026-06-13", end: "2026-06-19", block: 0, isB: true },
+            { week: 6, dates: "23 มิถุนายน 2569", start: "2026-06-20", end: "2026-06-26", block: 1, isB: false },
+            { week: 7, dates: "30 มิถุนายน 2569", start: "2026-06-27", end: "2026-07-03", block: 1, isB: true },
+            { week: 8, dates: "7 กรกฎาคม 2569", start: "2026-07-04", end: "2026-07-10", block: 2, isB: false },
+            { week: 9, dates: "14 กรกฎาคม 2569", start: "2026-07-11", end: "2026-07-17", block: 2, isB: true },
+            { week: 10, dates: "21 กรกฎาคม 2569", start: "2026-07-18", end: "2026-07-24", special: "สอบกลางภาค" },
+            { week: 11, dates: "28 กรกฎาคม 2569", start: "2026-07-25", end: "2026-07-31", special: "วันหยุดราชการ" },
+            { week: 12, dates: "4 สิงหาคม 2569", start: "2026-08-01", end: "2026-08-07", block: 3, isB: false },
+            { week: 13, dates: "11 สิงหาคม 2569", start: "2026-08-08", end: "2026-08-14", block: 3, isB: true },
+            { week: 14, dates: "18 สิงหาคม 2569", start: "2026-08-15", end: "2026-08-21", block: 4, isB: false },
+            { week: 15, dates: "25 สิงหาคม 2569", start: "2026-08-22", end: "2026-08-28", block: 4, isB: true },
+            { week: 16, dates: "1 กันยายน 2569", start: "2026-08-29", end: "2026-09-04", block: 5, isB: false },
+            { week: 17, dates: "8 กันยายน 2569", start: "2026-09-05", end: "2026-09-11", block: 5, isB: true },
+            { week: 18, dates: "15 กันยายน 2569", start: "2026-09-12", end: "2026-09-18", block: 6, isB: false },
+            { week: 19, dates: "22 กันยายน 2569", start: "2026-09-19", end: "2026-09-25", block: 6, isB: true },
+            { week: 20, dates: "29 กันยายน 2569", start: "2026-09-26", end: "2026-10-02", special: "สอบปลายภาค" }
+        ];
+
+        const grades = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ว่าง"];
+        const bases = customBases || this.db.bases;
+
+        weekDates.forEach((w) => {
+            if (w.special) {
+                bases.forEach(b => {
+                    rotation_schedule.push({
+                        week: w.week,
+                        dates: w.dates,
+                        startDate: w.start,
+                        endDate: w.end,
+                        baseId: b.id,
+                        baseName: b.name,
+                        classes: w.special,
+                        attendingClasses: [],
+                        classRooms: {},
+                        room: b.defaultRoom || "-",
+                        teacherName: b.defaultTeacher || "-",
+                        teacherId: b.teacherId || "",
+                        isSpecial: true
+                    });
+                });
+            } else {
+                for (let bIdx = 0; bIdx < 7; bIdx++) {
+                    const b = bases[bIdx];
+                    const gIdx = (bIdx - w.block + 7) % 7;
+                    const grade = grades[gIdx];
+
+                    if (grade === "ว่าง") {
+                        rotation_schedule.push({
+                            week: w.week,
+                            dates: w.dates,
+                            startDate: w.start,
+                            endDate: w.end,
+                            baseId: b.id,
+                            baseName: b.name,
+                            classes: "ว่าง (ไม่มีการจัดเรียน)",
+                            attendingClasses: [],
+                            classRooms: {},
+                            room: "-",
+                            teacherName: b.defaultTeacher || "-",
+                            teacherId: b.teacherId || "",
+                            isEmpty: true
+                        });
+                    } else {
+                        const classData = this.getClassesForBaseAndGrade(b.id, grade, w.isB);
+                        const mainRoom = Object.values(classData.classRooms)[0] || b.defaultRoom || "-";
+
+                        rotation_schedule.push({
+                            week: w.week,
+                            dates: w.dates,
+                            startDate: w.start,
+                            endDate: w.end,
+                            baseId: b.id,
+                            baseName: b.name,
+                            classes: classData.classesLabel,
+                            attendingClasses: classData.classes,
+                            classRooms: classData.classRooms,
+                            room: mainRoom,
+                            teacherName: b.defaultTeacher || "-",
+                            teacherId: b.teacherId || ""
+                        });
+                    }
+                }
+            }
+        });
+
+        return rotation_schedule;
     }
 }
 
