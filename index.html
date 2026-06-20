@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเช็กชื่อหมุนฐาน - วิชาเศรษฐกิจพอเพียง โรงเรียนปายวิทยาคาร</title>
+    
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- FontAwesome for Premium Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- SheetJS (XLSX) for Excel Import/Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="app-sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i class="fa-solid fa-leaf"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>เศรษฐกิจพอเพียง</h1>
+                    <p>ร.ร.ปายวิทยาคาร</p>
+                </div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="active" data-view="dashboard">
+                    <a href="#"><i class="fa-solid fa-chart-pie"></i><span>แผงควบคุม (Dashboard)</span></a>
+                </li>
+                <li data-view="rotation" id="menu-rotation">
+                    <a href="#"><i class="fa-solid fa-arrows-spin"></i><span>ตารางหมุนฐาน</span></a>
+                </li>
+                <li data-view="checkin" id="menu-checkin">
+                    <a href="#"><i class="fa-solid fa-calendar-check"></i><span>เช็กชื่อนักเรียน</span></a>
+                </li>
+                <li data-view="admin" id="menu-admin">
+                    <a href="#"><i class="fa-solid fa-user-tie"></i><span>ผู้บริหาร (Overview)</span></a>
+                </li>
+                <li data-view="reports">
+                    <a href="#"><i class="fa-solid fa-file-invoice"></i><span>รายงานและการส่งออก</span></a>
+                </li>
+                <li data-view="manage" id="menu-manage">
+                    <a href="#"><i class="fa-solid fa-sliders"></i><span>จัดการข้อมูลระบบ</span></a>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div class="user-profile" id="user-profile-section">
+                    <div class="user-avatar" id="profile-avatar">U</div>
+                    <div class="user-info">
+                        <div class="user-name" id="profile-name">ไม่ได้เข้าสู่ระบบ</div>
+                        <div class="user-role" id="profile-role">กรุณาเข้าสู่ระบบ</div>
+                    </div>
+                </div>
+                <button class="btn-logout" id="auth-action-btn">
+                    <i class="fa-solid fa-right-to-bracket"></i> <span id="auth-btn-text">เข้าสู่ระบบ</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            
+            <!-- Top Header -->
+            <header class="top-header">
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <button class="menu-toggle" id="sidebar-toggle">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div class="header-title">
+                        <h2 id="current-view-title">แผงควบคุม (Dashboard)</h2>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    <!-- Date Simulation Widget -->
+                    <div class="date-simulator" title="จำลองวันที่ปัจจุบันของระบบเพื่อทดสอบการเช็กชื่อในสัปดาห์อื่น">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>วันที่ปัจจุบัน:</span>
+                        <input type="date" id="system-date-input" value="2026-06-20">
+                    </div>
+                </div>
+            </header>
+
+            <!-- Banner Alert (System Notice) -->
+            <div id="demo-notification" class="alert-banner" style="margin: 20px 32px 0 32px; display: none;">
+                <i class="fa-solid fa-circle-info"></i>
+                <div style="flex: 1;">
+                    <strong>โหมดข้อมูลจำลองเริ่มต้นสำเร็จ!</strong> ระบบจะอิงตารางเรียนจริงจากปีการศึกษา 2569 (สัปดาห์ที่ 6 ตรงกับ 15-21 มิถุนายน 2569) ท่านสามารถเปลี่ยนวันที่ข้างต้นเพื่อทดสอบข้อมูลฐานอื่น ๆ ได้
+                </div>
+                <button class="btn btn-sm btn-outline" onclick="document.getElementById('demo-notification').style.display='none'">ปิด</button>
+            </div>
+
+            <!-- VIEW: Dashboard -->
+            <section class="view-container active" id="view-dashboard">
+                <!-- Dashboard Statistics Cards -->
+                <div class="stat-grid">
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>สัปดาห์เรียนที่</h3>
+                            <p id="dash-week-num">Week -</p>
+                        </div>
+                        <div class="stat-icon primary">
+                            <i class="fa-solid fa-calendar-days"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>จำนวนฐานที่เช็กแล้ว</h3>
+                            <p id="dash-checked-bases">0/7 ฐาน</p>
+                        </div>
+                        <div class="stat-icon success">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>จำนวนนักเรียนทั้งหมด</h3>
+                            <p id="dash-total-students">0 คน</p>
+                        </div>
+                        <div class="stat-icon info">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>มาเรียนวันนี้</h3>
+                            <p id="dash-present-rate">0%</p>
+                        </div>
+                        <div class="stat-icon warning">
+                            <i class="fa-solid fa-user-check"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Dashboard Grid -->
+                <div class="main-grid">
+                    <!-- Column 1: Active Bases Today -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-network-wired text-primary"></i> สถานะการเช็กชื่อฐานการเรียนรู้วันนี้</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ฐานการเรียนรู้</th>
+                                        <th>ระดับชั้นเรียนที่เข้าเรียนวันนี้</th>
+                                        <th>ห้องเรียน/สถานที่</th>
+                                        <th>ครูผู้รับผิดชอบ</th>
+                                        <th>สถานะเช็กชื่อ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dash-bases-table-body">
+                                    <!-- Dynamic content loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Quick Charts -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-chart-donut"></i> อัตราส่วนการเข้าเรียน</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="dashboard-attendance-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Rotation Schedule -->
+            <section class="view-container" id="view-rotation">
+                <!-- Rotation operations control bar -->
+                <div class="filter-bar no-print">
+                    <div style="flex: 1; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <span style="font-weight: 600; color: var(--text-primary);"><i class="fa-solid fa-sliders text-primary"></i> แสดงผลตาราง:</span>
+                        <button class="btn btn-primary btn-sm" id="btn-rotation-mode-simple">
+                            <i class="fa-solid fa-table"></i> เฉพาะระดับชั้น
+                        </button>
+                        <button class="btn btn-outline btn-sm" id="btn-rotation-mode-detail">
+                            <i class="fa-solid fa-list-ul"></i> แสดงห้องเรียนและสถานที่
+                        </button>
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline" id="btn-print-rotation" title="พิมพ์ตารางหมุนฐานเป็น PDF">
+                            <i class="fa-solid fa-print"></i> พิมพ์ / PDF
+                        </button>
+                        <button class="btn btn-success" id="btn-export-rotation-excel" title="ส่งออกตารางหมุนฐานเป็น Excel">
+                            <i class="fa-solid fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Printable Matrix Card -->
+                <div class="card" id="rotation-matrix-card">
+                    <div class="card-header" style="flex-direction: column; align-items: center; border-bottom: 2px solid var(--border-color); text-align: center; padding-bottom: 20px;">
+                        <h2 style="font-size: 20px; font-weight: 700; color: var(--text-primary);"><i class="fa-solid fa-arrows-spin text-primary"></i> ปฏิทินการจัดกิจกรรมเรียนรู้แบบหมุนฐาน</h2>
+                        <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-top: 4px;">รายวิชาเศรษฐกิจพอเพียง โรงเรียนปายวิทยาคาร ภาคเรียนที่ 1/2569</h4>
+                    </div>
+                    
+                    <div class="table-responsive" style="margin-top: 20px;">
+                        <table class="rotation-matrix-table" id="rotation-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>สัปดาห์</th>
+                                    <th>ช่วงวันที่</th>
+                                    <th>ไฟเบอร์ ทรงพลัง (ฐาน 1)</th>
+                                    <th>อาณาจักรอักษร (ฐาน 2)</th>
+                                    <th>เงาในน้ำ (ฐาน 3)</th>
+                                    <th>ไก่ไข่อารมณ์ดี (ฐาน 4)</th>
+                                    <th>หรรษาสุรารสเห็ด (ฐาน 5)</th>
+                                    <th>ต้นกล้าประชาธิปไตย (ฐาน 6)</th>
+                                    <th>หลู่ล่างกานเครือ เกื้อบุญ (ฐาน 7)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rotation-matrix-table-body">
+                                <!-- Dynamic rows loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Attendance Check-in -->
+            <section class="view-container" id="view-checkin">
+                <!-- Check-in header status -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <div class="status-badge" style="background-color: rgba(255, 255, 255, 0.2); color: white; margin-bottom: 8px;" id="checkin-week-label">
+                                สัปดาห์ที่ 6 (20 มิ.ย. 2569)
+                            </div>
+                            <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;" id="checkin-base-title">ฐาน: -</h2>
+                            <p style="opacity: 0.9;" id="checkin-base-info"><i class="fa-solid fa-user"></i> ครูผู้สอน: - | <i class="fa-solid fa-location-dot"></i> สถานที่: -</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-size: 14px; opacity: 0.9;">นักเรียนที่ต้องเข้าเรียนวันนี้</p>
+                            <h3 style="font-size: 20px; font-weight: 700;" id="checkin-classes-label">-</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checkin operations control bar -->
+                <div class="filter-bar">
+                    <div style="flex: 1; display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button class="btn btn-success btn-lg" id="btn-check-all-present">
+                            <i class="fa-solid fa-check-double"></i> นักเรียนมาทั้งหมด (มาทุกคน)
+                        </button>
+                        <button class="btn btn-outline" id="btn-reset-checkin">
+                            <i class="fa-solid fa-rotate-left"></i> ล้างข้อมูลใหม่
+                        </button>
+                    </div>
+                    
+                    <div class="date-simulator" style="background-color: var(--gray-light); padding: 8px 16px; border-radius: var(--radius-md);">
+                        <span id="checkin-counter-label">มา 0 / ขาด 0 / ลา 0 / สาย 0 / กิจกรรม 0</span>
+                    </div>
+                </div>
+
+                <!-- Student List Grid Container -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-id-card"></i> รายชื่อนักเรียนระดับชั้น <span id="checkin-target-classes">-</span></h3>
+                        <div class="card-actions">
+                            <div class="search-wrapper">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="checkin-student-search" placeholder="ค้นหาชื่อหรือเลขประจำตัว..." style="padding: 6px 12px 6px 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-family: inherit;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="attendance-list" id="student-attendance-list-container">
+                        <!-- Dynamic Student check-in rows loaded by JS -->
+                    </div>
+
+                    <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
+                        <button class="btn btn-primary btn-lg" id="btn-save-attendance" style="padding: 14px 40px; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4);">
+                            <i class="fa-solid fa-floppy-disk"></i> บันทึกการเข้าเรียน
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Executive / Director Dashboard -->
+            <section class="view-container" id="view-admin">
+                <div class="alert-banner" style="background-color: rgba(59, 130, 246, 0.08); border-color: var(--info); color: var(--info);">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <div>
+                        <strong>หน้าจอดูภาพรวมสำหรับผู้บริหารโรงเรียน:</strong> แสดงสถิติการเช็กชื่อของทุกฐาน สัดส่วนการขาดเรียนรายชั้นเรียน และตรวจสอบครูที่เช็กช้ากว่ากำหนด
+                    </div>
+                </div>
+
+                <div class="stat-grid">
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>อัตราการเข้าเรียนรวมวันนี้</h3>
+                            <p id="admin-overall-rate">0%</p>
+                        </div>
+                        <div class="stat-icon success">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>จำนวนนักเรียนที่ขาดวันนี้</h3>
+                            <p id="admin-absent-count">0 คน</p>
+                        </div>
+                        <div class="stat-icon danger">
+                            <i class="fa-solid fa-user-slash"></i>
+                        </div>
+                    </div>
+                    <div class="card stat-card">
+                        <div class="stat-info">
+                            <h3>ฐานที่เช็กชื่อล่าช้า</h3>
+                            <p id="admin-late-bases-count">0 ฐาน</p>
+                        </div>
+                        <div class="stat-icon warning">
+                            <i class="fa-solid fa-hourglass-half"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="main-grid">
+                    <!-- Column 1: Detailed school checkin list -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-list-check"></i> รายละเอียดการเช็กชื่อของแต่ละฐาน</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ฐานการเรียนรู้</th>
+                                        <th>ครูประจำฐาน</th>
+                                        <th>ห้องเรียน/สถานที่</th>
+                                        <th>ระดับชั้นเรียนวันนี้</th>
+                                        <th>สถานะเช็กชื่อ</th>
+                                        <th>เวลาที่บันทึก</th>
+                                        <th>มาเรียน/ทั้งหมด</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-bases-status-table">
+                                    <!-- Loaded via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Attendance per Grade chart -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-chart-bar"></i> อัตราเข้าเรียนแยกตามระดับชั้น (%)</h3>
+                        </div>
+                        <div class="chart-container" style="height: 320px;">
+                            <canvas id="admin-grade-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Reports -->
+            <section class="view-container" id="view-reports">
+                <!-- Filters for report -->
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label for="report-type-select">ประเภทรายงาน</label>
+                        <select id="report-type-select">
+                            <option value="daily">รายงานรายวัน (สถิติเข้าเรียนวันนี้)</option>
+                            <option value="weekly">รายงานรายสัปดาห์ (สรุปตาม Week)</option>
+                            <option value="base">รายงานรายฐานการเรียนรู้</option>
+                            <option value="grade">รายงานรายชั้นเรียน (ม.1 - ม.6)</option>
+                            <option value="class">รายงานรายห้องเรียนรายบุคคล</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group" id="report-week-group">
+                        <label for="report-week-select">สัปดาห์เรียนที่</label>
+                        <select id="report-week-select">
+                            <!-- JS loads weeks -->
+                        </select>
+                    </div>
+
+                    <div class="filter-group" id="report-base-group" style="display: none;">
+                        <label for="report-base-select">เลือกฐานการเรียนรู้</label>
+                        <select id="report-base-select">
+                            <option value="all">ทุกฐานการเรียนรู้</option>
+                            <!-- JS loads bases -->
+                        </select>
+                    </div>
+
+                    <div class="filter-group" id="report-class-group" style="display: none;">
+                        <label for="report-class-select">เลือกห้องเรียน</label>
+                        <select id="report-class-select">
+                            <!-- JS loads rooms -->
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 8px; align-self: flex-end;">
+                        <button class="btn btn-outline" id="btn-export-pdf" title="พิมพ์รายงานหน้าตามาตรฐานออกมาเป็น PDF">
+                            <i class="fa-solid fa-file-pdf text-danger"></i> พิมพ์ / PDF
+                        </button>
+                        <button class="btn btn-success" id="btn-export-excel" title="ส่งออกข้อมูลสรุปทั้งหมดลงไฟล์ Excel">
+                            <i class="fa-solid fa-file-excel"></i> Export Excel
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Printable Report Sheet -->
+                <div class="card" id="printable-report-card">
+                    <div class="card-header" style="flex-direction: column; align-items: center; border-bottom: 2px solid var(--border-color); text-align: center; padding-bottom: 24px;">
+                        <h2 style="font-size: 20px; font-weight: 700; color: var(--text-primary);" id="report-header-title">รายงานการเข้าเรียน รายวิชาเศรษฐกิจพอเพียง</h2>
+                        <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-top: 4px;" id="report-header-subtitle">โรงเรียนปายวิทยาคาร</h4>
+                        <p style="font-size: 12px; color: var(--text-light); margin-top: 4px;" id="report-header-date">พิมพ์ ณ วันที่: -</p>
+                    </div>
+
+                    <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;" id="report-summary-stats">
+                        <!-- Loaded dynamically -->
+                    </div>
+
+                    <div class="table-responsive" style="margin-top: 20px;">
+                        <table id="reports-output-table">
+                            <thead>
+                                <tr id="report-table-header">
+                                    <!-- Dynamic header based on report type -->
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body">
+                                <!-- Dynamic rows loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: CRUD Management -->
+            <section class="view-container" id="view-manage">
+                <div id="manage-content-wrapper">
+                    <!-- Inner sub-navigation tabs -->
+                    <div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 24px;">
+                        <button class="btn btn-outline btn-sm active" id="btn-tab-students" onclick="app.switchManageTab('students')">จัดการนักเรียน</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-teachers" onclick="app.switchManageTab('teachers')">จัดการคุณครู</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-bases" onclick="app.switchManageTab('bases')">จัดการฐานการเรียนรู้</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-schedule" onclick="app.switchManageTab('schedule')">จัดการตารางหมุนฐาน</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-import" onclick="app.switchManageTab('import')">Import/Export Excel</button>
+                    </div>
+
+                    <!-- Sub-view: Students -->
+                    <div class="manage-sub-view" id="manage-sub-students">
+                        <div class="filter-bar" style="margin-bottom: 16px;">
+                            <div class="search-wrapper" style="flex: 1;">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="manage-student-search" placeholder="ค้นหาชื่อ, เลขประจำตัว, หรือระดับชั้น..." style="padding: 10px 12px 10px 36px; width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-family: inherit;">
+                            </div>
+                            <button class="btn btn-primary" onclick="app.openAddStudentModal()">
+                                <i class="fa-solid fa-user-plus"></i> เพิ่มนักเรียนใหม่
+                            </button>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>เลขที่</th>
+                                            <th>เลขประจำตัว</th>
+                                            <th>ชื่อ-นามสกุล</th>
+                                            <th>ชั้นเรียน</th>
+                                            <th>ห้องเรียน</th>
+                                            <th>การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manage-students-table-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                                <p style="font-size: 13px; color: var(--text-secondary);" id="student-pagination-info">แสดง 1 - 20 จากทั้งหมด - คน</p>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-outline btn-sm" id="btn-student-prev">ก่อนหน้า</button>
+                                    <button class="btn btn-outline btn-sm" id="btn-student-next">ถัดไป</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: Teachers -->
+                    <div class="manage-sub-view" id="manage-sub-teachers" style="display: none;">
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                            <button class="btn btn-primary" onclick="app.openAddTeacherModal()">
+                                <i class="fa-solid fa-plus"></i> เพิ่มคุณครู
+                            </button>
+                        </div>
+                        <div class="card">
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>รหัสผู้ใช้งาน</th>
+                                            <th>ชื่อครูผู้สอน</th>
+                                            <th>บทบาท</th>
+                                            <th>การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manage-teachers-table-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: Bases -->
+                    <div class="manage-sub-view" id="manage-sub-bases" style="display: none;">
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                            <button class="btn btn-primary" onclick="app.openAddBaseModal()">
+                                <i class="fa-solid fa-plus"></i> เพิ่มฐานเรียนรู้
+                            </button>
+                        </div>
+                        <div class="card">
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ชื่อฐานการเรียนรู้</th>
+                                            <th>สถานที่/ห้องเรียนประจำ</th>
+                                            <th>ครูรับผิดชอบเริ่มต้น</th>
+                                            <th>การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manage-bases-table-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: Schedule -->
+                    <div class="manage-sub-view" id="manage-sub-schedule" style="display: none;">
+                        <div class="filter-bar" style="margin-bottom: 16px;">
+                            <div class="filter-group">
+                                <label for="manage-schedule-week-filter">กรองสัปดาห์ที่</label>
+                                <select id="manage-schedule-week-filter">
+                                    <option value="all">ทุกสัปดาห์ (1-18)</option>
+                                    <!-- loaded dynamically -->
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" onclick="app.openAddScheduleModal()">
+                                <i class="fa-solid fa-calendar-plus"></i> เพิ่มตารางหมุนฐาน
+                            </button>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>สัปดาห์</th>
+                                            <th>ช่วงวันที่</th>
+                                            <th>ฐานการเรียนรู้</th>
+                                            <th>ระดับชั้นเข้าเรียน</th>
+                                            <th>ห้องเรียน/สถานที่</th>
+                                            <th>ครูประจำฐาน</th>
+                                            <th>การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manage-schedule-table-body">
+                                        <!-- Dynamic -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: Import/Export Excel Panel -->
+                    <div class="manage-sub-view" id="manage-sub-import" style="display: none;">
+                        <div class="card" style="margin-bottom: 24px;">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-file-import text-primary"></i> นำเข้าข้อมูลระบบด้วย Excel / CSV</h3>
+                            </div>
+                            
+                            <div class="import-section">
+                                <!-- Box: Students Import -->
+                                <div class="import-box" onclick="document.getElementById('import-students-file').click()">
+                                    <i class="fa-solid fa-users-viewfinder"></i>
+                                    <h4>นำเข้าข้อมูลนักเรียน</h4>
+                                    <p>นำเข้ารายชื่อนักเรียนใหม่ อัปเดตเลขที่ และเลขประจำตัว</p>
+                                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); app.downloadStudentTemplate()">ดาวน์โหลดไฟล์ต้นแบบ (Students Template)</button>
+                                    <input type="file" id="import-students-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleExcelImport(this, 'students')">
+                                </div>
+                                
+                                <!-- Box: Rotation Schedule Import -->
+                                <div class="import-box" onclick="document.getElementById('import-schedule-file').click()">
+                                    <i class="fa-solid fa-calendar-days"></i>
+                                    <h4>นำเข้าปฏิทินหมุนฐาน</h4>
+                                    <p>นำเข้าตารางเรียนและหมุนฐานระดับชั้นของภาคเรียน (Week 1 - 18)</p>
+                                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); app.downloadScheduleTemplate()">ดาวน์โหลดไฟล์ต้นแบบ (Schedule Template)</button>
+                                    <input type="file" id="import-schedule-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleExcelImport(this, 'schedule')">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-database text-warning"></i> ระบบข้อมูลและการรีเซ็ตฐานข้อมูล</h3>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+                                คุณสามารถดาวน์โหลดแบ็กอัปฐานข้อมูลระบบทั้งหมดเก็บไว้เป็นไฟล์ JSON หรือทำการรีเซ็ตข้อมูลเริ่มต้น (Demo Data) ใหม่ทั้งหมดเพื่อจุดประสงค์ในการสาธิตทดลองใช้งาน
+                            </p>
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                <button class="btn btn-outline" onclick="app.backupDatabase()">
+                                    <i class="fa-solid fa-download"></i> สำรองข้อมูลเบส (JSON)
+                                </button>
+                                <button class="btn btn-outline" onclick="document.getElementById('restore-db-file').click()">
+                                    <i class="fa-solid fa-upload"></i> กู้คืนข้อมูลระบบ (JSON)
+                                </button>
+                                <input type="file" id="restore-db-file" accept=".json" style="display: none;" onchange="app.restoreDatabase(this)">
+                                <button class="btn btn-danger" onclick="app.resetToDemoData(true)">
+                                    <i class="fa-solid fa-trash-arrow-up"></i> ลบและโหลด Demo Data ใหม่ทั้งหมด
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="manage-denied-wrapper" style="display: none; text-align: center; padding: 64px 24px;">
+                    <div class="alert-banner" style="background-color: var(--danger-bg); border-color: var(--danger); color: var(--danger); margin: 0 auto 24px auto; max-width: 600px; text-align: left;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div>
+                            <strong>ปฏิเสธการเข้าถึง!</strong> เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถเข้าใช้งานหน้าจัดการข้อมูลระบบนี้ได้
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-lock" style="font-size: 64px; color: var(--text-light); margin-bottom: 16px;"></i>
+                    <p style="color: var(--text-secondary); font-size: 15px; font-weight: 500;">บัญชีปัจจุบันของคุณไม่มีสิทธิ์ระดับผู้ดูแลระบบในการแก้ไขฐานข้อมูล</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL: LOGIN DIALOG -->
+    <div class="modal" id="login-modal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3>เข้าสู่ระบบผู้ใช้งาน</h3>
+                <button class="modal-close" onclick="app.closeModal('login-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="login-user-select">เลือกบทบาท / รายชื่อผู้สอนเพื่อจำลอง Login</label>
+                    <select id="login-user-select" style="width: 100%;">
+                        <option value="" disabled selected>-- เลือกสิทธิ์การใช้งาน --</option>
+                        <optgroup label="ครูประจำฐานการเรียนรู้">
+                            <option value="teacher1">ครูนงนุช รักษ์ดิน (ฐาน ไฟเขียว ทรงพลัง)</option>
+                            <option value="teacher2">ครูวรรณนา ภาษาไทย (ฐาน อาณาจักรอักษร)</option>
+                            <option value="teacher3">ครูสมชาย เงาดี (ฐาน เงาในน้ำ)</option>
+                            <option value="teacher4">ครูอนันต์ ใจดี (ฐาน ไก่ไข่อารมณ์ดี)</option>
+                            <option value="teacher5">ครูสุรพล เลิศรส (ฐาน หรรษาสุรารสเห็ด)</option>
+                            <option value="teacher6">ครูประยุทธ์ กล้าหาญ (ฐาน ต้นกล้าประชาธิปไตย)</option>
+                            <option value="teacher7">ครูวิไล เกื้อกูล (ฐาน หูลู่ล่างกานเครือ เกื้อกูล)</option>
+                        </optgroup>
+                        <optgroup label="ผู้บริหารระบบ (Admin / Director)">
+                            <option value="director">นายปุรเชษฐ์ มธุรส (ผู้อำนวยการ)</option>
+                            <option value="deputy1">นางสาวกษมา อุดทาเรือน (รองผู้อำนวยการ)</option>
+                            <option value="deputy2">นางสาวหัสดาภรณ์ พรหมคำติ๊บ (รองผู้อำนวยการ 2)</option>
+                            <option value="admin">นางสาวเจนประภา เรือนคำ (แอดมิน)</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">รหัสผ่าน (จำลองเพื่อความปลอดภัย)</label>
+                    <input type="password" id="login-password" value="password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('login-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" id="btn-login-submit">ตกลงเข้าสู่ระบบ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD/EDIT STUDENT -->
+    <div class="modal" id="student-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="student-modal-title">เพิ่มข้อมูลนักเรียน</h3>
+                <button class="modal-close" onclick="app.closeModal('student-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="student-form-index">
+                <div class="form-group">
+                    <label for="student-form-id">เลขประจำตัวนักเรียน</label>
+                    <input type="text" id="student-form-id" placeholder="ระบุเลขประจำตัว 5 หลัก...">
+                </div>
+                <div class="form-group">
+                    <label for="student-form-name">ชื่อ-นามสกุล</label>
+                    <input type="text" id="student-form-name" placeholder="เด็กชาย / เด็กหญิง / นาย / นางสาว...">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label for="student-form-grade">ระดับชั้น (ม.)</label>
+                        <select id="student-form-grade">
+                            <option value="ม.1">ม.1</option>
+                            <option value="ม.2">ม.2</option>
+                            <option value="ม.3">ม.3</option>
+                            <option value="ม.4">ม.4</option>
+                            <option value="ม.5">ม.5</option>
+                            <option value="ม.6">ม.6</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-form-class">ห้องเรียน (เช่น 1, 2, 9)</label>
+                        <input type="number" id="student-form-class" placeholder="ห้อง..." min="1" max="20">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="student-form-no">เลขที่</label>
+                    <input type="number" id="student-form-no" placeholder="เลขที่ห้อง..." min="1">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('student-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveStudentFromForm()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD/EDIT TEACHER -->
+    <div class="modal" id="teacher-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="teacher-modal-title">เพิ่มข้อมูลคุณครู</h3>
+                <button class="modal-close" onclick="app.closeModal('teacher-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="teacher-form-username">รหัสผู้ใช้ (Username)</label>
+                    <input type="text" id="teacher-form-username" placeholder="เช่น teacherX...">
+                </div>
+                <div class="form-group">
+                    <label for="teacher-form-name">ชื่อคุณครู</label>
+                    <input type="text" id="teacher-form-name" placeholder="ระบุคำนำหน้าชื่อและชื่อ-นามสกุล...">
+                </div>
+                <div class="form-group">
+                    <label for="teacher-form-role">บทบาท</label>
+                    <select id="teacher-form-role">
+                        <option value="teacher">ครูผู้สอนประจำฐาน</option>
+                        <option value="director">ผู้บริหารโรงเรียน</option>
+                        <option value="admin">ผู้ดูแลระบบ (Admin)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('teacher-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveTeacherFromForm()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD/EDIT BASE -->
+    <div class="modal" id="base-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="base-modal-title">เพิ่มข้อมูลฐานเรียนรู้</h3>
+                <button class="modal-close" onclick="app.closeModal('base-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="base-form-id">
+                <div class="form-group">
+                    <label for="base-form-name">ชื่อฐานการเรียนรู้</label>
+                    <input type="text" id="base-form-name" placeholder="ระบุชื่อฐานเรียนรู้...">
+                </div>
+                <div class="form-group">
+                    <label for="base-form-room">สถานที่เรียน/ห้องเรียนหลัก</label>
+                    <input type="text" id="base-form-room" placeholder="เช่น ห้อง 1208, แปลงเกษตร...">
+                </div>
+                <div class="form-group">
+                    <label for="base-form-teacher">คุณครูผู้ดูแลหลัก</label>
+                    <select id="base-form-teacher">
+                        <!-- JS fills with teacher list -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('base-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveBaseFromForm()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD/EDIT SCHEDULE -->
+    <div class="modal" id="schedule-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="schedule-modal-title">เพิ่มตารางการหมุนฐาน</h3>
+                <button class="modal-close" onclick="app.closeModal('schedule-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="schedule-form-index">
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px;">
+                    <div class="form-group">
+                        <label for="schedule-form-week">สัปดาห์เรียนที่</label>
+                        <input type="number" id="schedule-form-week" min="1" max="18" placeholder="สัปดาห์...">
+                    </div>
+                    <div class="form-group">
+                        <label for="schedule-form-dates">ช่วงวันที่จัดเรียน</label>
+                        <input type="text" id="schedule-form-dates" placeholder="เช่น 15 มิ.ย. - 19 มิ.ย. 69...">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="schedule-form-base">ฐานการเรียนรู้</label>
+                    <select id="schedule-form-base">
+                        <!-- dynamic -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="schedule-form-classes">ระดับชั้น/ห้องเรียนที่เรียนฐานนี้</label>
+                    <input type="text" id="schedule-form-classes" placeholder="ระบุแยกด้วยจุลภาค เช่น ม.2/1, ม.2/2, ม.2/9...">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="form-group">
+                        <label for="schedule-form-room">ห้องเรียน/สถานที่</label>
+                        <input type="text" id="schedule-form-room" placeholder="เช่น ห้อง 1208...">
+                    </div>
+                    <div class="form-group">
+                        <label for="schedule-form-teacher">ครูผู้รับผิดชอบ</label>
+                        <select id="schedule-form-teacher">
+                            <!-- dynamic -->
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('schedule-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveScheduleFromForm()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>
