@@ -101,11 +101,11 @@ class AttendanceApp {
                 { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
                 { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
                 { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
-                { username: "phetcharin", name: "ครูเพชรดารินทร์ เดชชลธี", role: "teacher" },
-                { username: "duangsuda", name: "ครูดวงสุดา เรืองวุฒิ", role: "teacher" },
-                { username: "kongphop", name: "ครูก้องภพ มูลศรี", role: "teacher" },
-                { username: "thanchanok", name: "ครูธัญชนก พงษ์ศรี", role: "teacher" },
-                { username: "parichart", name: "ครูปาริชาติ แก้วศักดิ์", role: "teacher" }
+                { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
+                { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
+                { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
+                { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
+                { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" }
             ];
 
             newBase5Teachers.forEach(tInfo => {
@@ -125,8 +125,8 @@ class AttendanceApp {
                     base5.name = 'หรรษาสุธารสเห็ด';
                     dbChanged = true;
                 }
-                const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์";
-                const teacherIdStr = "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart";
+                const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
+                const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
                 if (base5.defaultTeacher !== defaultTeacherStr || base5.teacherId !== teacherIdStr) {
                     base5.defaultTeacher = defaultTeacherStr;
                     base5.teacherId = teacherIdStr;
@@ -142,8 +142,8 @@ class AttendanceApp {
                             sch.baseName = 'หรรษาสุธารสเห็ด';
                             dbChanged = true;
                         }
-                        const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์";
-                        const teacherIdStr = "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart";
+                        const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
+                        const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
                         if (sch.teacherName !== defaultTeacherStr || sch.teacherId !== teacherIdStr) {
                             sch.teacherName = defaultTeacherStr;
                             sch.teacherId = teacherIdStr;
@@ -180,7 +180,7 @@ class AttendanceApp {
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "ครูวรรณนา ภาษาไทย, ครูรักไทย เขียนดี", teacherId: "teacher2, teacher2_2" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "ครูสมชาย เงาดี, ครูเกรียงไกร สอนน้ำ", teacherId: "teacher3, teacher3_2" },
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "ครูอนันต์ ใจดี, ครูสุขใจ เลี้ยงไก่", teacherId: "teacher4, teacher4_2" },
-            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "ครูสัมฤทธิ์ ไชยทารินทร์, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, ครูเพชรดารินทร์ เดชชลธี, ครูเจนประภา เรือนคำ, ครูดวงสุดา เรืองวุฒิ, ครูก้องภพ มูลศรี, ครูธัญชนก พงษ์ศรี, ครูปาริชาติ แก้วศักดิ์", teacherId: "samrit, pattaya, siwaporn, phetcharin, admin, duangsuda, kongphop, thanchanok, parichart" },
+            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี", teacherId: "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "ครูประยุทธ์ กล้าหาญ, ครูรักชาติ ยิ่งชีพ", teacherId: "teacher6, teacher6_2" },
             { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "ครูวิไล เกื้อกูล, ครูใจดี มีธรรม", teacherId: "teacher7, teacher7_2" }
         ];
@@ -198,11 +198,11 @@ class AttendanceApp {
             { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
             { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
             { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
-            { username: "phetcharin", name: "ครูเพชรดารินทร์ เดชชลธี", role: "teacher" },
-            { username: "duangsuda", name: "ครูดวงสุดา เรืองวุฒิ", role: "teacher" },
-            { username: "kongphop", name: "ครูก้องภพ มูลศรี", role: "teacher" },
-            { username: "thanchanok", name: "ครูธัญชนก พงษ์ศรี", role: "teacher" },
-            { username: "parichart", name: "ครูปาริชาติ แก้วศักดิ์", role: "teacher" },
+            { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
+            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
+            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
+            { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
+            { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" },
             { username: "teacher6", name: "ครูประยุทธ์ กล้าหาญ", role: "teacher" },
             { username: "teacher6_2", name: "ครูรักชาติ ยิ่งชีพ", role: "teacher" },
             { username: "teacher7", name: "ครูวิไล เกื้อกูล", role: "teacher" },
@@ -1329,6 +1329,16 @@ class AttendanceApp {
             : this.currentCheckinSchedule.room;
 
         document.getElementById('checkin-target-classes').textContent = `${clsName} (${roomName})`;
+
+        // Update teachers and location dynamically if Base 5
+        let teachersStr = this.currentCheckinSchedule.teacherName;
+        if (this.currentCheckinSchedule.baseId === 'base5') {
+            const specificTeachers = this.getRoomTeachers(roomName);
+            if (specificTeachers) {
+                teachersStr = specificTeachers;
+            }
+        }
+        document.getElementById('checkin-base-info').innerHTML = `<i class="fa-solid fa-user"></i> ครูผู้สอน: ${teachersStr} | <i class="fa-solid fa-location-dot"></i> สถานที่สอน: ${roomName}`;
         
         // Enable search input and filter buttons
         document.getElementById('checkin-student-search').disabled = false;
@@ -3303,6 +3313,20 @@ class AttendanceApp {
         }
     }
 
+    // Helper to get room-specific teachers for Base 5
+    getRoomTeachers(roomName) {
+        if (roomName === "ห้อง 1105") {
+            return "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน";
+        }
+        if (roomName === "ห้อง 1103") {
+            return "ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์";
+        }
+        if (roomName === "ห้องคหกรรม") {
+            return "นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
+        }
+        return "";
+    }
+
     // Helper to map classrooms to bases dynamically
     getClassesForBaseAndGrade(baseId, grade, isWeekB) {
         const allGradeClasses = {
@@ -3394,7 +3418,7 @@ class AttendanceApp {
             roomA = "ห้อง 1103";
             roomB = "ห้องคหกรรม";
             roomC = "ห้อง 1105";
-            roomD = isJunior ? "ห้อง 1107" : "";
+            roomD = isJunior ? "ห้อง 1103" : "";
         } else if (baseId === 'base6') { // ต้นกล้าประชาธิปไตย
             roomA = isJunior ? "ห้อง 2306" : "ห้อง 2301";
             roomB = "ห้องประชุมธนี พหลโยธิน";
