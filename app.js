@@ -1366,6 +1366,68 @@ class AttendanceApp {
                 }
             });
         }
+        this.renderExecutiveCards('dash-executives-container');
+    }
+
+    renderExecutiveCards(containerId) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        // Filter and sort executives to match director, deputy1, deputy2 sequence
+        const directorsList = this.db.teachers.filter(t => t.role === 'director');
+        const sortedDirectors = [];
+        
+        const dir = directorsList.find(t => t.username === 'director');
+        if (dir) sortedDirectors.push(dir);
+        const dep1 = directorsList.find(t => t.username === 'deputy1');
+        if (dep1) sortedDirectors.push(dep1);
+        const dep2 = directorsList.find(t => t.username === 'deputy2');
+        if (dep2) sortedDirectors.push(dep2);
+        
+        // Add any other directors if they exist
+        directorsList.forEach(t => {
+            if (t.username !== 'director' && t.username !== 'deputy1' && t.username !== 'deputy2') {
+                sortedDirectors.push(t);
+            }
+        });
+
+        let html = '';
+        sortedDirectors.forEach(exec => {
+            let roleTitle = 'ผู้บริหาร';
+            let avatarBg = 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)';
+            
+            if (exec.username === 'director') {
+                roleTitle = 'ผู้อำนวยการ';
+                avatarBg = 'linear-gradient(135deg, #1D4ED8 0%, #1E3A8A 100%)'; // Sleek dark blue
+            } else if (exec.username === 'deputy1') {
+                roleTitle = 'รองผู้อำนวยการ 1';
+                avatarBg = 'linear-gradient(135deg, #059669 0%, #064E3B 100%)'; // Sleek green
+            } else if (exec.username === 'deputy2') {
+                roleTitle = 'รองผู้อำนวยการ 2';
+                avatarBg = 'linear-gradient(135deg, #D97706 0%, #78350F 100%)'; // Sleek amber
+            }
+
+            const initialLetter = exec.name ? exec.name.replace(/^(นาย|นางสาว|นาง|ครู)\s*/, '')[0] : 'ผ';
+
+            html += `
+                <div class="executive-card">
+                    <div class="executive-avatar" style="width: 60px; height: 60px; border-radius: 50%; background: ${avatarBg}; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px; font-weight: bold; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                        ${initialLetter}
+                    </div>
+                    <div class="executive-info">
+                        <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary);">${exec.name}</h4>
+                        <span class="status-badge info" style="margin-top: 5px; display: inline-block; font-size: 11px;">${roleTitle}</span>
+                        <div style="margin-top: 5px; font-size: 12px; color: var(--text-secondary);"><i class="fa-solid fa-phone"></i> ${exec.phone || 'ไม่ระบุเบอร์โทรศัพท์'}</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        if (html === '') {
+            container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; width: 100%;">ไม่มีข้อมูลผู้บริหาร</div>';
+        } else {
+            container.innerHTML = html;
+        }
     }
 
     // RENDER: Check-in page
@@ -1921,6 +1983,7 @@ class AttendanceApp {
                 }
             }
         });
+        this.renderExecutiveCards('admin-executives-container');
     }
 
     // RENDER: Reports view
