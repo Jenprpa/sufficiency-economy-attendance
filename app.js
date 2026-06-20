@@ -2614,7 +2614,7 @@ class AttendanceApp {
                             `;
                         }
 
-                        cellsHTML += `<td class="${colorClass}">${cellContent}</td>`;
+                        cellsHTML += `<td class="${colorClass}" style="cursor: pointer;" onclick="app.showRotationDetail(${wk}, '${bId}')" title="คลิกเพื่อดูรายละเอียดนักเรียนที่เข้าเรียน">${cellContent}</td>`;
                     }
                 });
 
@@ -2623,6 +2623,91 @@ class AttendanceApp {
 
             tbody.appendChild(tr);
         }
+    }
+
+    // Show popup modal for rotation cell detail
+    showRotationDetail(weekNum, baseId) {
+        // Find rotation entry
+        const entry = this.db.rotation_schedule.find(s => s.week === weekNum && s.baseId === baseId);
+        if (!entry || entry.isEmpty || entry.isSpecial) return;
+
+        // Fill modal headers
+        document.getElementById('rotation-detail-title').textContent = `รายละเอียดผู้เข้าเรียน ${entry.baseName}`;
+        document.getElementById('rot-detail-week-dates').textContent = `สัปดาห์ที่ ${weekNum} (${entry.dates})`;
+        document.getElementById('rot-detail-base').textContent = entry.baseName;
+        document.getElementById('rot-detail-teacher').textContent = entry.teacherName;
+        document.getElementById('rot-detail-room').textContent = entry.room;
+        document.getElementById('rot-detail-classes').textContent = entry.classes;
+
+        // Build room/class tabs
+        const tabContainer = document.getElementById('rot-detail-tabs');
+        tabContainer.innerHTML = '';
+
+        const tbody = document.getElementById('rot-detail-student-table-body');
+        tbody.innerHTML = '';
+
+        if (!entry.attendingClasses || entry.attendingClasses.length === 0) {
+            tabContainer.innerHTML = '<p style="color:var(--text-light); font-size:13px;">ไม่มีชั้นเรียนที่เข้าร่วม</p>';
+            document.getElementById('rot-detail-student-count').textContent = '0 คน';
+            return;
+        }
+
+        // Render tab buttons
+        entry.attendingClasses.forEach((clsName, idx) => {
+            const btn = document.createElement('button');
+            btn.className = `btn btn-sm ${idx === 0 ? 'btn-primary' : 'btn-outline'}`;
+            btn.style.whiteSpace = 'nowrap';
+            btn.textContent = clsName;
+            btn.onclick = () => {
+                // Switch active tab style
+                const buttons = tabContainer.querySelectorAll('button');
+                buttons.forEach(b => {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-outline');
+                });
+                btn.classList.add('btn-primary');
+                btn.classList.remove('btn-outline');
+
+                // Render student list of this class
+                this.renderRotationDetailStudents(clsName);
+            };
+            tabContainer.appendChild(btn);
+        });
+
+        // Load first tab automatically
+        this.renderRotationDetailStudents(entry.attendingClasses[0]);
+
+        this.openModal('rotation-detail-modal');
+    }
+
+    renderRotationDetailStudents(clsName) {
+        const tbody = document.getElementById('rot-detail-student-table-body');
+        tbody.innerHTML = '';
+
+        const parts = clsName.split('/');
+        const grade = parts[0];
+        const room = parseInt(parts[1]);
+
+        // Filter and sort students
+        const students = this.db.students.filter(s => s.grade === grade && s.room === room);
+        students.sort((a, b) => a.no - b.no);
+
+        document.getElementById('rot-detail-student-count').textContent = `${students.length} คน`;
+
+        if (students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--text-light); padding:16px;">ไม่พบข้อมูลนักเรียนในชั้นเรียนนี้</td></tr>';
+            return;
+        }
+
+        students.forEach(st => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="text-align: center;">${st.no}</td>
+                <td style="font-family:'Outfit'; text-align: center;">${st.studentId}</td>
+                <td style="font-weight:600;">${st.name}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     }
 
     // Export Rotation Matrix to Excel

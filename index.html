@@ -851,6 +851,67 @@
         </div>
     </div>
 
+    <!-- MODAL: ROTATION CELL DETAIL -->
+    <div class="modal" id="rotation-detail-modal">
+        <div class="modal-content" style="max-width: 650px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                <h3 id="rotation-detail-title">รายละเอียดผู้เข้าเรียน</h3>
+                <button class="modal-close" style="color: white;" onclick="app.closeModal('rotation-detail-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 20px;">
+                <div class="rotation-info-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; background-color: var(--gray-light); padding: 16px; border-radius: var(--radius-md);">
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fa-solid fa-calendar"></i> สัปดาห์/ช่วงวันที่</p>
+                        <strong id="rot-detail-week-dates" style="color: var(--text-primary);">-</strong>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fa-solid fa-network-wired"></i> ฐานการเรียนรู้</p>
+                        <strong id="rot-detail-base" style="color: var(--text-primary);">-</strong>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fa-solid fa-user-tie"></i> ครูผู้ดูแลประจำสัปดาห์</p>
+                        <strong id="rot-detail-teacher" style="color: var(--text-primary);">-</strong>
+                    </div>
+                    <div>
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fa-solid fa-location-dot"></i> สถานที่เรียน/ห้องเรียน</p>
+                        <strong id="rot-detail-room" style="color: var(--text-primary);">-</strong>
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;"><i class="fa-solid fa-users"></i> ชั้นเรียนทั้งหมด</p>
+                        <span id="rot-detail-classes" class="status-badge primary" style="font-size: 14px; font-weight: 600;">-</span>
+                    </div>
+                </div>
+
+                <div class="tabs-container" id="rot-detail-tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px; overflow-x: auto; padding-bottom: 8px;">
+                    <!-- Dynamic class room tabs (e.g. ม.2/1, ม.2/2) -->
+                </div>
+
+                <h4 style="font-weight: 700; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; color: var(--text-primary);">
+                    <span><i class="fa-solid fa-id-card text-primary"></i> รายชื่อนักเรียนในชั้น</span>
+                    <span id="rot-detail-student-count" style="font-size: 13px; font-weight: normal; color: var(--text-secondary);">0 คน</span>
+                </h4>
+                
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 70px;">เลขที่</th>
+                                <th style="width: 110px;">เลขประจำตัว</th>
+                                <th>ชื่อ-นามสกุล</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rot-detail-student-table-body">
+                            <!-- Dynamic student list -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('rotation-detail-modal')">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Core App Logic -->
     <script src="app.js"></script>
 </body>

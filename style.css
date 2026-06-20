@@ -1030,6 +1030,18 @@ tr:hover td {
     color: #155E75 !important;
 }
 
+/* Interactive hover effect for rotation cells */
+.rotation-matrix-table td.grade-m1:hover,
+.rotation-matrix-table td.grade-m2:hover,
+.rotation-matrix-table td.grade-m3:hover,
+.rotation-matrix-table td.grade-m4:hover,
+.rotation-matrix-table td.grade-m5:hover,
+.rotation-matrix-table td.grade-m6:hover {
+    filter: brightness(0.94);
+    box-shadow: inset 0 0 0 2px var(--primary);
+    transition: all 0.15s ease-in-out;
+}
+
 /* Special weeks styling */
 .week-empty {
     background-color: #F3F4F6 !important;
