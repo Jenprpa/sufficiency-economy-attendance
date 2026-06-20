@@ -759,6 +759,16 @@ class AttendanceApp {
         if (weekNumEl) {
             weekNumEl.textContent = `Week ${weekNum}`;
         }
+
+        // Update header badges
+        const badgeWeekEl = document.getElementById('header-badge-week');
+        if (badgeWeekEl) {
+            badgeWeekEl.textContent = `Week ${weekNum}`;
+        }
+        const badgeDateEl = document.getElementById('header-badge-date');
+        if (badgeDateEl) {
+            badgeDateEl.textContent = this.formatThaiDateShort(this.systemDate);
+        }
         
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
@@ -773,6 +783,26 @@ class AttendanceApp {
         } else if (this.currentView === 'manage') {
             this.renderManage();
         }
+    }
+
+    // Helper: format date to Thai style (e.g. 20 มิ.ย. 69)
+    formatThaiDateShort(dateStr) {
+        if (!dateStr) return '';
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]);
+        const day = parseInt(parts[2]);
+        
+        const thaiMonths = [
+            'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+            'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+        ];
+        
+        const thaiYearShort = (year + 543) % 100;
+        const thaiMonthStr = thaiMonths[month - 1] || '';
+        
+        return `${day} ${thaiMonthStr} ${thaiYearShort}`;
     }
 
     // Helper: find week object from date YYYY-MM-DD
@@ -834,13 +864,13 @@ class AttendanceApp {
 
         // Update stats card UI
         const totalStudEl = document.getElementById('dash-total-students');
-        if (totalStudEl) totalStudEl.textContent = `${this.db.students.length} คน`;
+        if (totalStudEl) totalStudEl.textContent = `${this.db.students.length}`;
 
         const totalTeachEl = document.getElementById('dash-total-teachers');
-        if (totalTeachEl) totalTeachEl.textContent = `${this.db.teachers.filter(t => t.role === 'teacher').length} คน`;
+        if (totalTeachEl) totalTeachEl.textContent = `${this.db.teachers.filter(t => t.role === 'teacher').length}`;
 
         const totalBasesEl = document.getElementById('dash-total-bases');
-        if (totalBasesEl) totalBasesEl.textContent = `${this.db.bases.length} ฐาน`;
+        if (totalBasesEl) totalBasesEl.textContent = `${this.db.bases.length}`;
 
         const weekTextEl = document.getElementById('dash-banner-week-text');
         if (weekTextEl) {
@@ -923,7 +953,7 @@ class AttendanceApp {
                     labels: ['มาเรียน', 'ขาดเรียน', 'ลา', 'สาย', 'กิจกรรม'],
                     datasets: [{
                         data: [present, absent, leave, late, activity],
-                        backgroundColor: ['#4CAF50', '#EF4444', '#FFC107', '#F59E0B', '#8B5CF6'],
+                        backgroundColor: ['#6F8F3D', '#B22222', '#EAB308', '#8C6A2B', '#A89B8D'],
                         borderWidth: 2,
                         borderColor: '#ffffff'
                     }]
@@ -1430,8 +1460,8 @@ class AttendanceApp {
         // Calculate rates
         const overallRate = overallTotalChecked > 0 ? Math.round((overallPresent / overallTotalChecked) * 100) : 0;
         document.getElementById('admin-overall-rate').textContent = `${overallRate}%`;
-        document.getElementById('admin-absent-count').textContent = `${overallAbsent} คน`;
-        document.getElementById('admin-late-bases-count').textContent = `${lateCheckinBases} ฐาน`;
+        document.getElementById('admin-absent-count').textContent = `${overallAbsent}`;
+        document.getElementById('admin-late-bases-count').textContent = `${lateCheckinBases}`;
 
         // Render Bar Chart: Grade attendance percentage
         const grades = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
@@ -1443,6 +1473,20 @@ class AttendanceApp {
 
         if (this.adminChart) this.adminChart.destroy();
         
+        const chartBackgroundColors = gradeRates.map(rate => {
+            if (rate < 50) return '#B22222'; // Red
+            if (rate < 75) return '#F97316'; // Orange
+            if (rate < 95) return '#EAB308'; // Yellow
+            return '#6F8F3D'; // Green
+        });
+        
+        const chartBorderColors = gradeRates.map(rate => {
+            if (rate < 50) return '#8C1111';
+            if (rate < 75) return '#C2410C';
+            if (rate < 95) return '#A16207';
+            return '#4D6B24';
+        });
+
         const ctx = document.getElementById('admin-grade-chart').getContext('2d');
         this.adminChart = new Chart(ctx, {
             type: 'bar',
@@ -1451,8 +1495,8 @@ class AttendanceApp {
                 datasets: [{
                     label: 'อัตราการเข้าเรียน (%)',
                     data: gradeRates,
-                    backgroundColor: '#A61E22', // Royal Crimson
-                    borderColor: '#841417',
+                    backgroundColor: chartBackgroundColors,
+                    borderColor: chartBorderColors,
                     borderWidth: 1.5,
                     borderRadius: 8
                 }]

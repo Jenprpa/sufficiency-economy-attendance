@@ -30,8 +30,12 @@
                     <img src="logo.png" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
                 </div>
                 <div class="logo-text">
-                    <h1>เศรษฐกิจพอเพียง</h1>
-                    <p>ร.ร.ปายวิทยาคาร <span style="font-size: 9px; opacity: 0.8; font-weight: normal;">ภาคเรียนที่ 1/2569</span></p>
+                    <h1>เศรษฐกิจพอเพียง <span style="font-size: 11px; color: var(--text-secondary); font-weight: normal; margin-left: 6px;">ร.ร.ปายวิทยาคาร</span></h1>
+                    <div class="header-badges">
+                        <span class="header-badge semester-badge">ภาคเรียน 1/2569</span>
+                        <span class="header-badge week-badge" id="header-badge-week">Week 6</span>
+                        <span class="header-badge date-badge" id="header-badge-date">20 มิ.ย. 69</span>
+                    </div>
                 </div>
             </div>
             
@@ -59,7 +63,7 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-outline btn-sm" id="btn-change-password" style="display: none; border-color: #E8DDD0; color: #A61E22; padding: 6px 12px; font-size: 13px;" onclick="app.openChangePasswordModal()">
+                <button class="btn btn-outline btn-sm" id="btn-change-password" style="display: none; border-color: #E8DDD0; color: var(--primary); padding: 6px 12px; font-size: 13px;" onclick="app.openChangePasswordModal()">
                     <i class="fa-solid fa-key"></i> เปลี่ยนรหัส
                 </button>
                 
@@ -86,9 +90,9 @@
                 <!-- Hero Banner -->
                 <div class="hero-banner">
                     <div class="hero-banner-content">
-                        <h2 style="color: #A61E22; margin-bottom: 8px; font-size: 24px; font-weight: 700;">งานขับเคลื่อนศูนย์การเรียนรู้ตามหลักปรัชญาของเศรษฐกิจพอเพียง</h2>
+                        <h2 style="color: var(--primary); margin-bottom: 8px; font-size: 24px; font-weight: 700;">งานขับเคลื่อนศูนย์การเรียนรู้ตามหลักปรัชญาของเศรษฐกิจพอเพียง</h2>
                         <h3 style="color: #D4A017; margin-bottom: 16px; font-size: 18px; font-weight: 600;">ด้านการศึกษา โรงเรียนปายวิทยาคาร</h3>
-                        <div style="background: #A61E22; color: white; border-radius: var(--radius-full); padding: 6px 20px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #D4A017;">
+                        <div style="background: var(--primary); color: white; border-radius: var(--radius-full); padding: 6px 20px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; border: 1px solid #D4A017;">
                             <i class="fa-solid fa-calendar-days"></i>
                             <span id="dash-banner-week-text">สัปดาห์เรียนที่ 6 | 15 มิ.ย. - 21 มิ.ย. 69</span>
                         </div>
@@ -98,40 +102,32 @@
                 <!-- Dashboard Statistics Cards -->
                 <div class="stat-grid">
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>นักเรียนทั้งหมด</h3>
-                            <p id="dash-total-students">0 คน</p>
+                        <div class="stat-icon primary">
+                            <i class="fa-solid fa-graduation-cap"></i>
                         </div>
-                        <div class="stat-icon" style="background-color: var(--primary-bg); color: var(--primary); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                            <i class="fa-solid fa-users"></i>
-                        </div>
+                        <div class="stat-number" id="dash-total-students">0</div>
+                        <div class="stat-label">นักเรียนทั้งหมด</div>
                     </div>
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>ครูทั้งหมด</h3>
-                            <p id="dash-total-teachers">0 คน</p>
-                        </div>
-                        <div class="stat-icon" style="background-color: var(--warning-bg); color: var(--warning); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <div class="stat-icon warning">
                             <i class="fa-solid fa-chalkboard-user"></i>
                         </div>
+                        <div class="stat-number" id="dash-total-teachers">0</div>
+                        <div class="stat-label">ครูผู้สอน</div>
                     </div>
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>ฐานเรียนรู้</h3>
-                            <p id="dash-total-bases">7 ฐาน</p>
-                        </div>
-                        <div class="stat-icon" style="background-color: var(--success-bg); color: var(--success); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <div class="stat-icon success">
                             <i class="fa-solid fa-school"></i>
                         </div>
+                        <div class="stat-number" id="dash-total-bases">0</div>
+                        <div class="stat-label">ฐานเรียนรู้</div>
                     </div>
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>สถิติการเข้าเรียน</h3>
-                            <p id="dash-present-rate">0%</p>
-                        </div>
-                        <div class="stat-icon" style="background-color: var(--info-bg); color: var(--info); font-size: 20px; width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <div class="stat-icon info">
                             <i class="fa-solid fa-user-check"></i>
                         </div>
+                        <div class="stat-number" id="dash-present-rate">0%</div>
+                        <div class="stat-label">อัตราการเข้าเรียนวันนี้</div>
                     </div>
                 </div>
 
@@ -304,31 +300,25 @@
 
                 <div class="stat-grid">
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>อัตราการเข้าเรียนรวมวันนี้</h3>
-                            <p id="admin-overall-rate">0%</p>
-                        </div>
                         <div class="stat-icon success">
                             <i class="fa-solid fa-chart-line"></i>
                         </div>
+                        <div class="stat-number" id="admin-overall-rate">0%</div>
+                        <div class="stat-label">อัตราการเข้าเรียนรวมวันนี้</div>
                     </div>
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>จำนวนนักเรียนที่ขาดวันนี้</h3>
-                            <p id="admin-absent-count">0 คน</p>
-                        </div>
                         <div class="stat-icon danger">
                             <i class="fa-solid fa-user-slash"></i>
                         </div>
+                        <div class="stat-number" id="admin-absent-count">0</div>
+                        <div class="stat-label">จำนวนนักเรียนที่ขาดวันนี้</div>
                     </div>
                     <div class="card stat-card">
-                        <div class="stat-info">
-                            <h3>ฐานที่เช็กชื่อล่าช้า</h3>
-                            <p id="admin-late-bases-count">0 ฐาน</p>
-                        </div>
                         <div class="stat-icon warning">
                             <i class="fa-solid fa-hourglass-half"></i>
                         </div>
+                        <div class="stat-number" id="admin-late-bases-count">0</div>
+                        <div class="stat-label">ฐานที่เช็กชื่อล่าช้า</div>
                     </div>
                 </div>
 
