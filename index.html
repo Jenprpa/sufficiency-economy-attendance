@@ -601,6 +601,15 @@
                                     <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); app.downloadStudentTemplate()">ดาวน์โหลดไฟล์ต้นแบบ (Students Template)</button>
                                     <input type="file" id="import-students-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleExcelImport(this, 'students')">
                                 </div>
+
+                                <!-- Box: Teachers Import -->
+                                <div class="import-box" onclick="document.getElementById('import-teachers-file').click()">
+                                    <i class="fa-solid fa-chalkboard-user"></i>
+                                    <h4>นำเข้าข้อมูลคุณครู</h4>
+                                    <p>นำเข้ารายชื่อคุณครูใหม่ กำหนดระดับผู้ใช้งานและสิทธิ์เข้าระบบ</p>
+                                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); app.downloadTeacherTemplate()">ดาวน์โหลดไฟล์ต้นแบบ (Teachers Template)</button>
+                                    <input type="file" id="import-teachers-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleExcelImport(this, 'teachers')">
+                                </div>
                                 
                                 <!-- Box: Rotation Schedule Import -->
                                 <div class="import-box" onclick="document.getElementById('import-schedule-file').click()">

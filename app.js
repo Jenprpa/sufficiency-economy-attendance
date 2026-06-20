@@ -2415,6 +2415,8 @@ class AttendanceApp {
             
             if (type === 'students') {
                 this.importStudents(jsonRows);
+            } else if (type === 'teachers') {
+                this.importTeachers(jsonRows);
             } else if (type === 'schedule') {
                 this.importSchedule(jsonRows);
             }
@@ -2476,6 +2478,56 @@ class AttendanceApp {
         this.renderManageStudents();
     }
 
+    importTeachers(rows) {
+        if (rows.length === 0) {
+            this.showStatusModal('error', 'นำเข้าข้อมูลไม่สำเร็จ', 'ไม่พบข้อมูลคุณครูใดๆ ในไฟล์ Excel ที่คุณนำเข้า กรุณาตรวจสอบไฟล์ของคุณ');
+            return;
+        }
+
+        const firstRowKeys = Object.keys(rows[0]);
+        if (!firstRowKeys.includes('username') || !firstRowKeys.includes('name')) {
+            this.showStatusModal('error', 'โครงสร้างไฟล์ไม่ถูกต้อง', 'ไม่พบคอลัมน์ที่จำเป็น (username, name) ในไฟล์ Excel ที่นำเข้า');
+            return;
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        rows.forEach(row => {
+            const username = String(row.username || '').trim();
+            const name = String(row.name || '').trim();
+            let role = String(row.role || 'teacher').trim().toLowerCase();
+            const password = row.password ? String(row.password).trim() : undefined;
+
+            if (!username || !name) return;
+
+            if (role !== 'admin' && role !== 'director') {
+                role = 'teacher';
+            }
+
+            const existing = this.db.teachers.find(t => t.username === username);
+            if (existing) {
+                existing.name = name;
+                existing.role = role;
+                if (password) {
+                    existing.password = password;
+                }
+                updatedCount++;
+            } else {
+                const newTeacher = { username, name, role };
+                if (password) {
+                    newTeacher.password = password;
+                }
+                this.db.teachers.push(newTeacher);
+                addedCount++;
+            }
+        });
+
+        this.saveDatabase();
+        this.showStatusModal('success', 'นำเข้าข้อมูลคุณครูสำเร็จ', `นำเข้าข้อมูลคุณครูเสร็จสิ้น!<br><strong>เพิ่มใหม่:</strong> ${addedCount} ท่าน<br><strong>อัปเดตข้อมูล:</strong> ${updatedCount} ท่าน`);
+        this.renderManageTeachers();
+    }
+
     importSchedule(rows) {
         if (rows.length === 0) {
             this.showStatusModal('error', 'นำเข้าข้อมูลไม่สำเร็จ', 'ไม่พบข้อมูลตารางสอนหมุนฐานในไฟล์ Excel ที่นำเข้า');
@@ -2523,6 +2575,17 @@ class AttendanceApp {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Students");
         XLSX.writeFile(wb, "Student_Import_Template.xlsx");
+    }
+
+    downloadTeacherTemplate() {
+        const templateData = [
+            { username: "teacher8", name: "ครูสมหมาย สอนดี", role: "teacher", password: "password123" },
+            { username: "deputy3", name: "นายสมศักดิ์ รักเรียน", role: "director", password: "deputy3password" }
+        ];
+        const ws = XLSX.utils.json_to_sheet(templateData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Teachers");
+        XLSX.writeFile(wb, "Teacher_Import_Template.xlsx");
     }
 
     downloadScheduleTemplate() {
