@@ -380,18 +380,18 @@ class AttendanceApp {
     runMigrationChecks() {
         // Auto-update teachers with new school executives/admin if missing or incorrect
         const requiredExecutives = [
-            { username: "deputy1", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
-            { username: "deputy2", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
-            { username: "deputy3", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
             { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
         let dbChanged = false;
 
-        // Remove old director username from local database if migrating
-        const oldDirectorIndex = this.db.teachers.findIndex(t => t.username === 'director');
-        if (oldDirectorIndex !== -1) {
-            this.db.teachers.splice(oldDirectorIndex, 1);
+        // Remove obsolete deputy3 username from local database if migrating
+        const oldDeputy3Index = this.db.teachers.findIndex(t => t.username === 'deputy3');
+        if (oldDeputy3Index !== -1) {
+            this.db.teachers.splice(oldDeputy3Index, 1);
             dbChanged = true;
         }
 
@@ -522,9 +522,9 @@ class AttendanceApp {
             { username: "teacher6_2", name: "ครูรักชาติ ยิ่งชีพ", role: "teacher" },
             { username: "teacher7", name: "ครูวิไล เกื้อกูล", role: "teacher" },
             { username: "teacher7_2", name: "ครูใจดี มีธรรม", role: "teacher" },
-            { username: "deputy1", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
-            { username: "deputy2", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
-            { username: "deputy3", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
             { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
@@ -674,9 +674,9 @@ class AttendanceApp {
 
         // Keep only system accounts (Admin and Directors)
         const systemTeachers = [
-            { username: "deputy1", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
-            { username: "deputy2", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
-            { username: "deputy3", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
             { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
@@ -919,10 +919,9 @@ class AttendanceApp {
                 html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
                 directorsList.forEach(t => {
                     let roleTitle = 'ผู้บริหาร';
-                    if (t.username === 'deputy1') roleTitle = 'ผู้อำนวยการ';
-                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 1';
-                    else if (t.username === 'deputy3') roleTitle = 'รองผู้อำนวยการ 2';
-                    else if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
+                    if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
+                    else if (t.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ 1';
+                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
                     html += `<option value="${t.username}">${t.name} (${roleTitle})</option>`;
                 });
                 html += '</optgroup>';
@@ -2720,7 +2719,7 @@ class AttendanceApp {
     }
 
     deleteTeacher(username) {
-        if (username === 'director' || username === 'admin' || username === 'deputy1' || username === 'deputy2' || username === 'deputy3') {
+        if (username === 'director' || username === 'admin' || username === 'deputy1' || username === 'deputy2') {
             alert("ไม่สามารถลบบัญชีผู้บริหารหรือผู้ดูแลระบบหลักของระบบได้!");
             return;
         }
@@ -3094,7 +3093,7 @@ class AttendanceApp {
     downloadTeacherTemplate() {
         const templateData = [
             { username: "teacher8", name: "ครูสมหมาย สอนดี", role: "teacher", password: "password123" },
-            { username: "deputy3", name: "นายสมศักดิ์ รักเรียน", role: "director", password: "deputy3password" }
+            { username: "deputy2", name: "นายสมศักดิ์ รักเรียน", role: "director", password: "deputy2password" }
         ];
         const ws = XLSX.utils.json_to_sheet(templateData);
         const wb = XLSX.utils.book_new();
