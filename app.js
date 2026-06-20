@@ -482,6 +482,54 @@ class AttendanceApp {
         }
     }
 
+    // Reset to empty database for actual production use
+    resetToEmptyData(showConfirm = true) {
+        if (showConfirm && !confirm("คุณต้องการล้างข้อมูลนักเรียน ตารางสอน และประวัติเช็กชื่อทั้งหมดเพื่อเริ่มต้นใช้งานจริงใช่หรือไม่? (ข้อมูลบัญชีแอดมินและผู้บริหารจะยังคงอยู่)")) {
+            return;
+        }
+
+        // Keep only system accounts (Admin and Directors)
+        const systemTeachers = [
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
+            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
+        ];
+
+        // Default 7 bases with empty teacher assignment
+        const bases = [
+            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "", teacherId: "" },
+            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "", teacherId: "" },
+            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "", teacherId: "" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
+            { id: "base5", name: "หรรษาสุรารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
+            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
+            { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "", teacherId: "" }
+        ];
+
+        this.db.students = [];
+        this.db.teachers = systemTeachers;
+        this.db.bases = bases;
+        this.db.rotation_schedule = [];
+        this.db.attendance_logs = [];
+
+        this.saveDatabase();
+
+        // Clear active session to force login again
+        this.currentUser = null;
+        sessionStorage.removeItem('school_current_user');
+        this.updateUserUI();
+
+        alert("ล้างข้อมูลระบบทั้งหมดเรียบร้อยแล้ว! ระบบอยู่ในสภาวะว่างสำหรับการกรอกข้อมูลจริง (กรุณาเข้าสู่ระบบด้วยบัญชีแอดมิน เพื่อเริ่มใส่ข้อมูลนักเรียนและตารางสอน)");
+        this.switchView('dashboard');
+        
+        // Hide demo notification banner if visible
+        const notification = document.getElementById('demo-notification');
+        if (notification) {
+            notification.style.display = 'none';
+        }
+    }
+
     // Bind UI actions and navigation
     bindEvents() {
         // Sidebar View Router
