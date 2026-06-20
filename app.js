@@ -1293,7 +1293,8 @@ class AttendanceApp {
                     loginBtn.innerHTML = originalText;
                     doLoginSuccess();
                 } catch (err) {
-                    if (err.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
+                    // Modern Firebase Auth v10 returns 'auth/invalid-credential' for both wrong password and user-not-found.
+                    if ((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') && passwordInput === expectedPassword) {
                         try {
                             // First time login - auto-create account in Firebase Auth
                             await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
@@ -1301,10 +1302,16 @@ class AttendanceApp {
                             loginBtn.innerHTML = originalText;
                             doLoginSuccess();
                         } catch (createErr) {
-                            console.error("Auto-provisioning failed:", createErr);
-                            alert("เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
+                            if (createErr.code === 'auth/email-already-in-use') {
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (กรุณาใช้รหัสผ่านล่าสุดของคุณ)!');
+                            } else {
+                                console.error("Auto-provisioning failed:", createErr);
+                                alert("เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                            }
                         }
                     } else {
                         loginBtn.disabled = false;
