@@ -2122,7 +2122,7 @@ class AttendanceApp {
     }
 
     // Save attendance to localStorage
-    saveCurrentAttendance() {
+    async saveCurrentAttendance() {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
 
