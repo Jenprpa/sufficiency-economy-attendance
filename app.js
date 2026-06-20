@@ -421,62 +421,165 @@ class AttendanceApp {
             }
         });
 
-        // Migration for Base 5 teachers and name
-        const newBase5Teachers = [
-            { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
-            { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
-            { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
+        // Migration for all bases and teachers
+        const requiredTeachers = [
+            // Base 1
+            { username: "nattawadee", name: "นางสาวณัฐวดี เขียวภูมิชัย", role: "teacher" },
+            { username: "punyapat", name: "นายปุญญพัฒน์ ธิมา", role: "teacher" },
+            { username: "phensiri", name: "นางสาวเพ็ญศิริ วงค์เทพ", role: "teacher" },
+            { username: "wipimsai", name: "นางสาววิพิมพ์สาย หิ่งคำ", role: "teacher" },
+            { username: "nattida", name: "นางสาวนัฎฐิดา ปันงาม", role: "teacher" },
+            { username: "kiattima", name: "นางสาวเกียรติติมา มณีวรรณ", role: "teacher" },
+            { username: "jariya", name: "นางสาวจริยา ทวีกิจสถาพร", role: "teacher" },
+            { username: "prapaisri", name: "นางประไพศรี กำแพงแก้ว", role: "teacher" },
+            { username: "nattakarn", name: "นางสาวณัฐกาญจน์ แก้วสุวรรณ", role: "teacher" },
+            { username: "pimprabha", name: "นางสาวพิมพ์ประภา เสาสวัสดิ์", role: "teacher" },
+            
+            // Base 2
+            { username: "praeploy", name: "นางสาวแพรพลอย บุศยาณิน", role: "teacher" },
+            { username: "pattra", name: "นางสาวภัทรา กันทะคำ", role: "teacher" },
+            { username: "patama", name: "นางสาวปัทมา หาญยศ", role: "teacher" },
+            { username: "suthinee", name: "นางสาวศุทธินี โภชพิพิธ", role: "teacher" },
+            { username: "thanyathorn", name: "นางธัญญาธร ศิริสุภาศักดิ์", role: "teacher" },
+            { username: "piyada", name: "นางสาวปิยดา ปวงฟู", role: "teacher" },
+            { username: "jirapha", name: "นางสาวจิรภา พันธ์ธรรม", role: "teacher" },
+            { username: "thanyakorn", name: "นางสาวธัญกร ยอดทอง", role: "teacher" },
+            { username: "kasemsan", name: "นายเกษมสันต์ จอมพิจิตร", role: "teacher" },
+            { username: "apichaya", name: "นางสาวอภิชญา สุขแสงงาม", role: "teacher" },
+            
+            // Base 3
+            { username: "arnon", name: "นายอานนท์ ตื้อจันตา", role: "teacher" },
+            { username: "chaiyo", name: "นายไชโย ธัมหมื่นยอง", role: "teacher" },
+            { username: "nawaphat", name: "นายนวพรรษ พุทธิปา", role: "teacher" },
+            { username: "wachira", name: "นายวชิร ยะถามกรรม", role: "teacher" },
+            { username: "suntree", name: "นางสาวสุนทรี จิโนบัว", role: "teacher" },
+            { username: "hattayaporn", name: "นางหัตถยาภรณ์ เอกจีน", role: "teacher" },
+            { username: "kulpriya", name: "นางสาวกุลปริยา รอดสุวรรณ", role: "teacher" },
+            { username: "kodchakorn", name: "นางสาวกชกร รัตนศาสตร์ชาญ", role: "teacher" },
+            { username: "angkana_w", name: "นางสาวอังคนา วงค์คำ", role: "teacher" },
+            { username: "phuwadol", name: "นายภูวดล สุระจินดา", role: "teacher" },
+            
+            // Base 4
+            { username: "nattapong", name: "นายณัฐพงศ์ หาญพอ", role: "teacher" },
+            { username: "narada", name: "นางณรฎา มธุรส", role: "teacher" },
+            { username: "thanomsak", name: "นายถนอมศักดิ์ กิตติเลิศภักดีกุล", role: "teacher" },
+            { username: "patiphan", name: "นายปฎิภาณ ใจซื่อ", role: "teacher" },
+            { username: "narong_c", name: "นายณรงค์ เชียงแก้ว", role: "teacher" },
+            { username: "anawat", name: "นายอนวัช ซอแอ", role: "teacher" },
+            { username: "natnaree", name: "นางสาวนาฎนารี มณีแก้ว", role: "teacher" },
+            { username: "patjek", name: "นายปัจเจก จันทรเสนาวงค์", role: "teacher" },
+            { username: "supaluck", name: "นายศุภลักษณ์ ไชโย", role: "teacher" },
+            { username: "supannee", name: "นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", role: "teacher" },
+            
+            // Base 5
+            { username: "pattaya", name: "นางสาวพัทยา ยะมะโน", role: "teacher" },
+            { username: "siwaporn", name: "นางสาวศิวพร รุ่งเรือง", role: "teacher" },
             { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
-            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
-            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
             { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
-            { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" }
+            { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" },
+            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
+            { username: "samrit", name: "นายสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
+            { username: "pongpak", name: "นายพงศ์ภัค มงคลจรรยาภัค", role: "teacher" },
+            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
+            
+            // Base 6
+            { username: "tidarat", name: "นางสาวธิดารัตน์ วงศ์ใหญ่", role: "teacher" },
+            { username: "sahaphum", name: "นายสหภูมิ ตั้งตรง", role: "teacher" },
+            { username: "sawang", name: "นายสว่าง มัศยวรรณ", role: "teacher" },
+            { username: "supiya", name: "นายสุปิยะ ศักดิ์ภิรมย์", role: "teacher" },
+            { username: "jantanee", name: "นางสาวจันทนีย์ เฮิมนาง", role: "teacher" },
+            { username: "prabtawan", name: "นายปราบตะวัน สุรินทร์", role: "teacher" },
+            { username: "chitsanupong", name: "นายชิษณุพงศ์ วงศ์เสน", role: "teacher" },
+            { username: "rangsiya", name: "นางสาวรังสิยา ชัชวงศ์", role: "teacher" },
+            { username: "waranyu", name: "นายวรัญญู วิไลกุล", role: "teacher" },
+            { username: "phattarapin", name: "นางสาวภัทรรพินท์ พงศ์ธนะลีลา", role: "teacher" },
+            { username: "patcharaporn", name: "นางสาวพัชราภรณ์ หล้าแก้ว", role: "teacher" },
+            
+            // Base 7
+            { username: "apiradee", name: "นางอภิระดี เพ่งพิศ", role: "teacher" },
+            { username: "narongrit", name: "นายณรงค์ฤทธิ์ หงษ์อารีย์", role: "teacher" },
+            { username: "rotjana", name: "นางรจนา พุทธิ", role: "teacher" },
+            { username: "thanyarat", name: "นางธัญญรัตน์ เทศมี", role: "teacher" },
+            { username: "siriwattana", name: "นางศิริวัฒนา ยุ้งทอง", role: "teacher" },
+            { username: "weerapong", name: "ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง", role: "teacher" },
+            { username: "katsinee", name: "นางสาวเกษศิณี จันพรมมิน", role: "teacher" },
+            { username: "thanyaluck", name: "นางสาวธัญลักษณ์ เกตุ้ย", role: "teacher" },
+            { username: "angkana_k", name: "นางสาวอังคนา คำป้อ", role: "teacher" },
+            { username: "woranuch", name: "นางสาววรนุช คีรีเลิศธรรม", role: "teacher" },
+            { username: "pinyapat", name: "นางสาวภิญญาพัชร์ บุญเป", role: "teacher" }
         ];
 
-        newBase5Teachers.forEach(tInfo => {
-            const found = this.db.teachers.find(t => t.username === tInfo.username);
-            if (!found) {
-                this.db.teachers.push(tInfo);
-                dbChanged = true;
-            } else if (found.name !== tInfo.name) {
-                found.name = tInfo.name;
+        // Splicing old demo accounts
+        const oldDemoUsernames = [
+            "teacher1", "teacher1_2", "teacher2", "teacher2_2", 
+            "teacher3", "teacher3_2", "teacher4", "teacher4_2", 
+            "teacher6", "teacher6_2", "teacher7", "teacher7_2"
+        ];
+        oldDemoUsernames.forEach(username => {
+            const idx = this.db.teachers.findIndex(t => t.username === username);
+            if (idx !== -1) {
+                this.db.teachers.splice(idx, 1);
                 dbChanged = true;
             }
         });
 
-        const base5 = this.db.bases.find(b => b.id === 'base5');
-        if (base5) {
-            if (base5.name !== 'หรรษาสุธารสเห็ด') {
-                base5.name = 'หรรษาสุธารสเห็ด';
+        // Ensure all required teachers are registered in database
+        requiredTeachers.forEach(tInfo => {
+            const found = this.db.teachers.find(t => t.username === tInfo.username);
+            if (!found) {
+                this.db.teachers.push(tInfo);
+                dbChanged = true;
+            } else if (found.name !== tInfo.name || found.role !== tInfo.role) {
+                found.name = tInfo.name;
+                found.role = tInfo.role;
                 dbChanged = true;
             }
-            const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
-            const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
-            if (base5.defaultTeacher !== defaultTeacherStr || base5.teacherId !== teacherIdStr) {
-                base5.defaultTeacher = defaultTeacherStr;
-                base5.teacherId = teacherIdStr;
-                dbChanged = true;
-            }
-        }
+        });
 
-        // Sync rotation schedule Base 5 details
-        if (this.db.rotation_schedule) {
-            this.db.rotation_schedule.forEach(sch => {
-                if (sch.baseId === 'base5') {
-                    if (sch.baseName !== 'หรรษาสุธารสเห็ด') {
-                        sch.baseName = 'หรรษาสุธารสเห็ด';
-                        dbChanged = true;
-                    }
-                    const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
-                    const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
-                    if (sch.teacherName !== defaultTeacherStr || sch.teacherId !== teacherIdStr) {
-                        sch.teacherName = defaultTeacherStr;
-                        sch.teacherId = teacherIdStr;
-                        dbChanged = true;
-                    }
+        // Bases definitions migration
+        const newBasesData = [
+            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "นางสาวณัฐวดี เขียวภูมิชัย, นายปุญญพัฒน์ ธิมา, นางสาวเพ็ญศิริ วงค์เทพ, นางสาววิพิมพ์สาย หิ่งคำ, นางสาวนัฎฐิดา ปันงาม, นางสาวเกียรติติมา มณีวรรณ, นางสาวจริยา ทวีกิจสถาพร, นางประไพศรี กำแพงแก้ว, นางสาวณัฐกาญจน์ แก้วสุวรรณ, นางสาวพิมพ์ประภา เสาสวัสดิ์", teacherId: "nattawadee, punyapat, phensiri, wipimsai, nattida, kiattima, jariya, prapaisri, nattakarn, pimprabha" },
+            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "นางสาวแพรพลอย บุศยาณิน, นางสาวภัทรา กันทะคำ, นางสาวปัทมา หาญยศ, นางสาวศุทธินี โภชพิพิธ, นางธัญญาธร ศิริสุภาศักดิ์, นางสาวปิยดา ปวงฟู, นางสาวจิรภา พันธ์ธรรม, นางสาวธัญกร ยอดทอง, นายเกษมสันต์ จอมพิจิตร, นางสาวอภิชญา สุขแสงงาม", teacherId: "praeploy, pattra, patama, suthinee, thanyathorn, piyada, jirapha, thanyakorn, kasemsan, apichaya" },
+            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "นายอานนท์ ตื้อจันตา, นายไชโย ธัมหมื่นยอง, นายนวพรรษ พุทธิปา, นายวชิร ยะถามกรรม, นางสาวสุนทรี จิโนบัว, นางหัตถยาภรณ์ เอกจีน, นางสาวกุลปริยา รอดสุวรรณ, นางสาวกชกร รัตนศาสตร์ชาญ, นางสาวอังคนา วงค์คำ, นายภูวดล สุระจินดา", teacherId: "arnon, chaiyo, nawaphat, wachira, suntree, hattayaporn, kulpriya, kodchakorn, angkana_w, phuwadol" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
+            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
+            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
+        ];
+
+        newBasesData.forEach(bData => {
+            const base = this.db.bases.find(b => b.id === bData.id);
+            if (base) {
+                if (base.name !== bData.name) {
+                    base.name = bData.name;
+                    dbChanged = true;
                 }
-            });
-        }
+                if (base.defaultTeacher !== bData.defaultTeacher) {
+                    base.defaultTeacher = bData.defaultTeacher;
+                    dbChanged = true;
+                }
+                if (base.teacherId !== bData.teacherId) {
+                    base.teacherId = bData.teacherId;
+                    dbChanged = true;
+                }
+            }
+
+            if (this.db.rotation_schedule) {
+                this.db.rotation_schedule.forEach(sch => {
+                    if (sch.baseId === bData.id) {
+                        if (sch.baseName !== bData.name) {
+                            sch.baseName = bData.name;
+                            dbChanged = true;
+                        }
+                        if (sch.teacherName !== bData.defaultTeacher || sch.teacherId !== bData.teacherId) {
+                            sch.teacherName = bData.defaultTeacher;
+                            sch.teacherId = bData.teacherId;
+                            dbChanged = true;
+                        }
+                    }
+                });
+            }
+        });
 
         if (dbChanged) {
             this.saveDatabase();
@@ -491,37 +594,103 @@ class AttendanceApp {
 
         // 1. Bases
         const bases = [
-            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "ครูนงนุช รักษ์ดิน, ครูเกื้อกูล ดินดี", teacherId: "teacher1, teacher1_2" },
-            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "ครูวรรณนา ภาษาไทย, ครูรักไทย เขียนดี", teacherId: "teacher2, teacher2_2" },
-            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "ครูสมชาย เงาดี, ครูเกรียงไกร สอนน้ำ", teacherId: "teacher3, teacher3_2" },
-            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "ครูอนันต์ ใจดี, ครูสุขใจ เลี้ยงไก่", teacherId: "teacher4, teacher4_2" },
-            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี", teacherId: "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok" },
-            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "ครูประยุทธ์ กล้าหาญ, ครูรักชาติ ยิ่งชีพ", teacherId: "teacher6, teacher6_2" },
-            { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "ครูวิไล เกื้อกูล, ครูใจดี มีธรรม", teacherId: "teacher7, teacher7_2" }
+            { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "นางสาวณัฐวดี เขียวภูมิชัย, นายปุญญพัฒน์ ธิมา, นางสาวเพ็ญศิริ วงค์เทพ, นางสาววิพิมพ์สาย หิ่งคำ, นางสาวนัฎฐิดา ปันงาม, นางสาวเกียรติติมา มณีวรรณ, นางสาวจริยา ทวีกิจสถาพร, นางประไพศรี กำแพงแก้ว, นางสาวณัฐกาญจน์ แก้วสุวรรณ, นางสาวพิมพ์ประภา เสาสวัสดิ์", teacherId: "nattawadee, punyapat, phensiri, wipimsai, nattida, kiattima, jariya, prapaisri, nattakarn, pimprabha" },
+            { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "นางสาวแพรพลอย บุศยาณิน, นางสาวภัทรา กันทะคำ, นางสาวปัทมา หาญยศ, นางสาวศุทธินี โภชพิพิธ, นางธัญญาธร ศิริสุภาศักดิ์, นางสาวปิยดา ปวงฟู, นางสาวจิรภา พันธ์ธรรม, นางสาวธัญกร ยอดทอง, นายเกษมสันต์ จอมพิจิตร, นางสาวอภิชญา สุขแสงงาม", teacherId: "praeploy, pattra, patama, suthinee, thanyathorn, piyada, jirapha, thanyakorn, kasemsan, apichaya" },
+            { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "นายอานนท์ ตื้อจันตา, นายไชโย ธัมหมื่นยอง, นายนวพรรษ พุทธิปา, นายวชิร ยะถามกรรม, นางสาวสุนทรี จิโนบัว, นางหัตถยาภรณ์ เอกจีน, นางสาวกุลปริยา รอดสุวรรณ, นางสาวกชกร รัตนศาสตร์ชาญ, นางสาวอังคนา วงค์คำ, นายภูวดล สุระจินดา", teacherId: "arnon, chaiyo, nawaphat, wachira, suntree, hattayaporn, kulpriya, kodchakorn, angkana_w, phuwadol" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
+            { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
+            { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
         ];
 
         // 2. Teachers
         const teachers = [
-            { username: "teacher1", name: "ครูนงนุช รักษ์ดิน", role: "teacher" },
-            { username: "teacher1_2", name: "ครูเกื้อกูล ดินดี", role: "teacher" },
-            { username: "teacher2", name: "ครูวรรณนา ภาษาไทย", role: "teacher" },
-            { username: "teacher2_2", name: "ครูรักไทย เขียนดี", role: "teacher" },
-            { username: "teacher3", name: "ครูสมชาย เงาดี", role: "teacher" },
-            { username: "teacher3_2", name: "ครูเกรียงไกร สอนน้ำ", role: "teacher" },
-            { username: "teacher4", name: "ครูอนันต์ ใจดี", role: "teacher" },
-            { username: "teacher4_2", name: "ครูสุขใจ เลี้ยงไก่", role: "teacher" },
-            { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
-            { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
-            { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
+            // Base 1
+            { username: "nattawadee", name: "นางสาวณัฐวดี เขียวภูมิชัย", role: "teacher" },
+            { username: "punyapat", name: "นายปุญญพัฒน์ ธิมา", role: "teacher" },
+            { username: "phensiri", name: "นางสาวเพ็ญศิริ วงค์เทพ", role: "teacher" },
+            { username: "wipimsai", name: "นางสาววิพิมพ์สาย หิ่งคำ", role: "teacher" },
+            { username: "nattida", name: "นางสาวนัฎฐิดา ปันงาม", role: "teacher" },
+            { username: "kiattima", name: "นางสาวเกียรติติมา มณีวรรณ", role: "teacher" },
+            { username: "jariya", name: "นางสาวจริยา ทวีกิจสถาพร", role: "teacher" },
+            { username: "prapaisri", name: "นางประไพศรี กำแพงแก้ว", role: "teacher" },
+            { username: "nattakarn", name: "นางสาวณัฐกาญจน์ แก้วสุวรรณ", role: "teacher" },
+            { username: "pimprabha", name: "นางสาวพิมพ์ประภา เสาสวัสดิ์", role: "teacher" },
+            
+            // Base 2
+            { username: "praeploy", name: "นางสาวแพรพลอย บุศยาณิน", role: "teacher" },
+            { username: "pattra", name: "นางสาวภัทรา กันทะคำ", role: "teacher" },
+            { username: "patama", name: "นางสาวปัทมา หาญยศ", role: "teacher" },
+            { username: "suthinee", name: "นางสาวศุทธินี โภชพิพิธ", role: "teacher" },
+            { username: "thanyathorn", name: "นางธัญญาธร ศิริสุภาศักดิ์", role: "teacher" },
+            { username: "piyada", name: "นางสาวปิยดา ปวงฟู", role: "teacher" },
+            { username: "jirapha", name: "นางสาวจิรภา พันธ์ธรรม", role: "teacher" },
+            { username: "thanyakorn", name: "นางสาวธัญกร ยอดทอง", role: "teacher" },
+            { username: "kasemsan", name: "นายเกษมสันต์ จอมพิจิตร", role: "teacher" },
+            { username: "apichaya", name: "นางสาวอภิชญา สุขแสงงาม", role: "teacher" },
+            
+            // Base 3
+            { username: "arnon", name: "นายอานนท์ ตื้อจันตา", role: "teacher" },
+            { username: "chaiyo", name: "นายไชโย ธัมหมื่นยอง", role: "teacher" },
+            { username: "nawaphat", name: "นายนวพรรษ พุทธิปา", role: "teacher" },
+            { username: "wachira", name: "นายวชิร ยะถามกรรม", role: "teacher" },
+            { username: "suntree", name: "นางสาวสุนทรี จิโนบัว", role: "teacher" },
+            { username: "hattayaporn", name: "นางหัตถยาภรณ์ เอกจีน", role: "teacher" },
+            { username: "kulpriya", name: "นางสาวกุลปริยา รอดสุวรรณ", role: "teacher" },
+            { username: "kodchakorn", name: "นางสาวกชกร รัตนศาสตร์ชาญ", role: "teacher" },
+            { username: "angkana_w", name: "นางสาวอังคนา วงค์คำ", role: "teacher" },
+            { username: "phuwadol", name: "นายภูวดล สุระจินดา", role: "teacher" },
+            
+            // Base 4
+            { username: "nattapong", name: "นายณัฐพงศ์ หาญพอ", role: "teacher" },
+            { username: "narada", name: "นางณรฎา มธุรส", role: "teacher" },
+            { username: "thanomsak", name: "นายถนอมศักดิ์ กิตติเลิศภักดีกุล", role: "teacher" },
+            { username: "patiphan", name: "นายปฎิภาณ ใจซื่อ", role: "teacher" },
+            { username: "narong_c", name: "นายณรงค์ เชียงแก้ว", role: "teacher" },
+            { username: "anawat", name: "นายอนวัช ซอแอ", role: "teacher" },
+            { username: "natnaree", name: "นางสาวนาฎนารี มณีแก้ว", role: "teacher" },
+            { username: "patjek", name: "นายปัจเจก จันทรเสนาวงค์", role: "teacher" },
+            { username: "supaluck", name: "นายศุภลักษณ์ ไชโย", role: "teacher" },
+            { username: "supannee", name: "นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", role: "teacher" },
+            
+            // Base 5
+            { username: "pattaya", name: "นางสาวพัทยา ยะมะโน", role: "teacher" },
+            { username: "siwaporn", name: "นางสาวศิวพร รุ่งเรือง", role: "teacher" },
             { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
-            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
-            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
             { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
             { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" },
-            { username: "teacher6", name: "ครูประยุทธ์ กล้าหาญ", role: "teacher" },
-            { username: "teacher6_2", name: "ครูรักชาติ ยิ่งชีพ", role: "teacher" },
-            { username: "teacher7", name: "ครูวิไล เกื้อกูล", role: "teacher" },
-            { username: "teacher7_2", name: "ครูใจดี มีธรรม", role: "teacher" },
+            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
+            { username: "samrit", name: "นายสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
+            { username: "pongpak", name: "นายพงศ์ภัค มงคลจรรยาภัค", role: "teacher" },
+            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
+            
+            // Base 6
+            { username: "tidarat", name: "นางสาวธิดารัตน์ วงศ์ใหญ่", role: "teacher" },
+            { username: "sahaphum", name: "นายสหภูมิ ตั้งตรง", role: "teacher" },
+            { username: "sawang", name: "นายสว่าง มัศยวรรณ", role: "teacher" },
+            { username: "supiya", name: "นายสุปิยะ ศักดิ์ภิรมย์", role: "teacher" },
+            { username: "jantanee", name: "นางสาวจันทนีย์ เฮิมนาง", role: "teacher" },
+            { username: "prabtawan", name: "นายปราบตะวัน สุรินทร์", role: "teacher" },
+            { username: "chitsanupong", name: "นายชิษณุพงศ์ วงศ์เสน", role: "teacher" },
+            { username: "rangsiya", name: "นางสาวรังสิยา ชัชวงศ์", role: "teacher" },
+            { username: "waranyu", name: "นายวรัญญู วิไลกุล", role: "teacher" },
+            { username: "phattarapin", name: "นางสาวภัทรรพินท์ พงศ์ธนะลีลา", role: "teacher" },
+            { username: "patcharaporn", name: "นางสาวพัชราภรณ์ หล้าแก้ว", role: "teacher" },
+            
+            // Base 7
+            { username: "apiradee", name: "นางอภิระดี เพ่งพิศ", role: "teacher" },
+            { username: "narongrit", name: "นายณรงค์ฤทธิ์ หงษ์อารีย์", role: "teacher" },
+            { username: "rotjana", name: "นางรจนา พุทธิ", role: "teacher" },
+            { username: "thanyarat", name: "นางธัญญรัตน์ เทศมี", role: "teacher" },
+            { username: "siriwattana", name: "นางศิริวัฒนา ยุ้งทอง", role: "teacher" },
+            { username: "weerapong", name: "ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง", role: "teacher" },
+            { username: "katsinee", name: "นางสาวเกษศิณี จันพรมมิน", role: "teacher" },
+            { username: "thanyaluck", name: "นางสาวธัญลักษณ์ เกตุ้ย", role: "teacher" },
+            { username: "angkana_k", name: "นางสาวอังคนา คำป้อ", role: "teacher" },
+            { username: "woranuch", name: "นางสาววรนุช คีรีเลิศธรรม", role: "teacher" },
+            { username: "pinyapat", name: "นางสาวภิญญาพัชร์ บุญเป", role: "teacher" },
+
+            // Executives and Admin
             { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
             { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
             { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
@@ -688,7 +857,7 @@ class AttendanceApp {
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
-            { id: "base7", name: "หลู่ล่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "", teacherId: "" }
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "", teacherId: "" }
         ];
 
         this.db.students = [];
@@ -3773,7 +3942,7 @@ class AttendanceApp {
             };
         }
 
-        if (baseId === 'base7') { // หลู่ล่างกานเครือ เกื้อบุญ
+        if (baseId === 'base7') { // หลู่ส่างกานเครือ เกื้อบุญ
             const cls = allGradeClasses[grade] || [];
             const rooms = {};
             cls.forEach(c => { rooms[c] = "หอประชุมศุภเมธี"; });
