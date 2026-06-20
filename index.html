@@ -16,6 +16,9 @@
     
     <!-- SheetJS (XLSX) for Excel Import/Export -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <!-- Tesseract.js CDN for AI OCR Image Import -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -618,6 +621,17 @@
                                     <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); app.downloadScheduleTemplate()">ดาวน์โหลดไฟล์ต้นแบบ (Schedule Template)</button>
                                     <input type="file" id="import-schedule-file" accept=".xlsx, .xls, .csv" style="display: none;" onchange="app.handleExcelImport(this, 'schedule')">
                                 </div>
+                                
+                                <!-- Box: Rotation Schedule OCR Import -->
+                                <div class="import-box" onclick="document.getElementById('import-schedule-image').click()" style="border-color: var(--primary-light);">
+                                    <i class="fa-solid fa-file-image text-primary"></i>
+                                    <h4>นำเข้าตารางเรียนด้วยรูปภาพ (AI OCR)</h4>
+                                    <p>ถ่ายรูปหรืออัปโหลดรูปตารางปฏิทินหมุนฐานจริงเพื่ออ่านข้อมูลด้วย AI OCR</p>
+                                    <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); document.getElementById('import-schedule-image').click()">
+                                        <i class="fa-solid fa-camera"></i> อัปโหลดรูปตารางเรียน
+                                    </button>
+                                    <input type="file" id="import-schedule-image" accept="image/*" style="display: none;" onchange="app.handleImageOcrImport(this)">
+                                </div>
                             </div>
                         </div>
 
@@ -919,6 +933,71 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="app.closeModal('rotation-detail-modal')">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: OCR CALENDAR DRAFT REVIEW -->
+    <div class="modal" id="ocr-modal">
+        <div class="modal-content" style="max-width: 900px; width: 95%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                <h3><i class="fa-solid fa-file-image"></i> ผลการสแกนและนำเข้าตารางเรียนด้วย AI OCR</h3>
+                <button class="modal-close" style="color: white;" onclick="app.closeModal('ocr-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 20px;">
+                <!-- Step 1: Scanning status and progress bar -->
+                <div id="ocr-progress-container" style="margin-bottom: 20px; background-color: var(--gray-light); padding: 16px; border-radius: var(--radius-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span id="ocr-loading-status" style="font-weight: 700; color: var(--primary);">กำลังเริ่มระบบอ่านอักษรภาษาไทย...</span>
+                        <span id="ocr-loading-percent" style="font-size: 14px; font-weight: 600; color: var(--text-secondary);">0%</span>
+                    </div>
+                    <div class="progress-bar-container" style="background: #E2E8F0; border-radius: 10px; height: 12px; overflow: hidden; position: relative;">
+                        <div id="ocr-progress-bar" style="background: linear-gradient(90deg, var(--primary), var(--primary-light)); height: 100%; width: 0%; transition: width 0.1s;"></div>
+                    </div>
+                </div>
+
+                <div class="main-grid" style="grid-template-columns: 1fr 2.5fr; gap: 20px; margin-top: 15px;">
+                    <!-- Column 1: OCR Text extracted -->
+                    <div>
+                        <h4 style="font-weight: 700; margin-bottom: 8px; color: var(--text-primary);"><i class="fa-solid fa-align-left text-primary"></i> ข้อความที่ระบบตรวจพบ (Raw OCR)</h4>
+                        <textarea id="ocr-raw-text" style="width: 100%; height: 350px; font-size: 12px; font-family: 'Courier New', monospace; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: none; background-color: #F8FAFC;" placeholder="เมื่อวิเคราะห์เสร็จ ข้อความทั้งหมดที่ตรวจพบจะแสดงขึ้นที่นี่..."></textarea>
+                    </div>
+                    
+                    <!-- Column 2: Extracted Grid Preview for correction -->
+                    <div>
+                        <h4 style="font-weight: 700; margin-bottom: 8px; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center;">
+                            <span><i class="fa-solid fa-table text-primary"></i> รีวิวและแก้ไขข้อมูลก่อนนำเข้าปฏิทินหมุนฐาน</span>
+                            <span style="font-size:12px; font-weight:normal; color:var(--text-light);"><i class="fa-solid fa-info-circle"></i> ปรับระดับชั้นในแต่ละช่องตารางให้ถูกต้อง</span>
+                        </h4>
+                        
+                        <div class="table-responsive" style="height: 350px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                            <table style="width: 100%; font-size: 12px;" class="rotation-matrix-table">
+                                <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+                                    <tr>
+                                        <th style="width: 80px;">สัปดาห์</th>
+                                        <th style="width: 140px;">ช่วงวันที่</th>
+                                        <th>ฐาน 1</th>
+                                        <th>ฐาน 2</th>
+                                        <th>ฐาน 3</th>
+                                        <th>ฐาน 4</th>
+                                        <th>ฐาน 5</th>
+                                        <th>ฐาน 6</th>
+                                        <th>ฐาน 7</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ocr-preview-table-body">
+                                    <!-- Dynamic rows from 1 to 20 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="margin-top: 20px;">
+                <button class="btn btn-outline" onclick="app.closeModal('ocr-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" id="btn-save-ocr-import" disabled onclick="app.saveOcrImportedSchedule()">
+                    <i class="fa-solid fa-circle-check"></i> บันทึกนำเข้าข้อมูลปฏิทินหมุนฐาน
+                </button>
             </div>
         </div>
     </div>

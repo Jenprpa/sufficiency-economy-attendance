@@ -2873,6 +2873,460 @@ class AttendanceApp {
         const fileName = `Rotation_Calendar_${this.systemDate}.xlsx`;
         XLSX.writeFile(wb, fileName);
     }
+
+    // AI OCR: Import Rotation Schedule by Image
+    handleImageOcrImport(inputElement) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        this.openModal('ocr-modal');
+        
+        // Render blank draft first
+        this.renderOcrReviewTable(null);
+
+        const statusLabel = document.getElementById('ocr-loading-status');
+        const percentLabel = document.getElementById('ocr-loading-percent');
+        const progressBar = document.getElementById('ocr-progress-bar');
+        const rawTextArea = document.getElementById('ocr-raw-text');
+        
+        statusLabel.textContent = "กำลังโหลดระบบอ่านเขียนอักษรภาษาไทย AI OCR...";
+        percentLabel.textContent = "0%";
+        progressBar.style.width = "0%";
+        rawTextArea.value = "";
+
+        // Start Tesseract AI Recognition
+        Tesseract.recognize(
+            file,
+            'tha+eng',
+            {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        const pct = Math.round(m.progress * 100);
+                        statusLabel.textContent = `กำลังประมวลผลรูปภาพและแกะข้อความ (${pct}%)`;
+                        percentLabel.textContent = `${pct}%`;
+                        progressBar.style.width = `${pct}%`;
+                    } else {
+                        statusLabel.textContent = "กำลังเริ่มวิเคราะห์ตัวสะกดภาษาไทย...";
+                    }
+                }
+            }
+        ).then(({ data: { text } }) => {
+            statusLabel.textContent = "ประมวลผลรูปภาพเสร็จสิ้น! กำลังจำแนกปฏิทินรายสัปดาห์...";
+            percentLabel.textContent = "100%";
+            progressBar.style.width = "100%";
+            rawTextArea.value = text;
+
+            // Analyze text to extract schedule draft
+            const parsedData = this.parseOcrTextToCalendar(text);
+            
+            // Render draft to review table
+            this.renderOcrReviewTable(parsedData);
+
+            document.getElementById('btn-save-ocr-import').disabled = false;
+            statusLabel.innerHTML = "<span style='color:var(--success); font-weight:700;'><i class='fa-solid fa-circle-check'></i> ถอดรหัสตารางเรียนเสร็จสมบูรณ์! กรุณารีวิวตรวจสอบระดับชั้นด้านขวาก่อนกดบันทึก</span>";
+        }).catch(err => {
+            console.error(err);
+            statusLabel.innerHTML = "<span style='color:var(--danger); font-weight:700;'><i class='fa-solid fa-triangle-exclamation'></i> การประมวลผลรูปภาพล้มเหลว กรุณาตรวจสอบคุณภาพรูปภาพแล้วอัปโหลดใหม่อีกครั้ง</span>";
+        }).finally(() => {
+            inputElement.value = ''; // Reset input element
+        });
+    }
+
+    // Heuristics parser: scan raw OCR text and map keywords
+    parseOcrTextToCalendar(text) {
+        const lines = text.split('\n');
+        const calendarDraft = {};
+        
+        // Initialize empty draft for all weeks
+        for (let w = 1; w <= 20; w++) {
+            calendarDraft[w] = { base1: "", base2: "", base3: "", base4: "", base5: "", base6: "", base7: "" };
+        }
+
+        lines.forEach(line => {
+            line = line.trim();
+            if (!line) return;
+
+            // Search for week indicators (e.g. สัปดาห์ที่ 4, W4, Week 4, 4)
+            let weekNum = null;
+            const weekMatch = line.match(/^(?:สัปดาห์ที่|สัปดาห์|week|wk|w\.?)\s*(\d+)/i);
+            
+            if (weekMatch) {
+                weekNum = parseInt(weekMatch[1]);
+            } else {
+                // Match leading numbers for week rows e.g. "5 16 มิ.ย. ม.2 ม.3..."
+                const leadingMatch = line.match(/^(\d+)\b/);
+                if (leadingMatch) {
+                    const num = parseInt(leadingMatch[1]);
+                    if (num >= 1 && num <= 20) {
+                        weekNum = num;
+                    }
+                }
+            }
+
+            if (weekNum && weekNum >= 1 && weekNum <= 20) {
+                // Find all grade keywords matching ม.1-ม.6, M.1-M.6 (with or without spaces/dots) or ว่าง
+                const gradeMatches = line.match(/([มM]\.?\s*[1-6]|ว่าง)/g);
+                if (gradeMatches && gradeMatches.length > 0) {
+                    for (let i = 0; i < Math.min(gradeMatches.length, 7); i++) {
+                        let val = gradeMatches[i].replace(/\s+/g, '').replace(/[Mm]/g, 'ม'); // Normalize spaces and M to ม
+                        if (val !== "ว่าง") {
+                            if (!val.includes('.')) {
+                                val = val.replace('ม', 'ม.');
+                            }
+                        }
+                        calendarDraft[weekNum][`base${i+1}`] = val;
+                    }
+                }
+            }
+        });
+
+        // Post-parsing heuristic: fill in paired weeks if one of them is empty
+        // Since rotation schedule groups weeks in pairs (e.g. W4-5, W6-7, W8-9, etc.)
+        const pairs = [
+            [4, 5],
+            [6, 7],
+            [8, 9],
+            [12, 13],
+            [14, 15],
+            [16, 17],
+            [18, 19]
+        ];
+        pairs.forEach(([w1, w2]) => {
+            const hasW1 = Object.values(calendarDraft[w1]).some(v => v !== "");
+            const hasW2 = Object.values(calendarDraft[w2]).some(v => v !== "");
+            
+            if (hasW1 && !hasW2) {
+                calendarDraft[w2] = { ...calendarDraft[w1] };
+            } else if (!hasW1 && hasW2) {
+                calendarDraft[w1] = { ...calendarDraft[w2] };
+            }
+        });
+
+        return calendarDraft;
+    }
+
+    // Render review and correction table in ocr modal
+    renderOcrReviewTable(parsedData) {
+        const tbody = document.getElementById('ocr-preview-table-body');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        const weekDatesMap = {
+            1: "19 พ.ค. - 22 พ.ค. 69 (เตรียมความพร้อม)",
+            2: "26 พ.ค. - 29 พ.ค. 69 (นำเสนอสัญจร)",
+            3: "2 มิ.ย. - 5 มิ.ย. 69 (เรียน Online)",
+            4: "9 มิ.ย. - 12 มิ.ย. 69",
+            5: "16 มิ.ย. - 19 มิ.ย. 69",
+            6: "23 มิ.ย. - 26 มิ.ย. 69",
+            7: "30 มิ.ย. - 3 ก.ค. 69",
+            8: "7 ก.ค. - 10 ก.ค. 69",
+            9: "14 ก.ค. - 17 ก.ค. 69",
+            10: "21 ก.ค. - 24 ก.ค. 69 (สอบกลางภาค)",
+            11: "28 ก.ค. - 31 ก.ค. 69 (วันหยุดราชการ)",
+            12: "4 ส.ค. - 7 ส.ค. 69",
+            13: "11 ส.ค. - 14 ส.ค. 69",
+            14: "18 ส.ค. - 21 ส.ค. 69",
+            15: "25 ส.ค. - 28 ส.ค. 69",
+            16: "1 ก.ย. - 4 ก.ย. 69",
+            17: "8 ก.ย. - 11 ก.ย. 69",
+            18: "15 ก.ย. - 18 ก.ย. 69",
+            19: "22 ก.ย. - 25 ก.ย. 69",
+            20: "29 ก.ย. - 2 ต.ค. 69 (สอบปลายภาค)"
+        };
+
+        const specialWeeks = [1, 2, 3, 10, 11, 20];
+
+        for (let wk = 1; wk <= 20; wk++) {
+            const tr = document.createElement('tr');
+            const isSpecial = specialWeeks.includes(wk);
+            
+            let html = `
+                <td style="font-weight: 700; text-align: center;">W${wk}</td>
+                <td style="font-size: 11px; color: var(--text-secondary);">${weekDatesMap[wk]}</td>
+            `;
+
+            if (isSpecial) {
+                let label = "กิจกรรมพิเศษ / เตรียมความพร้อม";
+                if (wk === 10) label = "สอบกลางภาค";
+                else if (wk === 11) label = "วันหยุดราชการ";
+                else if (wk === 20) label = "สอบปลายภาค";
+                else if (wk === 3) label = "เรียน Online On-Demand";
+
+                html += `
+                    <td colspan="7" class="week-prep" style="text-align: center; font-weight: 600; padding: 4px;">
+                        ${label} (ล็อคโดยระบบ)
+                    </td>
+                `;
+            } else {
+                for (let b = 1; b <= 7; b++) {
+                    const bId = `base${b}`;
+                    const val = (parsedData && parsedData[wk]) ? parsedData[wk][bId] : "";
+                    
+                    html += `
+                        <td style="padding: 2px;">
+                            <select class="ocr-cell-select" data-week="${wk}" data-base="${bId}" style="width: 100%; padding: 4px; font-size: 12px; font-family: inherit; border-radius: 4px; border: 1px solid var(--border-color);">
+                                <option value="" ${val === "" ? "selected" : ""}>-</option>
+                                <option value="ม.1" ${val === "ม.1" ? "selected" : ""}>ม.1</option>
+                                <option value="ม.2" ${val === "ม.2" ? "selected" : ""}>ม.2</option>
+                                <option value="ม.3" ${val === "ม.3" ? "selected" : ""}>ม.3</option>
+                                <option value="ม.4" ${val === "ม.4" ? "selected" : ""}>ม.4</option>
+                                <option value="ม.5" ${val === "ม.5" ? "selected" : ""}>ม.5</option>
+                                <option value="ม.6" ${val === "ม.6" ? "selected" : ""}>ม.6</option>
+                                <option value="ว่าง" ${val === "ว่าง" ? "selected" : ""}>ว่าง</option>
+                            </select>
+                        </td>
+                    `;
+                }
+            }
+
+            tr.innerHTML = html;
+            tbody.appendChild(tr);
+        }
+    }
+
+    // Save reviewed values to rotation_schedule
+    saveOcrImportedSchedule() {
+        const tbody = document.getElementById('ocr-preview-table-body');
+        if (!tbody) return;
+
+        // Predefined week start/end dates
+        const weekDates = [
+            { week: 1, dates: "19 พฤษภาคม 2569", start: "2026-05-16", end: "2026-05-22", special: "เตรียมความพร้อมครูแกนนำ นักเรียนแกนนำ" },
+            { week: 2, dates: "26 พฤษภาคม 2569", start: "2026-05-23", end: "2026-05-29", special: "นำเสนอวิธีการสอน และรูปแบบการสอนของแต่ละฐาน ห้องประชุมธนี พหลโยธิน" },
+            { week: 3, dates: "2 มิถุนายน 2569", start: "2026-05-30", end: "2026-06-05", special: "จัดการเรียนการสอนแบบ Online On-Demand" },
+            { week: 4, dates: "9 มิถุนายน 2569", start: "2026-06-06", end: "2026-06-12", block: 0, isB: false },
+            { week: 5, dates: "16 มิถุนายน 2569", start: "2026-06-13", end: "2026-06-19", block: 0, isB: true },
+            { week: 6, dates: "23 มิถุนายน 2569", start: "2026-06-20", end: "2026-06-26", block: 1, isB: false },
+            { week: 7, dates: "30 มิถุนายน 2569", start: "2026-06-27", end: "2026-07-03", block: 1, isB: true },
+            { week: 8, dates: "7 กรกฎาคม 2569", start: "2026-07-04", end: "2026-07-10", block: 2, isB: false },
+            { week: 9, dates: "14 กรกฎาคม 2569", start: "2026-07-11", end: "2026-07-17", block: 2, isB: true },
+            { week: 10, dates: "21 กรกฎาคม 2569", start: "2026-07-18", end: "2026-07-24", special: "สอบกลางภาค" },
+            { week: 11, dates: "28 กรกฎาคม 2569", start: "2026-07-25", end: "2026-07-31", special: "วันหยุดราชการ" },
+            { week: 12, dates: "4 สิงหาคม 2569", start: "2026-08-01", end: "2026-08-07", block: 3, isB: false },
+            { week: 13, dates: "11 สิงหาคม 2569", start: "2026-08-08", end: "2026-08-14", block: 3, isB: true },
+            { week: 14, dates: "18 สิงหาคม 2569", start: "2026-08-15", end: "2026-08-21", block: 4, isB: false },
+            { week: 15, dates: "25 สิงหาคม 2569", start: "2026-08-22", end: "2026-08-28", block: 4, isB: true },
+            { week: 16, dates: "1 กันยายน 2569", start: "2026-08-29", end: "2026-09-04", block: 5, isB: false },
+            { week: 17, dates: "8 กันยายน 2569", start: "2026-09-05", end: "2026-09-11", block: 5, isB: true },
+            { week: 18, dates: "15 กันยายน 2569", start: "2026-09-12", end: "2026-09-18", block: 6, isB: false },
+            { week: 19, dates: "22 กันยายน 2569", start: "2026-09-19", end: "2026-09-25", block: 6, isB: true },
+            { week: 20, dates: "29 กันยายน 2569", start: "2026-09-26", end: "2026-10-02", special: "สอบปลายภาค" }
+        ];
+
+        const newSchedule = [];
+
+        // Loop weeks 1 to 20
+        for (let wk = 1; wk <= 20; wk++) {
+            const wInfo = weekDates.find(w => w.week === wk);
+            if (!wInfo) continue;
+
+            if (wInfo.special) {
+                // Special week (midterm, prep, etc.)
+                this.db.bases.forEach(b => {
+                    newSchedule.push({
+                        week: wk,
+                        dates: wInfo.dates,
+                        startDate: wInfo.start,
+                        endDate: wInfo.end,
+                        baseId: b.id,
+                        baseName: b.name,
+                        classes: wInfo.special,
+                        attendingClasses: [],
+                        classRooms: {},
+                        room: b.defaultRoom,
+                        teacherName: b.defaultTeacher || "-",
+                        teacherId: b.teacherId || "",
+                        isSpecial: true
+                    });
+                });
+            } else {
+                // Normal rotation week
+                for (let bIdx = 0; bIdx < 7; bIdx++) {
+                    const b = this.db.bases[bIdx] || { id: `base${bIdx+1}`, name: `ฐาน ${bIdx+1}`, defaultRoom: "-" };
+                    
+                    // Get grade from select input
+                    const select = tbody.querySelector(`select[data-week="${wk}"][data-base="${b.id}"]`);
+                    const grade = select ? select.value : "";
+
+                    if (!grade || grade === "ว่าง") {
+                        newSchedule.push({
+                            week: wk,
+                            dates: wInfo.dates,
+                            startDate: wInfo.start,
+                            endDate: wInfo.end,
+                            baseId: b.id,
+                            baseName: b.name,
+                            classes: "ว่าง (ไม่มีการจัดเรียน)",
+                            attendingClasses: [],
+                            classRooms: {},
+                            room: "-",
+                            teacherName: b.defaultTeacher || "-",
+                            teacherId: b.teacherId || "",
+                            isEmpty: true
+                        });
+                    } else {
+                        // Resolve classroom and room assignments using our helper
+                        const classData = this.getClassesForBaseAndGrade(b.id, grade, wInfo.isB);
+                        const mainRoom = Object.values(classData.classRooms)[0] || b.defaultRoom;
+
+                        newSchedule.push({
+                            week: wk,
+                            dates: wInfo.dates,
+                            startDate: wInfo.start,
+                            endDate: wInfo.end,
+                            baseId: b.id,
+                            baseName: b.name,
+                            classes: classData.classesLabel,
+                            attendingClasses: classData.classes,
+                            classRooms: classData.classRooms,
+                            room: mainRoom,
+                            teacherName: b.defaultTeacher || "-",
+                            teacherId: b.teacherId || ""
+                        });
+                    }
+                }
+            }
+        }
+
+        // Save to database
+        this.db.rotation_schedule = newSchedule;
+        this.saveDatabase();
+
+        this.closeModal('ocr-modal');
+        alert(`นำเข้าปฏิทินหมุนฐานเรียบร้อยแล้วจำนวน ${newSchedule.length} รายการ!`);
+
+        // Refresh manage schedule table if currently viewing it
+        if (this.currentView === 'manage') {
+            this.renderManage();
+        }
+    }
+
+    // Helper to map classrooms to bases dynamically
+    getClassesForBaseAndGrade(baseId, grade, isWeekB) {
+        const allGradeClasses = {
+            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9"],
+            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9"],
+            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8"],
+            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7"],
+            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6"],
+            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
+        };
+
+        if (baseId === 'base1') { // ไฟเบอร์ ทรงพลัง
+            const cls = allGradeClasses[grade] || [];
+            const rooms = {};
+            cls.forEach(c => { rooms[c] = "หอประชุมพุทธรักษา"; });
+            return {
+                classes: cls,
+                classRooms: rooms,
+                classesLabel: `${grade} (หอประชุมพุทธรักษา)`
+            };
+        }
+
+        if (baseId === 'base7') { // หลู่ล่างกานเครือ เกื้อบุญ
+            const cls = allGradeClasses[grade] || [];
+            const rooms = {};
+            cls.forEach(c => { rooms[c] = "หอประชุมศุภเมธี"; });
+            return {
+                classes: cls,
+                classRooms: rooms,
+                classesLabel: `${grade} (หอประชุมศุภเมธี)`
+            };
+        }
+
+        const group1 = [];
+        const group2 = [];
+        const group3 = [];
+        const group4 = [];
+        
+        if (grade === 'ม.1' || grade === 'ม.2') {
+            group1.push(`${grade}/1`, `${grade}/9`);
+            group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
+            group3.push(`${grade}/5`, `${grade}/6`);
+            group4.push(`${grade}/7`, `${grade}/8`);
+        } else if (grade === 'ม.3') {
+            group1.push(`${grade}/1`, `${grade}/8`);
+            group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
+            group3.push(`${grade}/5`, `${grade}/6`);
+            group4.push(`${grade}/7`);
+        } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
+            if (grade === 'ม.4') {
+                group1.push("ม.4/1", "ม.4/7");
+                group2.push("ม.4/2", "ม.4/5", "ม.4/6");
+                group3.push("ม.4/3", "ม.4/4");
+            } else {
+                group1.push(`${grade}/1`, `${grade}/6`);
+                group2.push(`${grade}/2`, `${grade}/5`);
+                group3.push(`${grade}/3`, `${grade}/4`);
+            }
+        }
+
+        const classesList = [];
+        const classRooms = {};
+        let roomA = '', roomB = '', roomC = '', roomD = '';
+
+        const isJunior = (grade === 'ม.1' || grade === 'ม.2' || grade === 'ม.3');
+
+        if (baseId === 'base2') { // อาณาจักรอักษร
+            roomA = "ห้อง 2206";
+            roomB = "ห้องสมุด";
+            roomC = "ห้อง 2202-2203";
+            roomD = "ห้อง 2204-2205";
+            if (!isJunior) {
+                roomA = "ห้อง 2202-2203";
+                roomB = "ห้องสมุด";
+                roomC = "ห้อง 2204-2205";
+                roomD = "";
+            }
+        } else if (baseId === 'base3') { // เงาในน้ำ
+            roomA = "ห้อง 1208";
+            roomB = "ห้อง 1201";
+            roomC = "ห้อง 1203-1204";
+            roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 1205" : "ห้อง 1205-1206") : "";
+        } else if (baseId === 'base4') { // ไก่ไข่อารมณ์ดี
+            roomA = "ห้อง 2101";
+            roomB = "ห้อง 2201";
+            roomC = "ห้อง 2102-2103";
+            roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 2104" : "ห้อง 2104-2105") : "";
+        } else if (baseId === 'base5') { // หรรษาสุรารสเห็ด
+            roomA = "ห้อง 1103";
+            roomB = "ห้องคหกรรม";
+            roomC = "ห้อง 1105";
+            roomD = isJunior ? "ห้อง 1107" : "";
+        } else if (baseId === 'base6') { // ต้นกล้าประชาธิปไตย
+            roomA = isJunior ? "ห้อง 2306" : "ห้อง 2301";
+            roomB = "ห้องประชุมธนี พหลโยธิน";
+            roomC = "ห้องคอมพิวเตอร์ 1 4101";
+            roomD = isJunior ? "ห้อง 2301" : "";
+        }
+
+        if (!isWeekB) {
+            classesList.push(...group1, ...group2);
+            group1.forEach(c => { classRooms[c] = roomA; });
+            group2.forEach(c => { classRooms[c] = roomB; });
+        } else {
+            classesList.push(...group3, ...group4);
+            group3.forEach(c => { classRooms[c] = roomC; });
+            group4.forEach(c => { classRooms[c] = roomD; });
+        }
+
+        let label = '';
+        if (!isWeekB) {
+            label = `${group1.join(', ')} (${roomA}) | ${group2.join(', ')} (${roomB})`;
+        } else {
+            if (group4.length > 0) {
+                label = `${group3.join(', ')} (${roomC}) | ${group4.join(', ')} (${roomD})`;
+            } else {
+                label = `${group3.join(', ')} (${roomC})`;
+            }
+        }
+
+        return {
+            classes: classesList,
+            classRooms: classRooms,
+            classesLabel: label
+        };
+    }
 }
 
 // Global App Instance
