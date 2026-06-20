@@ -19,6 +19,10 @@
     
     <!-- Tesseract.js CDN for AI OCR Image Import -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+    
+    <!-- Firebase SDK (Compat version for simple integration) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -38,6 +42,10 @@
                     </div>
                 </div>
             </div>
+            
+            <button class="hamburger-menu-btn" id="hamburger-toggle-btn" aria-label="เปิดเมนู">
+                <i class="fa-solid fa-bars"></i>
+            </button>
             
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-view="dashboard">🏠 หน้าหลัก</a>
@@ -435,6 +443,7 @@
                         <button class="btn btn-outline btn-sm" id="btn-tab-bases" onclick="app.switchManageTab('bases')">จัดการฐานการเรียนรู้</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-schedule" onclick="app.switchManageTab('schedule')">จัดการตารางหมุนฐาน</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-import" onclick="app.switchManageTab('import')">Import/Export Excel</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-cloud" onclick="app.switchManageTab('cloud')">ระบบคลาวด์ & Backup</button>
                     </div>
 
                     <!-- Sub-view: Students -->
@@ -635,6 +644,74 @@
                                 <button class="btn btn-danger" onclick="app.resetToEmptyData(true)" style="background-color: #DC2626; border-color: #DC2626;">
                                     <i class="fa-solid fa-eraser"></i> ล้างข้อมูลเพื่อใช้งานจริง (Production Blank)
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: Cloud Settings & Backups -->
+                    <div class="manage-sub-view" id="manage-sub-cloud" style="display: none;">
+                        <div class="card" style="margin-bottom: 24px;">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-cloud text-primary"></i> การเชื่อมต่อระบบคลาวด์ Firebase Firestore</h3>
+                            </div>
+                            <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px; flex-wrap: wrap;">
+                                <div class="status-badge-container">
+                                    สถานะการเชื่อมต่อ: 
+                                    <span id="firestore-status-badge" class="status-badge" style="background-color: var(--text-light); color: white; padding: 4px 8px; border-radius: var(--radius-sm);">กำลังตรวจสอบ...</span>
+                                </div>
+                                <button class="btn btn-primary" onclick="app.manualCloudBackup()">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> สำรองข้อมูลขึ้นคลาวด์ทันที (Manual Backup)
+                                </button>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 14px;">
+                                ข้อมูลจะถูกซิงก์โดยอัตโนมัติไปยัง Firebase Firestore เมื่อมีการเปลี่ยนแปลง หากระบบตัดการเชื่อมต่อจะสลับไปใช้ Offline Fallback (Local Storage) โดยอัตโนมัติ
+                            </p>
+                        </div>
+
+                        <div class="card" style="margin-bottom: 24px;">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-window-restore text-warning"></i> รายการข้อมูลสำรองบนคลาวด์ (Cloud Restore Snapshots)</h3>
+                            </div>
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>รหัสแบ็กอัป</th>
+                                            <th>วันเวลาที่สำรองข้อมูล</th>
+                                            <th>จำนวนครู</th>
+                                            <th>จำนวนนักเรียน</th>
+                                            <th>จำนวนฐาน</th>
+                                            <th>ผู้ดำเนินการ</th>
+                                            <th>การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cloud-backups-table-body">
+                                        <!-- Loaded dynamically via JS -->
+                                        <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">ไม่มีข้อมูลสำรองหรือไม่ได้เชื่อมต่อคลาวด์</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-list-check text-info"></i> บันทึกประวัติการทำงาน (Audit Logs)</h3>
+                            </div>
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>วันเวลา</th>
+                                            <th>ผู้ดำเนินการ</th>
+                                            <th>บทบาท</th>
+                                            <th>การดำเนินการ (Action)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="audit-logs-table-body">
+                                        <!-- Loaded dynamically via JS -->
+                                        <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ไม่มีบันทึกประวัติ</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

@@ -14,14 +14,21 @@ class AttendanceApp {
         this.dashChart = null;
         this.adminChart = null;
 
+        // Firestore properties
+        this.useFirestore = false;
+        this.firestore = null;
+
         // Initialize App
         this.init();
     }
 
     // Initialize databases and bindings
-    init() {
+    async init() {
+        // Initialize Firestore
+        this.initFirestore();
+
         // 1. Load database or seed demo data
-        this.loadDatabase();
+        await this.loadDatabase();
 
         // 2. Bind DOM Events
         this.bindEvents();
@@ -34,10 +41,94 @@ class AttendanceApp {
 
         // 5. Render active view
         this.render();
+
+        // Check Nightly Backup
+        if (this.useFirestore) {
+            this.checkNightlyBackup();
+            this.loadCloudBackups();
+            this.loadAuditLogs();
+        }
+    }
+
+    initFirestore() {
+        const firebaseConfig = {
+            apiKey: "PLACEHOLDER_FIREBASE_API_KEY",
+            authDomain: "PLACEHOLDER_FIREBASE_AUTH_DOMAIN",
+            projectId: "PLACEHOLDER_FIREBASE_PROJECT_ID",
+            storageBucket: "PLACEHOLDER_FIREBASE_STORAGE_BUCKET",
+            messagingSenderId: "PLACEHOLDER_FIREBASE_MESSAGING_SENDER_ID",
+            appId: "PLACEHOLDER_FIREBASE_APP_ID"
+        };
+
+        if (firebaseConfig.apiKey === "PLACEHOLDER_FIREBASE_API_KEY") {
+            this.useFirestore = false;
+            console.log("Firebase placeholder keys detected, using LocalStorage.");
+            return;
+        }
+
+        try {
+            firebase.initializeApp(firebaseConfig);
+            this.firestore = firebase.firestore();
+            this.useFirestore = true;
+            console.log("Firebase Firestore initialized successfully.");
+        } catch (e) {
+            console.error("Error initializing Firebase:", e);
+            this.useFirestore = false;
+        }
+    }
+
+    updateFirestoreConnectionStatus(connected) {
+        const badge = document.getElementById('firestore-status-badge');
+        if (badge) {
+            if (connected && this.useFirestore) {
+                badge.textContent = 'เชื่อมต่อสำเร็จ';
+                badge.style.backgroundColor = 'var(--secondary)'; // green
+            } else {
+                badge.textContent = 'ไม่ได้เชื่อมต่อ / ออฟไลน์ (Local Storage)';
+                badge.style.backgroundColor = 'var(--accent)'; // red
+            }
+        }
     }
 
     // Check localStorage, if empty seed dummy data
-    loadDatabase() {
+    async loadDatabase() {
+        if (this.useFirestore) {
+            try {
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'attendance_logs'];
+                const loadedDb = {};
+                let hasData = true;
+
+                // Load all collections concurrently
+                const promises = collections.map(col => this.firestore.collection('system_data').doc(col).get());
+                const docs = await Promise.all(promises);
+
+                for (let i = 0; i < collections.length; i++) {
+                    const doc = docs[i];
+                    if (doc.exists) {
+                        loadedDb[collections[i]] = doc.data().data || [];
+                    } else {
+                        hasData = false;
+                        break;
+                    }
+                }
+
+                if (hasData) {
+                    this.db = loadedDb;
+                    this.updateFirestoreConnectionStatus(true);
+                    this.runMigrationChecks();
+                    return;
+                } else {
+                    console.log("No data found in Firestore, seeding demo data...");
+                    await this.resetToDemoData(false);
+                    return;
+                }
+            } catch (e) {
+                console.error("Failed to load database from Firestore, falling back to LocalStorage:", e);
+                this.useFirestore = false;
+                this.updateFirestoreConnectionStatus(false);
+            }
+        }
+
         const students = localStorage.getItem('school_students');
         const teachers = localStorage.getItem('school_teachers');
         const bases = localStorage.getItem('school_bases');
@@ -45,127 +136,351 @@ class AttendanceApp {
         const logs = localStorage.getItem('school_attendance_logs');
 
         if (!students || !teachers || !bases || !schedule || !logs) {
-            this.resetToDemoData(false); // Seed without forcing confirmation on first load
+            await this.resetToDemoData(false); // Seed without forcing confirmation on first load
         } else {
             this.db.students = JSON.parse(students);
             this.db.teachers = JSON.parse(teachers);
             this.db.bases = JSON.parse(bases);
             this.db.rotation_schedule = JSON.parse(schedule);
             this.db.attendance_logs = JSON.parse(logs);
-
-            // Auto-update teachers with new school executives/admin if missing or incorrect
-            const requiredExecutives = [
-                { username: "deputy1", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
-                { username: "deputy2", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
-                { username: "deputy3", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
-                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
-            ];
-
-            let dbChanged = false;
-
-            // Remove old director username from local database if migrating
-            const oldDirectorIndex = this.db.teachers.findIndex(t => t.username === 'director');
-            if (oldDirectorIndex !== -1) {
-                this.db.teachers.splice(oldDirectorIndex, 1);
-                dbChanged = true;
-            }
-
-            requiredExecutives.forEach(exec => {
-                const found = this.db.teachers.find(t => t.username === exec.username);
-                if (!found) {
-                    this.db.teachers.push(exec);
-                    dbChanged = true;
-                } else {
-                    // Make sure name and role are up to date
-                    if (found.role !== exec.role) {
-                        found.role = exec.role;
-                        dbChanged = true;
-                    }
-                    if (found.name !== exec.name) {
-                        found.name = exec.name;
-                        dbChanged = true;
-                    }
-                    if (exec.password && found.password !== exec.password) {
-                        found.password = exec.password;
-                        dbChanged = true;
-                    }
-                    if (exec.phone && found.phone !== exec.phone) {
-                        found.phone = exec.phone;
-                        dbChanged = true;
-                    }
-                }
-            });
-
-            // Migration for Base 5 teachers and name
-            const newBase5Teachers = [
-                { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
-                { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
-                { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
-                { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
-                { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
-                { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
-                { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
-                { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" }
-            ];
-
-            newBase5Teachers.forEach(tInfo => {
-                const found = this.db.teachers.find(t => t.username === tInfo.username);
-                if (!found) {
-                    this.db.teachers.push(tInfo);
-                    dbChanged = true;
-                } else if (found.name !== tInfo.name) {
-                    found.name = tInfo.name;
-                    dbChanged = true;
-                }
-            });
-
-            const base5 = this.db.bases.find(b => b.id === 'base5');
-            if (base5) {
-                if (base5.name !== 'หรรษาสุธารสเห็ด') {
-                    base5.name = 'หรรษาสุธารสเห็ด';
-                    dbChanged = true;
-                }
-                const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
-                const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
-                if (base5.defaultTeacher !== defaultTeacherStr || base5.teacherId !== teacherIdStr) {
-                    base5.defaultTeacher = defaultTeacherStr;
-                    base5.teacherId = teacherIdStr;
-                    dbChanged = true;
-                }
-            }
-
-            // Sync rotation schedule Base 5 details
-            if (this.db.rotation_schedule) {
-                this.db.rotation_schedule.forEach(sch => {
-                    if (sch.baseId === 'base5') {
-                        if (sch.baseName !== 'หรรษาสุธารสเห็ด') {
-                            sch.baseName = 'หรรษาสุธารสเห็ด';
-                            dbChanged = true;
-                        }
-                        const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
-                        const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
-                        if (sch.teacherName !== defaultTeacherStr || sch.teacherId !== teacherIdStr) {
-                            sch.teacherName = defaultTeacherStr;
-                            sch.teacherId = teacherIdStr;
-                            dbChanged = true;
-                        }
-                    }
-                });
-            }
-
-            if (dbChanged) {
-                this.saveDatabase();
-            }
+            this.runMigrationChecks();
         }
     }
 
-    // Save database state to localStorage
-    saveDatabase() {
+    // Save database state to localStorage & Firestore
+    async saveDatabase() {
         localStorage.setItem('school_students', JSON.stringify(this.db.students));
         localStorage.setItem('school_teachers', JSON.stringify(this.db.teachers));
         localStorage.setItem('school_bases', JSON.stringify(this.db.bases));
         localStorage.setItem('school_rotation_schedule', JSON.stringify(this.db.rotation_schedule));
         localStorage.setItem('school_attendance_logs', JSON.stringify(this.db.attendance_logs));
+
+        if (this.useFirestore) {
+            try {
+                const batch = this.firestore.batch();
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'attendance_logs'];
+                collections.forEach(col => {
+                    const docRef = this.firestore.collection('system_data').doc(col);
+                    batch.set(docRef, { data: this.db[col] });
+                });
+                await batch.commit();
+                await this.triggerAutoBackup();
+                this.updateFirestoreConnectionStatus(true);
+            } catch (e) {
+                console.error("Failed to save database to Firestore:", e);
+                this.updateFirestoreConnectionStatus(false);
+            }
+        }
+    }
+
+    async triggerAutoBackup(isNightly = false) {
+        if (!this.useFirestore) return;
+        try {
+            const timestamp = new Date();
+            const backupId = 'backup_' + timestamp.getTime();
+            const backupDoc = {
+                id: backupId,
+                timestamp: timestamp,
+                isNightly: isNightly,
+                operatorName: this.currentUser ? this.currentUser.name : "System",
+                operatorUsername: this.currentUser ? this.currentUser.username : "system",
+                stats: {
+                    studentsCount: this.db.students.length,
+                    teachersCount: this.db.teachers.length,
+                    basesCount: this.db.bases.length,
+                    logsCount: this.db.attendance_logs.length
+                },
+                db: this.db
+            };
+            await this.firestore.collection('backups').doc(backupId).set(backupDoc);
+            console.log("Auto backup completed:", backupId);
+            this.loadCloudBackups();
+        } catch (e) {
+            console.error("Failed to trigger auto backup:", e);
+        }
+    }
+
+    async checkNightlyBackup() {
+        if (!this.useFirestore) return;
+        try {
+            const query = await this.firestore.collection('backups')
+                .where('isNightly', '==', true)
+                .orderBy('timestamp', 'desc')
+                .limit(1)
+                .get();
+            
+            let needNightly = true;
+            if (!query.empty) {
+                const latest = query.docs[0].data();
+                const latestDate = latest.timestamp.toDate().toDateString();
+                const todayString = new Date().toDateString();
+                if (latestDate === todayString) {
+                    needNightly = false;
+                }
+            }
+            
+            if (needNightly) {
+                console.log("Triggering nightly cloud backup...");
+                await this.triggerAutoBackup(true);
+                await this.logAudit("Nightly cloud backup executed automatically");
+            }
+        } catch (e) {
+            console.error("Failed to check nightly backup:", e);
+        }
+    }
+
+    async loadCloudBackups() {
+        if (!this.useFirestore) return;
+        try {
+            const snapshot = await this.firestore.collection('backups')
+                .orderBy('timestamp', 'desc')
+                .limit(20)
+                .get();
+            
+            const tbody = document.getElementById('cloud-backups-table-body');
+            if (!tbody) return;
+
+            if (snapshot.empty) {
+                tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">ไม่มีข้อมูลสำรองบนคลาวด์</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const ts = data.timestamp ? data.timestamp.toDate() : new Date();
+                const timeStr = ts.toLocaleString('th-TH');
+                const isNightlyTag = data.isNightly ? ' <span class="status-badge" style="background-color: var(--primary); font-size:10px;">Nightly</span>' : '';
+                
+                html += `
+                    <tr>
+                        <td><code>${data.id}</code>${isNightlyTag}</td>
+                        <td>${timeStr}</td>
+                        <td>${data.stats ? data.stats.teachersCount : 0} คน</td>
+                        <td>${data.stats ? data.stats.studentsCount : 0} คน</td>
+                        <td>${data.stats ? data.stats.basesCount : 0} ฐาน</td>
+                        <td>${data.operatorName || 'System'}</td>
+                        <td>
+                            <button class="btn btn-outline btn-sm" onclick="app.restoreDatabaseFromCloud('${data.id}')">
+                                <i class="fa-solid fa-cloud-arrow-down"></i> กู้คืนข้อมูล
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            console.error("Error loading backups:", e);
+        }
+    }
+
+    async restoreDatabaseFromCloud(backupId) {
+        if (!this.useFirestore) return;
+        if (!confirm(`คุณต้องการกู้คืนข้อมูลระบบจากแบ็กอัป ${backupId} ใช่หรือไม่? ข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด`)) {
+            return;
+        }
+
+        try {
+            const doc = await this.firestore.collection('backups').doc(backupId).get();
+            if (!doc.exists) {
+                alert("ไม่พบข้อมูลสำรองนี้บนคลาวด์");
+                return;
+            }
+
+            const backupData = doc.data().db;
+            if (backupData) {
+                this.db = backupData;
+                await this.saveDatabase();
+                await this.logAudit(`Restored database from cloud snapshot ${backupId}`);
+                alert("กู้คืนข้อมูลระบบเรียบร้อยแล้ว!");
+                this.render();
+            } else {
+                alert("โครงสร้างข้อมูลในแบ็กอัปไม่ถูกต้อง");
+            }
+        } catch (e) {
+            console.error("Failed to restore from backup:", e);
+            alert("เกิดข้อผิดพลาดในการกู้คืนข้อมูล: " + e.message);
+        }
+    }
+
+    async manualCloudBackup() {
+        if (!this.useFirestore) {
+            alert("ระบบคลาวด์ไม่ได้เชื่อมต่อ ไม่สามารถทำการสำรองข้อมูลได้");
+            return;
+        }
+        try {
+            await this.triggerAutoBackup(false);
+            await this.logAudit("Manual cloud backup executed");
+            alert("สำรองข้อมูลขึ้นคลาวด์เรียบร้อยแล้ว!");
+        } catch (e) {
+            alert("เกิดข้อผิดพลาดในการสำรองข้อมูล: " + e.message);
+        }
+    }
+
+    async logAudit(actionDescription) {
+        if (!this.useFirestore) return;
+        try {
+            const logId = 'audit_' + new Date().getTime() + '_' + Math.random().toString(36).substr(2, 5);
+            const auditDoc = {
+                id: logId,
+                timestamp: new Date(),
+                operatorName: this.currentUser ? this.currentUser.name : "System",
+                operatorUsername: this.currentUser ? this.currentUser.username : "system",
+                operatorRole: this.currentUser ? this.currentUser.role : "system",
+                action: actionDescription
+            };
+            await this.firestore.collection('audit_logs').doc(logId).set(auditDoc);
+            this.loadAuditLogs();
+        } catch (e) {
+            console.error("Failed to log audit:", e);
+        }
+    }
+
+    async loadAuditLogs() {
+        if (!this.useFirestore) return;
+        try {
+            const snapshot = await this.firestore.collection('audit_logs')
+                .orderBy('timestamp', 'desc')
+                .limit(50)
+                .get();
+            
+            const tbody = document.getElementById('audit-logs-table-body');
+            if (!tbody) return;
+
+            if (snapshot.empty) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ไม่มีบันทึกประวัติ</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                const ts = data.timestamp ? data.timestamp.toDate() : new Date();
+                const timeStr = ts.toLocaleString('th-TH');
+                let roleThai = 'ผู้ดูแลระบบ';
+                if (data.operatorRole === 'teacher') roleThai = 'ครูประจำฐาน';
+                if (data.operatorRole === 'director') roleThai = 'ผู้บริหาร';
+                if (data.operatorRole === 'system') roleThai = 'ระบบ';
+
+                html += `
+                    <tr>
+                        <td style="white-space: nowrap;">${timeStr}</td>
+                        <td><strong>${data.operatorName}</strong> <span style="font-size:11px; color:var(--text-secondary);">(@${data.operatorUsername})</span></td>
+                        <td>${roleThai}</td>
+                        <td>${data.action}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            console.error("Error loading audit logs:", e);
+        }
+    }
+
+    runMigrationChecks() {
+        // Auto-update teachers with new school executives/admin if missing or incorrect
+        const requiredExecutives = [
+            { username: "deputy1", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
+            { username: "deputy2", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
+            { username: "deputy3", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
+            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
+        ];
+
+        let dbChanged = false;
+
+        // Remove old director username from local database if migrating
+        const oldDirectorIndex = this.db.teachers.findIndex(t => t.username === 'director');
+        if (oldDirectorIndex !== -1) {
+            this.db.teachers.splice(oldDirectorIndex, 1);
+            dbChanged = true;
+        }
+
+        requiredExecutives.forEach(exec => {
+            const found = this.db.teachers.find(t => t.username === exec.username);
+            if (!found) {
+                this.db.teachers.push(exec);
+                dbChanged = true;
+            } else {
+                // Make sure name and role are up to date
+                if (found.role !== exec.role) {
+                    found.role = exec.role;
+                    dbChanged = true;
+                }
+                if (found.name !== exec.name) {
+                    found.name = exec.name;
+                    dbChanged = true;
+                }
+                if (exec.password && found.password !== exec.password) {
+                    found.password = exec.password;
+                    dbChanged = true;
+                }
+                if (exec.phone && found.phone !== exec.phone) {
+                    found.phone = exec.phone;
+                    dbChanged = true;
+                }
+            }
+        });
+
+        // Migration for Base 5 teachers and name
+        const newBase5Teachers = [
+            { username: "samrit", name: "ครูสัมฤทธิ์ ไชยทารินทร์", role: "teacher" },
+            { username: "pattaya", name: "ครูพัทยา ยะมะโน", role: "teacher" },
+            { username: "siwaporn", name: "ครูศิวพร รุ่งเรือง", role: "teacher" },
+            { username: "phetcharin", name: "นางสาวเพชรดารินทร์ เดชชลธี", role: "teacher" },
+            { username: "duangsuda", name: "นางดวงสุดา เรืองวุฒิ", role: "teacher" },
+            { username: "kongphop", name: "นายก้องภพ มูลศรี", role: "teacher" },
+            { username: "thanchanok", name: "นางสาวธัญชนก พงษ์ศรี", role: "teacher" },
+            { username: "parichart", name: "นางสาวปาริชาติ แก้วศักดิ์", role: "teacher" }
+        ];
+
+        newBase5Teachers.forEach(tInfo => {
+            const found = this.db.teachers.find(t => t.username === tInfo.username);
+            if (!found) {
+                this.db.teachers.push(tInfo);
+                dbChanged = true;
+            } else if (found.name !== tInfo.name) {
+                found.name = tInfo.name;
+                dbChanged = true;
+            }
+        });
+
+        const base5 = this.db.bases.find(b => b.id === 'base5');
+        if (base5) {
+            if (base5.name !== 'หรรษาสุธารสเห็ด') {
+                base5.name = 'หรรษาสุธารสเห็ด';
+                dbChanged = true;
+            }
+            const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
+            const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
+            if (base5.defaultTeacher !== defaultTeacherStr || base5.teacherId !== teacherIdStr) {
+                base5.defaultTeacher = defaultTeacherStr;
+                base5.teacherId = teacherIdStr;
+                dbChanged = true;
+            }
+        }
+
+        // Sync rotation schedule Base 5 details
+        if (this.db.rotation_schedule) {
+            this.db.rotation_schedule.forEach(sch => {
+                if (sch.baseId === 'base5') {
+                    if (sch.baseName !== 'หรรษาสุธารสเห็ด') {
+                        sch.baseName = 'หรรษาสุธารสเห็ด';
+                        dbChanged = true;
+                    }
+                    const defaultTeacherStr = "ครูสัมฤทธิ์ ไชยทารินทร์, นางดวงสุดา เรืองวุฒิ, ครูพัทยา ยะมะโน, ครูศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวปาริชาติ แก้วศักดิ์, นางสาวเจนประภา เรือนคำ, นายก้องภพ มูลศรี, นางสาวธัญชนก พงษ์ศรี";
+                    const teacherIdStr = "samrit, duangsuda, pattaya, siwaporn, phetcharin, parichart, admin, kongphop, thanchanok";
+                    if (sch.teacherName !== defaultTeacherStr || sch.teacherId !== teacherIdStr) {
+                        sch.teacherName = defaultTeacherStr;
+                        sch.teacherId = teacherIdStr;
+                        dbChanged = true;
+                    }
+                }
+            });
+        }
+
+        if (dbChanged) {
+            this.saveDatabase();
+        }
     }
 
     // Seed realistic database
@@ -512,11 +827,24 @@ class AttendanceApp {
         document.getElementById('btn-export-rotation-excel').addEventListener('click', () => {
             this.exportRotationToExcel();
         });
+
+        // Hamburger Menu Toggle
+        const hamburgerBtn = document.getElementById('hamburger-toggle-btn');
+        if (hamburgerBtn) {
+            hamburgerBtn.addEventListener('click', () => {
+                const navBar = document.querySelector('.top-nav-bar');
+                if (navBar) navBar.classList.toggle('menu-open');
+            });
+        }
     }
 
     // Change views (SPA router)
     switchView(viewId) {
         this.currentView = viewId;
+
+        // Close hamburger menu on view switch
+        const navBar = document.querySelector('.top-nav-bar');
+        if (navBar) navBar.classList.remove('menu-open');
         
         // Update active class on Top Bar menu items
         const menuItems = document.querySelectorAll('.nav-menu .nav-item');
@@ -607,7 +935,7 @@ class AttendanceApp {
             const container = document.getElementById('base-form-teachers-container');
               if (container) {
                   container.innerHTML = this.db.teachers
-                      .filter(t => t.role === 'teacher')
+                      .filter(t => t.role === 'teacher' || t.role === 'admin')
                       .map(t => `
                           <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: normal; margin: 0; padding: 4px 0;">
                               <input type="checkbox" name="base-teachers" value="${t.username}">
@@ -958,12 +1286,15 @@ class AttendanceApp {
                     : '<span class="status-badge pending"><i class="fa-solid fa-clock"></i> ยังไม่ได้เช็ก</span>';
             }
 
+            const baseObj = this.db.bases.find(b => b.id === sch.baseId);
+            const displayTeacherName = baseObj ? baseObj.defaultTeacher : sch.teacherName;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight: 700; color: var(--primary-dark);">${sch.baseName}</td>
                 <td><span class="status-badge info">${sch.isSpecial ? 'ทุกระดับชั้น' : sch.classes}</span></td>
                 <td><i class="fa-solid fa-location-dot text-light"></i> ${sch.room}</td>
-                <td><i class="fa-solid fa-chalkboard-user text-light"></i> ${sch.teacherName}</td>
+                <td><i class="fa-solid fa-chalkboard-user text-light"></i> ${displayTeacherName}</td>
                 <td>${statusBadge}</td>
             `;
             tbody.appendChild(tr);
@@ -1720,10 +2051,13 @@ class AttendanceApp {
                 const total = p + a + le + la + act;
                 const rate = total > 0 ? Math.round((p / total) * 100) + '%' : 'ยังไม่เช็ก';
 
+                const baseObj = this.db.bases.find(b => b.id === sch.baseId);
+                const displayTeacherName = baseObj ? baseObj.defaultTeacher : sch.teacherName;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="font-weight:700;">${sch.baseName}</td>
-                    <td>${sch.teacherName}</td>
+                    <td>${displayTeacherName}</td>
                     <td><span class="status-badge info">${sch.classes}</span></td>
                     <td>${isChecked ? p : '-'}</td>
                     <td>${isChecked ? a : '-'}</td>
@@ -1783,10 +2117,13 @@ class AttendanceApp {
                 const total = p + a + le + la + act;
                 const rate = total > 0 ? Math.round((p / total) * 100) + '%' : '-';
 
+                const baseObj = this.db.bases.find(b => b.id === sch.baseId);
+                const displayTeacherName = baseObj ? baseObj.defaultTeacher : sch.teacherName;
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="font-weight:700;">${sch.baseName}</td>
-                    <td>${sch.teacherName}</td>
+                    <td>${displayTeacherName}</td>
                     <td><span class="status-badge info">${sch.classes}</span></td>
                     <td>${total > 0 ? p : '-'}</td>
                     <td>${total > 0 ? a : '-'}</td>
@@ -2024,19 +2361,19 @@ class AttendanceApp {
         this.manageTab = tabId;
         
         // Update tab buttons style
-        const tabs = ['students', 'teachers', 'bases', 'schedule', 'import'];
+        const tabs = ['students', 'teachers', 'bases', 'schedule', 'import', 'cloud'];
         tabs.forEach(t => {
             const btn = document.getElementById(`btn-tab-${t}`);
             const div = document.getElementById(`manage-sub-${t}`);
             
             if (t === tabId) {
-                btn.classList.add('btn-primary');
-                btn.classList.remove('btn-outline');
-                div.style.display = 'block';
+                if (btn) btn.classList.add('btn-primary');
+                if (btn) btn.classList.remove('btn-outline');
+                if (div) div.style.display = 'block';
             } else {
-                btn.classList.remove('btn-primary');
-                btn.classList.add('btn-outline');
-                div.style.display = 'none';
+                if (btn) btn.classList.remove('btn-primary');
+                if (btn) btn.classList.add('btn-outline');
+                if (div) div.style.display = 'none';
             }
         });
 
@@ -2050,6 +2387,9 @@ class AttendanceApp {
             this.renderManageBases();
         } else if (tabId === 'schedule') {
             this.renderManageSchedule();
+        } else if (tabId === 'cloud') {
+            this.loadCloudBackups();
+            this.loadAuditLogs();
         }
     }
 
@@ -2279,6 +2619,7 @@ class AttendanceApp {
             }
             // Create new
             this.db.students.push({ studentId: id, name, grade, room, no, groupIndex });
+            this.logAudit(`Added student: ${name} (ID: ${id})`);
         } else {
             // Edit existing
             const st = this.db.students.find(s => s.studentId === formIndex);
@@ -2289,6 +2630,7 @@ class AttendanceApp {
                 st.no = no;
                 st.groupIndex = groupIndex;
             }
+            this.logAudit(`Updated student: ${name} (ID: ${id})`);
         }
 
         this.saveDatabase();
@@ -2300,6 +2642,7 @@ class AttendanceApp {
         if (confirm(`คุณแน่ใจว่าต้องการลบรายชื่อนักเรียน รหัส ${studentId} หรือไม่?`)) {
             this.db.students = this.db.students.filter(s => s.studentId !== studentId);
             this.saveDatabase();
+            this.logAudit(`Deleted student ID: ${studentId}`);
             this.renderManageStudents();
         }
     }
@@ -2358,6 +2701,7 @@ class AttendanceApp {
                 newTeacher.password = passwordVal;
             }
             this.db.teachers.push(newTeacher);
+            this.logAudit(`Added teacher: ${name} (Username: ${username})`);
         } else { // Edit
             const t = this.db.teachers.find(x => x.username === username);
             if (t) {
@@ -2367,6 +2711,7 @@ class AttendanceApp {
                     t.password = passwordVal;
                 }
             }
+            this.logAudit(`Updated teacher: ${name} (Username: ${username})`);
         }
 
         this.saveDatabase();
@@ -2382,6 +2727,7 @@ class AttendanceApp {
         if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลคุณครู รหัส ${username} ใช่หรือไม่?`)) {
             this.db.teachers = this.db.teachers.filter(x => x.username !== username);
             this.saveDatabase();
+            this.logAudit(`Deleted teacher: ${username}`);
             this.renderManageTeachers();
         }
     }
@@ -2442,6 +2788,7 @@ class AttendanceApp {
         if (id === "") { // Create
             const newId = `base${Date.now()}`;
             this.db.bases.push({ id: newId, name, defaultRoom: room, defaultTeacher: teacherNameStr, teacherId: teacherIdStr });
+            this.logAudit(`Created learning base: ${name}`);
         } else { // Edit
             const b = this.db.bases.find(x => x.id === id);
             if (b) {
@@ -2450,6 +2797,16 @@ class AttendanceApp {
                 b.defaultTeacher = teacherNameStr;
                 b.teacherId = teacherIdStr;
             }
+            // Sync rotation schedule entries
+            this.db.rotation_schedule.forEach(sch => {
+                if (sch.baseId === id) {
+                    sch.baseName = name;
+                    sch.room = room;
+                    sch.teacherName = teacherNameStr;
+                    sch.teacherId = teacherIdStr;
+                }
+            });
+            this.logAudit(`Updated learning base: ${name} (Synced rotation schedule)`);
         }
 
         this.saveDatabase();
@@ -2461,6 +2818,7 @@ class AttendanceApp {
         if (confirm(`คุณแน่ใจว่าต้องการลบฐานการเรียนรู้นี้?`)) {
             this.db.bases = this.db.bases.filter(b => b.id !== id);
             this.saveDatabase();
+            this.logAudit(`Deleted base ID: ${id}`);
             this.renderManageBases();
         }
     }
@@ -2530,9 +2888,11 @@ class AttendanceApp {
 
         if (indexVal === "") { // Create
             this.db.rotation_schedule.push(newSch);
+            this.logAudit(`Added rotation schedule for week ${week}: ${baseName}`);
         } else { // Edit
             const idx = parseInt(indexVal);
             this.db.rotation_schedule[idx] = newSch;
+            this.logAudit(`Updated rotation schedule for week ${week}: ${baseName}`);
         }
 
         this.saveDatabase();
@@ -2541,9 +2901,11 @@ class AttendanceApp {
     }
 
     deleteSchedule(index) {
+        const sch = this.db.rotation_schedule[index];
         if (confirm("ต้องการลบตารางเวลานี้หรือไม่?")) {
             this.db.rotation_schedule.splice(index, 1);
             this.saveDatabase();
+            this.logAudit(`Deleted rotation schedule for week ${sch.week}: ${sch.baseName}`);
             this.renderManageSchedule();
         }
     }
