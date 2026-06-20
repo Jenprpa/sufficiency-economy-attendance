@@ -1838,7 +1838,11 @@ class AttendanceApp {
                     });
                 }
                 if (!this.adminSelectedBaseId) {
-                    this.adminSelectedBaseId = adminSelect.value || 'base1';
+                    if (this.currentUser.username === 'admin') {
+                        this.adminSelectedBaseId = 'base5';
+                    } else {
+                        this.adminSelectedBaseId = adminSelect.value || 'base1';
+                    }
                 }
                 adminSelect.value = this.adminSelectedBaseId;
             }
@@ -2163,7 +2167,7 @@ class AttendanceApp {
         // Find schedule to get baseId
         let scheduleRow;
         if (this.currentUser.role === 'admin' || this.currentUser.role === 'director') {
-            const baseId = this.adminSelectedBaseId || 'base1';
+            const baseId = this.adminSelectedBaseId || (this.currentUser.username === 'admin' ? 'base5' : 'base1');
             scheduleRow = this.db.rotation_schedule.find(s => s.week === week && s.baseId === baseId);
         } else {
             scheduleRow = this.db.rotation_schedule.find(
