@@ -274,32 +274,23 @@ h1, h2, h3, h4, h5, h6 {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Hero Banner */
-.hero-banner {
-    background-image: linear-gradient(rgba(250, 247, 242, 0.82), rgba(250, 247, 242, 0.82)), url('banner.jpg');
-    background-size: cover;
-    background-position: center;
+/* Hero Banner Container */
+.hero-banner-container {
+    width: 100%;
     border-radius: var(--radius-md);
     border: 1px solid rgba(140, 106, 43, 0.22);
-    padding: 40px;
-    margin-bottom: 20px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 220px;
     box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    margin-bottom: 20px;
+    background-color: var(--gray-light);
+    transition: var(--transition);
 }
 
-.hero-banner-content {
-    background: rgba(255, 255, 255, 0.9);
-    border: 1px solid #D4A017;
-    border-radius: var(--radius-md);
-    padding: 24px 32px;
-    max-width: 80%;
-    display: inline-block;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+.hero-banner-img {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
 }
 
 /* Cards & Grid */
