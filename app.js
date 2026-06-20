@@ -2194,6 +2194,11 @@ class AttendanceApp {
         document.getElementById('teacher-form-username').disabled = false;
         document.getElementById('teacher-form-name').value = "";
         document.getElementById('teacher-form-role').value = "teacher";
+        
+        document.getElementById('teacher-form-password-label').textContent = "รหัสผ่านเริ่มต้น (รหัสเริ่มต้นคือ username)";
+        document.getElementById('teacher-form-password').value = "";
+        document.getElementById('teacher-form-password').placeholder = "ระบุรหัสผ่านเริ่มต้น...";
+        
         this.openModal('teacher-modal');
     }
 
@@ -2206,6 +2211,11 @@ class AttendanceApp {
         document.getElementById('teacher-form-username').disabled = true;
         document.getElementById('teacher-form-name').value = t.name;
         document.getElementById('teacher-form-role').value = t.role;
+        
+        document.getElementById('teacher-form-password-label').textContent = "รหัสผ่านใหม่ / รีเซ็ตรหัสผ่าน";
+        document.getElementById('teacher-form-password').value = "";
+        document.getElementById('teacher-form-password').placeholder = "ระบุรหัสผ่านใหม่ (ปล่อยว่างหากต้องการใช้รหัสเดิม)...";
+        
         this.openModal('teacher-modal');
     }
 
@@ -2213,6 +2223,7 @@ class AttendanceApp {
         const username = document.getElementById('teacher-form-username').value.trim();
         const name = document.getElementById('teacher-form-name').value.trim();
         const role = document.getElementById('teacher-form-role').value;
+        const passwordVal = document.getElementById('teacher-form-password').value.trim();
         const formIndex = document.getElementById('teacher-form-username').disabled; // If disabled, it's an edit
 
         if (!username || !name) {
@@ -2225,12 +2236,19 @@ class AttendanceApp {
                 alert("มีรหัสผู้ใช้ (Username) นี้อยู่ในระบบแล้ว!");
                 return;
             }
-            this.db.teachers.push({ username, name, role });
+            const newTeacher = { username, name, role };
+            if (passwordVal) {
+                newTeacher.password = passwordVal;
+            }
+            this.db.teachers.push(newTeacher);
         } else { // Edit
             const t = this.db.teachers.find(x => x.username === username);
             if (t) {
                 t.name = name;
                 t.role = role;
+                if (passwordVal) {
+                    t.password = passwordVal;
+                }
             }
         }
 
