@@ -54,12 +54,13 @@ class AttendanceApp {
 
     initFirestore() {
         const firebaseConfig = {
-            apiKey: "PLACEHOLDER_FIREBASE_API_KEY",
-            authDomain: "PLACEHOLDER_FIREBASE_AUTH_DOMAIN",
-            projectId: "PLACEHOLDER_FIREBASE_PROJECT_ID",
-            storageBucket: "PLACEHOLDER_FIREBASE_STORAGE_BUCKET",
-            messagingSenderId: "PLACEHOLDER_FIREBASE_MESSAGING_SENDER_ID",
-            appId: "PLACEHOLDER_FIREBASE_APP_ID"
+            apiKey: "AIzaSyB9hRPPPtHEDqlMTERb90q0pi64TpPLyrU",
+            authDomain: "paiwittyakarn-attendance.firebaseapp.com",
+            projectId: "paiwittyakarn-attendance",
+            storageBucket: "paiwittyakarn-attendance.firebasestorage.app",
+            messagingSenderId: "413992897747",
+            appId: "1:413992897747:web:377441843a83e56f5f1826",
+            measurementId: "G-RW7F1RM7VM"
         };
 
         if (firebaseConfig.apiKey === "PLACEHOLDER_FIREBASE_API_KEY") {
