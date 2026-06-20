@@ -32,6 +32,11 @@ class AttendanceApp {
         // 1. Load database or seed demo data
         await this.loadDatabase();
 
+        // Sync with Firebase Auth state if loaded
+        if (this.useFirestore) {
+            this.syncFirebaseUser();
+        }
+
         // 2. Bind DOM Events
         this.bindEvents();
 
@@ -74,9 +79,42 @@ class AttendanceApp {
             this.firestore = firebase.firestore();
             this.useFirestore = true;
             console.log("Firebase Firestore initialized successfully.");
+
+            // Listen for Firebase Auth state changes
+            firebase.auth().onAuthStateChanged(user => {
+                if (user) {
+                    this.syncFirebaseUser();
+                } else {
+                    if (this.currentUser) {
+                        this.currentUser = null;
+                        sessionStorage.removeItem('school_current_user');
+                        this.updateUserUI();
+                        this.switchView('dashboard');
+                        setTimeout(() => this.openModal('login-modal'), 500);
+                    }
+                }
+            });
         } catch (e) {
             console.error("Error initializing Firebase:", e);
             this.useFirestore = false;
+        }
+    }
+
+    syncFirebaseUser() {
+        if (!this.useFirestore) return;
+        const user = firebase.auth().currentUser;
+        if (user && this.db.teachers) {
+            const username = user.email.split('@')[0];
+            const dbUser = this.db.teachers.find(t => t.username === username);
+            if (dbUser) {
+                const prevUser = this.currentUser;
+                this.currentUser = dbUser;
+                sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
+                this.updateUserUI();
+                if (!prevUser) {
+                    this.render();
+                }
+            }
         }
     }
 
@@ -97,7 +135,7 @@ class AttendanceApp {
     async loadDatabase() {
         if (this.useFirestore) {
             try {
-                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'attendance_logs'];
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule'];
                 const loadedDb = {};
                 let hasData = true;
 
@@ -116,6 +154,10 @@ class AttendanceApp {
                 }
 
                 if (hasData) {
+                    // Load attendance_logs from the separate collection
+                    const logsSnapshot = await this.firestore.collection('attendance_logs').get();
+                    loadedDb['attendance_logs'] = logsSnapshot.docs.map(doc => doc.data());
+
                     this.db = loadedDb;
                     this.updateFirestoreConnectionStatus(true);
                     this.runMigrationChecks();
@@ -151,7 +193,7 @@ class AttendanceApp {
     }
 
     // Save database state to localStorage & Firestore
-    async saveDatabase() {
+    async saveDatabase(saveLogsToFirestore = false) {
         localStorage.setItem('school_students', JSON.stringify(this.db.students));
         localStorage.setItem('school_teachers', JSON.stringify(this.db.teachers));
         localStorage.setItem('school_bases', JSON.stringify(this.db.bases));
@@ -160,13 +202,67 @@ class AttendanceApp {
 
         if (this.useFirestore) {
             try {
+                // 1. Save core system collections
                 const batch = this.firestore.batch();
-                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'attendance_logs'];
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule'];
                 collections.forEach(col => {
                     const docRef = this.firestore.collection('system_data').doc(col);
                     batch.set(docRef, { data: this.db[col] });
                 });
                 await batch.commit();
+
+                // 2. Save logs as separate documents if requested (e.g. seeding / full restore)
+                if (saveLogsToFirestore) {
+                    // First, retrieve and delete all existing docs in `/attendance_logs`
+                    const oldDocsSnapshot = await this.firestore.collection('attendance_logs').get();
+                    
+                    // Delete in chunks of 400 to avoid batch limits
+                    const deleteBatches = [];
+                    let currentDeleteBatch = this.firestore.batch();
+                    let opCount = 0;
+                    
+                    oldDocsSnapshot.docs.forEach(doc => {
+                        currentDeleteBatch.delete(doc.ref);
+                        opCount++;
+                        if (opCount === 400) {
+                            deleteBatches.push(currentDeleteBatch);
+                            currentDeleteBatch = this.firestore.batch();
+                            opCount = 0;
+                        }
+                    });
+                    if (opCount > 0) {
+                        deleteBatches.push(currentDeleteBatch);
+                    }
+                    
+                    for (const b of deleteBatches) {
+                        await b.commit();
+                    }
+
+                    // Now write the new logs in chunks of 400
+                    const writeBatches = [];
+                    let currentWriteBatch = this.firestore.batch();
+                    let writeCount = 0;
+
+                    this.db.attendance_logs.forEach(log => {
+                        const docId = `${log.date}_${log.baseId}_${log.studentId}`;
+                        const docRef = this.firestore.collection('attendance_logs').doc(docId);
+                        currentWriteBatch.set(docRef, log);
+                        writeCount++;
+                        if (writeCount === 400) {
+                            writeBatches.push(currentWriteBatch);
+                            currentWriteBatch = this.firestore.batch();
+                            writeCount = 0;
+                        }
+                    });
+                    if (writeCount > 0) {
+                        writeBatches.push(currentWriteBatch);
+                    }
+
+                    for (const b of writeBatches) {
+                        await b.commit();
+                    }
+                }
+
                 await this.triggerAutoBackup();
                 this.updateFirestoreConnectionStatus(true);
             } catch (e) {
@@ -293,7 +389,7 @@ class AttendanceApp {
             const backupData = doc.data().db;
             if (backupData) {
                 this.db = backupData;
-                await this.saveDatabase();
+                await this.saveDatabase(true);
                 await this.logAudit(`Restored database from cloud snapshot ${backupId}`);
                 alert("กู้คืนข้อมูลระบบเรียบร้อยแล้ว!");
                 this.render();
@@ -824,7 +920,7 @@ class AttendanceApp {
 
         // Save DB
         this.db = { students, teachers, bases, rotation_schedule, attendance_logs };
-        this.saveDatabase();
+        this.saveDatabase(true);
 
         // Show UI Notification
         const notification = document.getElementById('demo-notification');
@@ -869,7 +965,7 @@ class AttendanceApp {
         this.db.rotation_schedule = this.generateDefaultRotationSchedule();
         this.db.attendance_logs = [];
 
-        this.saveDatabase();
+        this.saveDatabase(true);
 
         // Clear active session to force login again
         this.currentUser = null;
@@ -1154,7 +1250,7 @@ class AttendanceApp {
     }
 
     // Login logic
-    login() {
+    async login() {
         const userSelect = document.getElementById('login-user-select');
         const selectedId = userSelect.value;
         if (!selectedId) {
@@ -1167,32 +1263,81 @@ class AttendanceApp {
         if (userObj) {
             const passwordInput = document.getElementById('login-password').value;
             const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
-            
-            if (passwordInput !== expectedPassword) {
-                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
-                return;
-            }
+            const email = `${userObj.username}@paiwittyakarn.local`;
 
-            this.currentUser = userObj;
-            sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
-            this.updateUserUI();
-            this.closeModal('login-modal');
-            
-            // Auto redirect depending on role
-            if (userObj.role === 'admin') {
-                this.switchView('manage'); // Admin goes straight to Database Settings
-            } else if (userObj.role === 'director') {
-                this.switchView('admin'); // Directors go straight to Executive Overview
+            const doLoginSuccess = () => {
+                this.currentUser = userObj;
+                sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+                this.updateUserUI();
+                this.closeModal('login-modal');
+                
+                // Auto redirect depending on role
+                if (userObj.role === 'admin') {
+                    this.switchView('manage'); // Admin goes straight to Database Settings
+                } else if (userObj.role === 'director') {
+                    this.switchView('admin'); // Directors go straight to Executive Overview
+                } else {
+                    this.switchView('checkin'); // Teachers go straight to Attendance Sheet
+                }
+            };
+
+            if (this.useFirestore) {
+                const loginBtn = document.getElementById('btn-login-submit');
+                const originalText = loginBtn.innerHTML;
+                loginBtn.disabled = true;
+                loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
+
+                try {
+                    await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = originalText;
+                    doLoginSuccess();
+                } catch (err) {
+                    if (err.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
+                        try {
+                            // First time login - auto-create account in Firebase Auth
+                            await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            doLoginSuccess();
+                        } catch (createErr) {
+                            console.error("Auto-provisioning failed:", createErr);
+                            alert("เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                        }
+                    } else {
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                        if (err.code === 'auth/wrong-password' || passwordInput !== expectedPassword) {
+                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
+                        } else {
+                            console.error("Firebase auth error:", err);
+                            alert("เกิดข้อผิดพลาดจากระบบรักษาความปลอดภัย: " + err.message);
+                        }
+                    }
+                }
             } else {
-                this.switchView('checkin'); // Teachers go straight to Attendance Sheet
+                if (passwordInput !== expectedPassword) {
+                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
+                    return;
+                }
+                doLoginSuccess();
             }
         }
     }
 
     // Logout logic
-    logout() {
+    async logout() {
         this.currentUser = null;
         sessionStorage.removeItem('school_current_user');
+        if (this.useFirestore) {
+            try {
+                await firebase.auth().signOut();
+            } catch (e) {
+                console.error("Firebase signOut failed:", e);
+            }
+        }
         this.updateUserUI();
         this.switchView('dashboard');
     }
@@ -1271,7 +1416,7 @@ class AttendanceApp {
         this.openModal('change-password-modal');
     }
 
-    changePasswordSubmit() {
+    async changePasswordSubmit() {
         const current = document.getElementById('change-pwd-current').value;
         const newPwd = document.getElementById('change-pwd-new').value;
         const confirmPwd = document.getElementById('change-pwd-confirm').value;
@@ -1292,17 +1437,47 @@ class AttendanceApp {
             return;
         }
 
-        if (newPwd.length < 4) {
-            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 4 ตัวอักษร!');
+        if (newPwd.length < 6) {
+            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร!');
             return;
         }
 
         const t = this.db.teachers.find(x => x.username === this.currentUser.username);
         if (t) {
+            const changePwdBtn = document.querySelector('#change-password-modal .btn-success');
+            const originalText = changePwdBtn ? changePwdBtn.innerHTML : '';
+            
+            if (this.useFirestore) {
+                if (changePwdBtn) {
+                    changePwdBtn.disabled = true;
+                    changePwdBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังอัปเดตรหัสผ่าน...';
+                }
+                try {
+                    const user = firebase.auth().currentUser;
+                    if (user) {
+                        await user.updatePassword(newPwd);
+                    }
+                } catch (e) {
+                    console.error("Failed to update password in Firebase Auth:", e);
+                    this.showStatusModal('error', 'เปลี่ยนรหัสผ่านไม่สำเร็จ', 'ระบบความปลอดภัยไม่สามารถอัปเดตรหัสผ่านได้: ' + e.message);
+                    if (changePwdBtn) {
+                        changePwdBtn.disabled = false;
+                        changePwdBtn.innerHTML = originalText;
+                    }
+                    return;
+                }
+            }
+
             t.password = newPwd;
             this.currentUser.password = newPwd;
             sessionStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
-            this.saveDatabase();
+            this.saveDatabase(false);
+            
+            if (this.useFirestore && changePwdBtn) {
+                changePwdBtn.disabled = false;
+                changePwdBtn.innerHTML = originalText;
+            }
+            
             this.closeModal('change-password-modal');
             this.showStatusModal('success', 'เปลี่ยนรหัสผ่านสำเร็จ', 'เปลี่ยนรหัสผ่านผู้ใช้งานเรียบร้อยแล้ว!');
         }
@@ -1989,10 +2164,11 @@ class AttendanceApp {
 
         // Add new logs
         const timestamp = new Date().toISOString();
+        const newLogs = [];
         this.currentCheckinStudents.forEach(st => {
             const status = this.attendanceState[st.studentId];
             if (status) { // Only log if status is selected
-                this.db.attendance_logs.push({
+                const logObj = {
                     date: todayDate,
                     week: week,
                     baseId: scheduleRow.baseId,
@@ -2000,11 +2176,33 @@ class AttendanceApp {
                     status: status,
                     checkedBy: this.currentUser.username,
                     timestamp: timestamp
-                });
+                };
+                this.db.attendance_logs.push(logObj);
+                newLogs.push(logObj);
             }
         });
 
-        this.saveDatabase();
+        // Save checkin logs to Firestore incrementally if online
+        if (this.useFirestore) {
+            try {
+                const batch = this.firestore.batch();
+                studentIdsToSave.forEach(stId => {
+                    const docId = `${todayDate}_${scheduleRow.baseId}_${stId}`;
+                    const docRef = this.firestore.collection('attendance_logs').doc(docId);
+                    batch.delete(docRef);
+                });
+                newLogs.forEach(log => {
+                    const docId = `${log.date}_${log.baseId}_${log.studentId}`;
+                    const docRef = this.firestore.collection('attendance_logs').doc(docId);
+                    batch.set(docRef, log);
+                });
+                await batch.commit();
+            } catch (e) {
+                console.error("Failed to sync check-in logs to Firestore:", e);
+            }
+        }
+
+        this.saveDatabase(false);
         this.showStatusModal('success', 'บันทึกการเข้าเรียนสำเร็จ', `บันทึกการเช็กชื่อชั้นเรียน <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
         this.switchView('dashboard');
     }
@@ -2849,7 +3047,7 @@ class AttendanceApp {
         }
     }
 
-    deleteSelectedStudents() {
+    async deleteSelectedStudents() {
         const count = this.selectedStudents.length;
         if (count === 0) return;
         
@@ -2858,7 +3056,31 @@ class AttendanceApp {
             this.db.students = this.db.students.filter(st => !this.selectedStudents.includes(st.studentId));
             this.db.attendance_logs = this.db.attendance_logs.filter(log => !this.selectedStudents.includes(log.studentId));
             
-            this.saveDatabase();
+            if (this.useFirestore) {
+                try {
+                    const promises = this.selectedStudents.map(studentId => 
+                        this.firestore.collection('attendance_logs').where('studentId', '==', studentId).get()
+                    );
+                    const snapshots = await Promise.all(promises);
+                    const batch = this.firestore.batch();
+                    let countOps = 0;
+                    
+                    snapshots.forEach(snapshot => {
+                        snapshot.docs.forEach(doc => {
+                            batch.delete(doc.ref);
+                            countOps++;
+                        });
+                    });
+                    
+                    if (countOps > 0) {
+                        await batch.commit();
+                    }
+                } catch (e) {
+                    console.error("Failed to delete selected student logs from Firestore:", e);
+                }
+            }
+
+            this.saveDatabase(false);
             this.logAudit(`Bulk deleted ${count} students`);
             
             // Reset selection
@@ -3059,10 +3281,23 @@ class AttendanceApp {
         this.renderManageStudents();
     }
 
-    deleteStudent(studentId) {
+    async deleteStudent(studentId) {
         if (confirm(`คุณแน่ใจว่าต้องการลบรายชื่อนักเรียน รหัส ${studentId} หรือไม่?`)) {
             this.db.students = this.db.students.filter(s => s.studentId !== studentId);
-            this.saveDatabase();
+            this.db.attendance_logs = this.db.attendance_logs.filter(log => log.studentId !== studentId);
+            
+            if (this.useFirestore) {
+                try {
+                    const snapshot = await this.firestore.collection('attendance_logs').where('studentId', '==', studentId).get();
+                    const batch = this.firestore.batch();
+                    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                } catch (e) {
+                    console.error("Failed to delete student logs from Firestore:", e);
+                }
+            }
+
+            this.saveDatabase(false);
             this.logAudit(`Deleted student ID: ${studentId}`);
             this.renderManageStudents();
         }
@@ -3117,6 +3352,11 @@ class AttendanceApp {
                 alert("มีรหัสผู้ใช้ (Username) นี้อยู่ในระบบแล้ว!");
                 return;
             }
+            const defaultPassword = passwordVal || username;
+            if (defaultPassword.length < 6) {
+                alert("สำหรับความปลอดภัย รหัสผู้ใช้งานหรือรหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร!");
+                return;
+            }
             const newTeacher = { username, name, role };
             if (passwordVal) {
                 newTeacher.password = passwordVal;
@@ -3124,6 +3364,10 @@ class AttendanceApp {
             this.db.teachers.push(newTeacher);
             this.logAudit(`Added teacher: ${name} (Username: ${username})`);
         } else { // Edit
+            if (passwordVal && passwordVal.length < 6) {
+                alert("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร!");
+                return;
+            }
             const t = this.db.teachers.find(x => x.username === username);
             if (t) {
                 t.name = name;
@@ -3554,7 +3798,7 @@ class AttendanceApp {
                 const parsed = JSON.parse(e.target.result);
                 if (parsed.students && parsed.teachers && parsed.bases && parsed.rotation_schedule && parsed.attendance_logs) {
                     this.db = parsed;
-                    this.saveDatabase();
+                    this.saveDatabase(true);
                     this.showStatusModal('success', 'กู้คืนข้อมูลสำเร็จ', 'ระบบได้กู้คืนฐานข้อมูลจากไฟล์ JSON ที่สำรองไว้เสร็จสมบูรณ์แล้ว!');
                     this.render();
                 } else {
