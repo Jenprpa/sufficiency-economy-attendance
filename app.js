@@ -53,12 +53,12 @@ class AttendanceApp {
             this.db.rotation_schedule = JSON.parse(schedule);
             this.db.attendance_logs = JSON.parse(logs);
 
-            // Auto-update teachers with new school executives if missing
+            // Auto-update teachers with new school executives/admin if missing or incorrect
             const requiredExecutives = [
                 { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
                 { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
                 { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
-                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "director" }
+                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
             ];
 
             let dbChanged = false;
@@ -67,10 +67,16 @@ class AttendanceApp {
                 if (!found) {
                     this.db.teachers.push(exec);
                     dbChanged = true;
-                } else if (found.username === 'director' && found.name === 'ดร.ปรีชา เลิศวิริยะ') {
-                    // Update old director name
-                    found.name = exec.name;
-                    dbChanged = true;
+                } else {
+                    // Make sure name and role are up to date
+                    if (found.role !== exec.role) {
+                        found.role = exec.role;
+                        dbChanged = true;
+                    }
+                    if (found.name !== exec.name) {
+                        found.name = exec.name;
+                        dbChanged = true;
+                    }
                 }
             });
 
@@ -118,7 +124,7 @@ class AttendanceApp {
             { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
             { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
             { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
-            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "director" }
+            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
         // 3. Students Generator (realistic Thai names and classrooms)
@@ -646,7 +652,8 @@ class AttendanceApp {
             const select = document.getElementById('login-user-select');
             if (select) {
                 const teachersList = this.db.teachers.filter(t => t.role === 'teacher');
-                const adminList = this.db.teachers.filter(t => t.role === 'director' || t.role === 'admin');
+                const directorsList = this.db.teachers.filter(t => t.role === 'director');
+                const adminsList = this.db.teachers.filter(t => t.role === 'admin');
                 
                 let html = '<option value="" disabled selected>-- เลือกสิทธิ์การใช้งาน --</option>';
                 
@@ -658,13 +665,18 @@ class AttendanceApp {
                 });
                 html += '</optgroup>';
                 
-                html += '<optgroup label="ผู้บริหารระบบ (Admin / Director)">';
-                adminList.forEach(t => {
+                html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
+                adminsList.forEach(t => {
+                    html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
+                });
+                html += '</optgroup>';
+                
+                html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
+                directorsList.forEach(t => {
                     let roleTitle = 'ผู้บริหาร';
                     if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
                     else if (t.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ';
                     else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
-                    else if (t.username === 'admin') roleTitle = 'แอดมิน';
                     html += `<option value="${t.username}">${t.name} (${roleTitle})</option>`;
                 });
                 html += '</optgroup>';
@@ -703,7 +715,7 @@ class AttendanceApp {
             
             // Sync session user state with updated database values
             const dbUser = this.db.teachers.find(t => t.username === this.currentUser.username);
-            if (dbUser && dbUser.name !== this.currentUser.name) {
+            if (dbUser && (dbUser.name !== this.currentUser.name || dbUser.role !== this.currentUser.role)) {
                 this.currentUser = dbUser;
                 sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
             }
@@ -726,12 +738,7 @@ class AttendanceApp {
             return;
         }
 
-        let userObj = null;
-        if (selectedId === 'director') {
-            userObj = this.db.teachers.find(t => t.username === 'director');
-        } else {
-            userObj = this.db.teachers.find(t => t.username === selectedId);
-        }
+        const userObj = this.db.teachers.find(t => t.username === selectedId);
 
         if (userObj) {
             this.currentUser = userObj;
@@ -740,10 +747,12 @@ class AttendanceApp {
             this.closeModal('login-modal');
             
             // Auto redirect depending on role
-            if (userObj.role === 'director' || userObj.role === 'admin') {
-                this.switchView('admin');
+            if (userObj.role === 'admin') {
+                this.switchView('manage'); // Admin goes straight to Database Settings
+            } else if (userObj.role === 'director') {
+                this.switchView('admin'); // Directors go straight to Executive Overview
             } else {
-                this.switchView('checkin');
+                this.switchView('checkin'); // Teachers go straight to Attendance Sheet
             }
         }
     }
@@ -2183,8 +2192,8 @@ class AttendanceApp {
     }
 
     deleteTeacher(username) {
-        if (username === 'director') {
-            alert("ไม่สามารถลบบัญชีผู้บริหารระบบหลักได้!");
+        if (username === 'director' || username === 'admin' || username === 'deputy1' || username === 'deputy2') {
+            alert("ไม่สามารถลบบัญชีผู้บริหารหรือผู้ดูแลระบบหลักของระบบได้!");
             return;
         }
         if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลคุณครู รหัส ${username} ใช่หรือไม่?`)) {
