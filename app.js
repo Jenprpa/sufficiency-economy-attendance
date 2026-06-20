@@ -1013,6 +1013,11 @@ class AttendanceApp {
     renderCheckin() {
         const checkinView = document.getElementById('view-checkin');
         
+        // Hide class selector by default
+        const selectorCard = document.getElementById('checkin-class-selector-card');
+        const buttonsContainer = document.getElementById('checkin-class-buttons-container');
+        if (selectorCard) selectorCard.style.display = 'none';
+
         // Permissions Guard: Must be teacher
         if (!this.currentUser || this.currentUser.role !== 'teacher') {
             checkinView.innerHTML = `
@@ -1099,37 +1104,77 @@ class AttendanceApp {
         document.getElementById('checkin-base-title').textContent = `ฐาน: ${scheduleRow.baseName}`;
         document.getElementById('checkin-base-info').innerHTML = `<i class="fa-solid fa-user"></i> ครูผู้สอน: ${scheduleRow.teacherName} | <i class="fa-solid fa-location-dot"></i> สถานที่สอน: ${scheduleRow.room}`;
         document.getElementById('checkin-classes-label').textContent = scheduleRow.classes;
-        document.getElementById('checkin-target-classes').textContent = scheduleRow.classes;
 
         this.currentCheckinSchedule = scheduleRow;
 
-        // Load students under this rotation group
-        this.currentCheckinStudents = this.db.students.filter(
+        // Load all students under this rotation group
+        this.allRotationStudents = this.db.students.filter(
             st => scheduleRow.attendingClasses && scheduleRow.attendingClasses.includes(`${st.grade}/${st.room}`)
         );
 
-        // Sorting students by Class room and then by Number
-        this.currentCheckinStudents.sort((a, b) => {
+        // Sorting all students by Class room and then by Number
+        this.allRotationStudents.sort((a, b) => {
             if (a.grade !== b.grade) return a.grade.localeCompare(b.grade);
             if (a.room !== b.room) return a.room - b.room;
             return a.no - b.no;
         });
 
-        // Initialize local state of attendance status
+        // Initialize local state of attendance status once for all base students
         this.attendanceState = {};
-
-        // Check if logs already exist for today
         const existingLogs = this.db.attendance_logs.filter(
             log => log.date === todayDate && log.baseId === scheduleRow.baseId
         );
-
-        this.currentCheckinStudents.forEach(st => {
+        this.allRotationStudents.forEach(st => {
             const log = existingLogs.find(l => l.studentId === st.studentId);
             this.attendanceState[st.studentId] = log ? log.status : ''; // Empty if not checked
         });
 
-        // Build list
-        this.renderCheckinStudentList();
+        // Show class selector container and render buttons
+        if (selectorCard && buttonsContainer) {
+            selectorCard.style.display = 'block';
+            buttonsContainer.innerHTML = '';
+
+            if (scheduleRow.attendingClasses && scheduleRow.attendingClasses.length > 0) {
+                scheduleRow.attendingClasses.forEach(clsName => {
+                    const roomName = (scheduleRow.classRooms && scheduleRow.classRooms[clsName]) 
+                        ? scheduleRow.classRooms[clsName] 
+                        : scheduleRow.room;
+
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-outline btn-lg';
+                    btn.style.padding = '12px 20px';
+                    btn.style.fontWeight = '700';
+                    btn.innerHTML = `<i class="fa-solid fa-school text-primary"></i> ${clsName} <span style="font-size:13px; font-weight:normal; opacity:0.85; margin-left:4px;">(${roomName})</span>`;
+                    
+                    btn.onclick = () => {
+                        this.selectCheckinClass(clsName, btn);
+                    };
+                    buttonsContainer.appendChild(btn);
+                });
+            }
+        }
+
+        // Set selected class to null initially (forces user to choose first)
+        this.selectedCheckinClass = null;
+        this.currentCheckinStudents = [];
+        
+        // Show placeholder message asking to choose class
+        document.getElementById('checkin-target-classes').textContent = "กรุณาเลือกห้องเรียน";
+        document.getElementById('student-attendance-list-container').innerHTML = `
+            <div style="text-align: center; padding: 64px 24px; color: var(--text-light);">
+                <i class="fa-solid fa-hand-point-up" style="font-size: 56px; margin-bottom: 16px; color: var(--primary);"></i>
+                <h3 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">กรุณาเลือกชั้นเรียนที่จะทำการสอน</h3>
+                <p style="font-size: 15px; max-width: 500px; margin: 0 auto;">กรุณาคลิกเลือกห้องเรียน/สถานที่ที่คุณครูจะเข้าสอนด้านบน เพื่อแสดงรายชื่อนักเรียนและเริ่มต้นเช็กชื่อเข้าเรียน</p>
+            </div>
+        `;
+        
+        // Disable search input and filter buttons initially
+        document.getElementById('checkin-student-search').disabled = true;
+        document.getElementById('btn-check-all-present').disabled = true;
+        document.getElementById('btn-reset-checkin').disabled = true;
+        document.getElementById('btn-save-attendance').disabled = true;
+
+        this.updateCheckinCounters();
     }
 
     // Build the attendance table rows
@@ -1220,16 +1265,66 @@ class AttendanceApp {
     }
 
     // Update counters in check-in bar
+    // Select specific class room to teach and check-in
+    selectCheckinClass(clsName, clickedBtn) {
+        this.selectedCheckinClass = clsName;
+        
+        // Update active class button styles
+        const buttonsContainer = document.getElementById('checkin-class-buttons-container');
+        if (buttonsContainer) {
+            const buttons = buttonsContainer.querySelectorAll('button');
+            buttons.forEach(btn => {
+                btn.className = 'btn btn-outline btn-lg';
+            });
+        }
+        if (clickedBtn) {
+            clickedBtn.className = 'btn btn-primary btn-lg';
+        }
+
+        // Filter students for the selected class room
+        const parts = clsName.split('/');
+        const grade = parts[0];
+        const room = parseInt(parts[1]);
+
+        this.currentCheckinStudents = this.allRotationStudents.filter(
+            st => st.grade === grade && st.room === room
+        );
+
+        // Update target classes labels
+        const roomName = (this.currentCheckinSchedule.classRooms && this.currentCheckinSchedule.classRooms[clsName]) 
+            ? this.currentCheckinSchedule.classRooms[clsName] 
+            : this.currentCheckinSchedule.room;
+
+        document.getElementById('checkin-target-classes').textContent = `${clsName} (${roomName})`;
+        
+        // Enable search input and filter buttons
+        document.getElementById('checkin-student-search').disabled = false;
+        document.getElementById('btn-check-all-present').disabled = false;
+        document.getElementById('btn-reset-checkin').disabled = false;
+        document.getElementById('btn-save-attendance').disabled = false;
+
+        // Reset search input value
+        document.getElementById('checkin-student-search').value = '';
+
+        // Build list
+        this.renderCheckinStudentList();
+    }
+
     updateCheckinCounters() {
         let present = 0, absent = 0, leave = 0, late = 0, activity = 0;
         
+        // Filter student ids of the current checkin class to count correctly
+        const studentIds = this.currentCheckinStudents ? this.currentCheckinStudents.map(st => st.studentId) : [];
+
         Object.keys(this.attendanceState).forEach(id => {
-            const status = this.attendanceState[id];
-            if (status === 'present') present++;
-            else if (status === 'absent') absent++;
-            else if (status === 'leave') leave++;
-            else if (status === 'late') late++;
-            else if (status === 'activity') activity++;
+            if (studentIds.includes(id)) {
+                const status = this.attendanceState[id];
+                if (status === 'present') present++;
+                else if (status === 'absent') absent++;
+                else if (status === 'leave') leave++;
+                else if (status === 'late') late++;
+                else if (status === 'activity') activity++;
+            }
         });
 
         const total = this.currentCheckinStudents ? this.currentCheckinStudents.length : 0;
@@ -1257,6 +1352,11 @@ class AttendanceApp {
 
         if (!scheduleRow) return;
 
+        if (!this.selectedCheckinClass) {
+            alert("กรุณาเลือกชั้นเรียนที่จะทำการสอนก่อนบันทึก!");
+            return;
+        }
+
         // Check if all students checked
         let uncheckedCount = 0;
         this.currentCheckinStudents.forEach(st => {
@@ -1264,26 +1364,29 @@ class AttendanceApp {
         });
 
         if (uncheckedCount > 0) {
-            if (!confirm(`ยังไม่ได้เช็กชื่อนักเรียนอีก ${uncheckedCount} คน คุณแน่ใจว่าต้องการบันทึกการเช็กชื่อที่มีอยู่แล้วหรือไม่?`)) {
+            if (!confirm(`ยังไม่ได้เช็กชื่อนักเรียนของห้อง ${this.selectedCheckinClass} อีก ${uncheckedCount} คน คุณแน่ใจว่าต้องการบันทึกการเช็กชื่อที่มีอยู่แล้วหรือไม่?`)) {
                 return;
             }
         }
 
-        // Delete old logs of today for this base
+        // Get list of student IDs being saved (only the selected class students!)
+        const studentIdsToSave = this.currentCheckinStudents.map(st => st.studentId);
+
+        // Delete old logs of today for this base and for these student IDs
         this.db.attendance_logs = this.db.attendance_logs.filter(
-            log => !(log.date === todayDate && log.baseId === scheduleRow.baseId)
+            log => !(log.date === todayDate && log.baseId === scheduleRow.baseId && studentIdsToSave.includes(log.studentId))
         );
 
         // Add new logs
         const timestamp = new Date().toISOString();
-        Object.keys(this.attendanceState).forEach(studentId => {
-            const status = this.attendanceState[studentId];
+        this.currentCheckinStudents.forEach(st => {
+            const status = this.attendanceState[st.studentId];
             if (status) { // Only log if status is selected
                 this.db.attendance_logs.push({
                     date: todayDate,
                     week: week,
                     baseId: scheduleRow.baseId,
-                    studentId: studentId,
+                    studentId: st.studentId,
                     status: status,
                     checkedBy: this.currentUser.username,
                     timestamp: timestamp
@@ -1292,7 +1395,7 @@ class AttendanceApp {
         });
 
         this.saveDatabase();
-        alert("บันทึกการเช็กชื่อเรียบร้อยแล้ว!");
+        alert(`บันทึกการเช็กชื่อชั้นเรียน ${this.selectedCheckinClass} เรียบร้อยแล้ว!`);
         this.switchView('dashboard');
     }
 
