@@ -1589,7 +1589,6 @@ class AttendanceApp {
                     <div class="executive-info">
                         <h4 style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text-primary);">${exec.name}</h4>
                         <span class="status-badge info" style="margin-top: 5px; display: inline-block; font-size: 11px;">${roleTitle}</span>
-                        <div style="margin-top: 5px; font-size: 12px; color: var(--text-secondary);"><i class="fa-solid fa-phone"></i> ${exec.phone || 'ไม่ระบุเบอร์โทรศัพท์'}</div>
                     </div>
                 </div>
             `;
@@ -1598,7 +1597,23 @@ class AttendanceApp {
         if (html === '') {
             container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; width: 100%;">ไม่มีข้อมูลผู้บริหาร</div>';
         } else {
-            container.innerHTML = html;
+            let footerHtml = '';
+            if (sortedDirectors.length > 0) {
+                const phoneInfo = sortedDirectors.map(exec => {
+                    let roleTitle = 'ผู้บริหาร';
+                    if (exec.username === 'director') roleTitle = 'ผู้อำนวยการ';
+                    else if (exec.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ 1';
+                    else if (exec.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
+                    return `<span style="white-space: nowrap;"><i class="fa-solid fa-phone" style="color: var(--primary); margin-right: 4px;"></i> <strong>${roleTitle}:</strong> ${exec.phone || 'ไม่ระบุเบอร์โทรศัพท์'}</span>`;
+                }).join(' <span style="color: var(--border-color); margin: 0 10px;">|</span> ');
+
+                footerHtml = `
+                    <div style="grid-column: 1 / -1; text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); border-top: 1px dashed var(--border-color); padding-top: 15px; display: flex; justify-content: center; align-items: center; gap: 15px; flex-wrap: wrap; width: 100%;">
+                        <strong>เบอร์โทรศัพท์ติดต่อผู้บริหาร:</strong> ${phoneInfo}
+                    </div>
+                `;
+            }
+            container.innerHTML = html + footerHtml;
         }
     }
 
