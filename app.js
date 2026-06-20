@@ -260,7 +260,7 @@ class AttendanceApp {
         }
 
         if (showConfirm) {
-            alert("รีเซ็ตระบบเข้าสู่สภาวะเริ่มต้นการสาธิตเรียบร้อยแล้ว!");
+            this.showStatusModal('success', 'รีเซ็ตระบบสำเร็จ', 'ระบบได้กลับเข้าสู่สภาวะเริ่มต้นการสาธิตเรียบร้อยแล้ว');
             this.render();
         }
     }
@@ -303,7 +303,7 @@ class AttendanceApp {
         sessionStorage.removeItem('school_current_user');
         this.updateUserUI();
 
-        alert("ล้างข้อมูลระบบทั้งหมดเรียบร้อยแล้ว! ระบบอยู่ในสภาวะว่างสำหรับการกรอกข้อมูลจริง (กรุณาเข้าสู่ระบบด้วยบัญชีแอดมิน เพื่อเริ่มใส่ข้อมูลนักเรียนและตารางสอน)");
+        this.showStatusModal('success', 'ล้างข้อมูลระบบสำเร็จ', 'ระบบอยู่ในสภาวะว่างสำหรับการกรอกข้อมูลจริงเรียบร้อยแล้ว<br><small style="color:var(--text-secondary);">กรุณาเข้าสู่ระบบด้วยบัญชีแอดมินเพื่อนำเข้าข้อมูลนักเรียนและตารางสอน</small>');
         this.switchView('dashboard');
         
         // Hide demo notification banner if visible
@@ -1226,7 +1226,7 @@ class AttendanceApp {
         });
 
         this.saveDatabase();
-        alert(`บันทึกการเช็กชื่อชั้นเรียน ${this.selectedCheckinClass} เรียบร้อยแล้ว!`);
+        this.showStatusModal('success', 'บันทึกการเข้าเรียนสำเร็จ', `บันทึกการเช็กชื่อชั้นเรียน <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
         this.switchView('dashboard');
     }
 
@@ -2312,14 +2312,14 @@ class AttendanceApp {
 
     importStudents(rows) {
         if (rows.length === 0) {
-            alert("ไม่พบข้อมูลในไฟล์ Excel!");
+            this.showStatusModal('error', 'นำเข้าข้อมูลไม่สำเร็จ', 'ไม่พบข้อมูลนักเรียนใดๆ ในไฟล์ Excel ที่คุณนำเข้า กรุณาตรวจสอบไฟล์ของคุณ');
             return;
         }
 
         // Required headers validation: studentId, name, grade, room, no
         const firstRowKeys = Object.keys(rows[0]);
         if (!firstRowKeys.includes('studentId') || !firstRowKeys.includes('name')) {
-            alert("โครงสร้างคอลัมน์ของไฟล์ Excel ไม่ถูกต้อง! ต้องระบุคอลัมน์: studentId, name, grade, room, no อย่างน้อย");
+            this.showStatusModal('error', 'โครงสร้างไฟล์ไม่ถูกต้อง', 'ไม่พบคอลัมน์ที่จำเป็น (studentId, name, grade, room, no) ในไฟล์ Excel ที่นำเข้า');
             return;
         }
 
@@ -2358,19 +2358,19 @@ class AttendanceApp {
         });
 
         this.saveDatabase();
-        alert(`นำเข้าข้อมูลนักเรียนเสร็จสิ้น! เพิ่มใหม่ ${addedCount} คน, อัปเดต ${updatedCount} คน`);
+        this.showStatusModal('success', 'นำเข้าข้อมูลนักเรียนสำเร็จ', `นำเข้าข้อมูลนักเรียนเสร็จสิ้น!<br><strong>เพิ่มใหม่:</strong> ${addedCount} คน<br><strong>อัปเดตข้อมูล:</strong> ${updatedCount} คน`);
         this.renderManageStudents();
     }
 
     importSchedule(rows) {
         if (rows.length === 0) {
-            alert("ไม่พบข้อมูลตารางเรียนหมุนฐานในไฟล์!");
+            this.showStatusModal('error', 'นำเข้าข้อมูลไม่สำเร็จ', 'ไม่พบข้อมูลตารางสอนหมุนฐานในไฟล์ Excel ที่นำเข้า');
             return;
         }
 
         const keys = Object.keys(rows[0]);
         if (!keys.includes('week') || !keys.includes('baseName') || !keys.includes('classes')) {
-            alert("โครงสร้างตารางปฏิทิน Excel ไม่ถูกต้อง! ต้องระบุคอลัมน์: week, dates, baseId, baseName, classes, room, teacherId, teacherName");
+            this.showStatusModal('error', 'โครงสร้างตารางไม่ถูกต้อง', 'ไม่พบคอลัมน์ที่จำเป็นสำหรับตารางหมุนฐานในไฟล์ Excel ที่นำเข้า');
             return;
         }
 
@@ -2395,7 +2395,7 @@ class AttendanceApp {
 
         this.db.rotation_schedule = newSchedule;
         this.saveDatabase();
-        alert(`นำเข้าตารางเรียนหมุนฐานเสร็จสิ้นจำนวน ${rows.length} รายการ!`);
+        this.showStatusModal('success', 'นำเข้าตารางเรียนสำเร็จ', `นำเข้าปฏิทินหมุนฐานเรียนสำเร็จจำนวน <strong>${rows.length}</strong> รายการเรียบร้อยแล้ว!`);
         this.renderManageSchedule();
     }
 
@@ -2443,13 +2443,13 @@ class AttendanceApp {
                 if (parsed.students && parsed.teachers && parsed.bases && parsed.rotation_schedule && parsed.attendance_logs) {
                     this.db = parsed;
                     this.saveDatabase();
-                    alert("กู้คืนข้อมูลระบบเสร็จสมบูรณ์!");
+                    this.showStatusModal('success', 'กู้คืนข้อมูลสำเร็จ', 'ระบบได้กู้คืนฐานข้อมูลจากไฟล์ JSON ที่สำรองไว้เสร็จสมบูรณ์แล้ว!');
                     this.render();
                 } else {
-                    alert("โครงสร้างไฟล์สำรอง JSON ไม่ถูกต้อง!");
+                    this.showStatusModal('error', 'กู้คืนข้อมูลไม่สำเร็จ', 'โครงสร้างของไฟล์ JSON สำรองไม่ถูกต้อง ไม่สามารถนำมาใช้งานได้');
                 }
             } catch (err) {
-                alert("ไม่สามารถอ่านไฟล์ JSON ได้! เกิดข้อผิดพลาดของข้อมูล");
+                this.showStatusModal('error', 'ไม่สามารถอ่านไฟล์ได้', 'เกิดข้อผิดพลาดในการอ่านไฟล์ JSON กรุณาตรวจสอบว่าไฟล์ไม่เสียหาย');
             }
             inputElement.value = '';
         };
@@ -2976,7 +2976,7 @@ class AttendanceApp {
         this.saveDatabase();
 
         this.closeModal('ocr-modal');
-        alert(`นำเข้าปฏิทินหมุนฐานเรียบร้อยแล้วจำนวน ${newSchedule.length} รายการ!`);
+        this.showStatusModal('success', 'นำเข้าตารางเรียนสำเร็จ', `ถอดรหัสและบันทึกปฏิทินหมุนฐานเรียนจำนวน <strong>${newSchedule.length}</strong> รายการเรียบร้อยแล้ว!`);
 
         // Refresh manage schedule table if currently viewing it
         if (this.currentView === 'manage') {
@@ -3111,7 +3111,30 @@ class AttendanceApp {
         };
     }
 
-    generateDefaultRotationSchedule(customBases = null) {
+    
+    showStatusModal(type, title, message) {
+        const modal = document.getElementById('status-modal');
+        if (!modal) return;
+
+        const iconContainer = document.getElementById('status-modal-icon');
+        const titleContainer = document.getElementById('status-modal-title');
+        const messageContainer = document.getElementById('status-modal-message');
+
+        titleContainer.textContent = title;
+        messageContainer.innerHTML = message;
+
+        if (type === 'success') {
+            iconContainer.innerHTML = '<i class="fa-solid fa-circle-check" style="color: var(--success); filter: drop-shadow(0 4px 6px rgba(76, 175, 80, 0.2));"></i>';
+        } else if (type === 'error') {
+            iconContainer.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color: var(--danger); filter: drop-shadow(0 4px 6px rgba(239, 68, 68, 0.2));"></i>';
+        } else if (type === 'warning') {
+            iconContainer.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="color: var(--warning); filter: drop-shadow(0 4px 6px rgba(255, 193, 7, 0.2));"></i>';
+        }
+
+        this.openModal('status-modal');
+    }
+
+generateDefaultRotationSchedule(customBases = null) {
         const rotation_schedule = [];
         const weekDates = [
             { week: 1, dates: "19 พฤษภาคม 2569", start: "2026-05-16", end: "2026-05-22", special: "เตรียมความพร้อมครูแกนนำ นักเรียนแกนนำ" },

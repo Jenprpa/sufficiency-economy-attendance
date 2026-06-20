@@ -937,6 +937,18 @@
         </div>
     </div>
 
+    <!-- MODAL: CUSTOM STATUS POPUP -->
+    <div class="modal" id="status-modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 450px; width: 90%; text-align: center; padding: 32px 24px;">
+            <div id="status-modal-icon" style="font-size: 72px; margin-bottom: 20px;">
+                <!-- Dynamic Icon (success, error, warning) -->
+            </div>
+            <h3 id="status-modal-title" style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary);"></h3>
+            <p id="status-modal-message" style="color: var(--text-secondary); font-size: 15px; line-height: 1.6; margin-bottom: 24px;"></p>
+            <button class="btn btn-primary" style="min-width: 140px; padding: 10px 28px; font-size: 15px; font-weight: 600; border-radius: 8px;" onclick="app.closeModal('status-modal')">ตกลง</button>
+        </div>
+    </div>
+
     <!-- MODAL: OCR CALENDAR DRAFT REVIEW -->
     <div class="modal" id="ocr-modal">
         <div class="modal-content" style="max-width: 900px; width: 95%;">
