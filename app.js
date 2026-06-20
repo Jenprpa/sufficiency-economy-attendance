@@ -1381,12 +1381,12 @@ class AttendanceApp {
             
             if (this.currentUser.role === 'admin') {
                 roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
-                menuCheckin.style.display = 'none';
+                menuCheckin.style.display = 'block';
                 menuAdmin.style.display = 'block';
                 menuManage.style.display = 'block';
             } else if (this.currentUser.role === 'director') {
                 roleLabel.textContent = "ผู้บริหารโรงเรียน";
-                menuCheckin.style.display = 'none';
+                menuCheckin.style.display = 'block';
                 menuAdmin.style.display = 'block';
                 menuManage.style.display = 'none'; // Hidden for directors
             } else {
@@ -1792,18 +1792,18 @@ class AttendanceApp {
         const buttonsContainer = document.getElementById('checkin-class-buttons-container');
         if (selectorCard) selectorCard.style.display = 'none';
 
-        // Permissions Guard: Must be teacher
-        if (!this.currentUser || this.currentUser.role !== 'teacher') {
+        // Permissions Guard: Must be teacher, admin, or director
+        if (!this.currentUser || (this.currentUser.role !== 'teacher' && this.currentUser.role !== 'admin' && this.currentUser.role !== 'director')) {
             checkinView.innerHTML = `
                 <div class="alert-banner" style="background-color: var(--danger-bg); border-color: var(--danger); color: var(--danger); margin: 0 0 24px 0;">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <div>
-                        <strong>ปฏิเสธการเข้าถึง!</strong> เฉพาะคุณครูผู้สอนประจำฐานการเรียนรู้เท่านั้นที่สามารถเข้าใช้งานหน้าเช็กชื่อนี้ได้ กรุณาเข้าสู่ระบบด้วยบัญชีของคุณครู
+                        <strong>ปฏิเสธการเข้าถึง!</strong> เฉพาะคุณครูผู้สอนหรือผู้ดูแลระบบ/ผู้บริหารเท่านั้นที่สามารถเข้าใช้งานหน้าเช็กชื่อนี้ได้
                     </div>
                 </div>
                 <div style="text-align: center; padding: 48px 0;">
                     <button class="btn btn-primary" onclick="app.openModal('login-modal')">
-                        <i class="fa-solid fa-right-to-bracket"></i> เลือกบัญชีคุณครูเพื่อเข้าใช้หน้าเช็กชื่อ
+                        <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบเพื่อเข้าใช้หน้าเช็กชื่อ
                     </button>
                 </div>
             `;
@@ -1820,14 +1820,41 @@ class AttendanceApp {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
 
-        // Find schedule for this teacher today
-        const scheduleRow = this.db.rotation_schedule.find(
-            s => {
-                if (s.week !== week) return false;
-                const ids = (s.teacherId || "").split(',').map(x => x.trim());
-                return ids.includes(this.currentUser.username);
+        // Admin/Director Base Selector Logic
+        const adminCard = document.getElementById('checkin-admin-base-selector-card');
+        const adminSelect = document.getElementById('checkin-admin-base-select');
+        
+        let scheduleRow;
+        if (this.currentUser.role === 'admin' || this.currentUser.role === 'director') {
+            if (adminCard && adminSelect) {
+                adminCard.style.display = 'block';
+                if (adminSelect.children.length === 0) {
+                    adminSelect.innerHTML = this.db.bases.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                    
+                    // Listen for base selection change
+                    adminSelect.addEventListener('change', (e) => {
+                        this.adminSelectedBaseId = e.target.value;
+                        this.renderCheckin();
+                    });
+                }
+                if (!this.adminSelectedBaseId) {
+                    this.adminSelectedBaseId = adminSelect.value || 'base1';
+                }
+                adminSelect.value = this.adminSelectedBaseId;
             }
-        );
+            scheduleRow = this.db.rotation_schedule.find(s => s.week === week && s.baseId === this.adminSelectedBaseId);
+        } else {
+            if (adminCard) adminCard.style.display = 'none';
+
+            // Find schedule for this teacher today
+            scheduleRow = this.db.rotation_schedule.find(
+                s => {
+                    if (s.week !== week) return false;
+                    const ids = (s.teacherId || "").split(',').map(x => x.trim());
+                    return ids.includes(this.currentUser.username);
+                }
+            );
+        }
 
         if (!scheduleRow) {
             document.getElementById('checkin-base-title').textContent = "สัปดาห์นี้ท่านไม่มีการสอนประจำฐาน";
@@ -2133,14 +2160,20 @@ class AttendanceApp {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
 
-        // Find teacher's schedule to get baseId
-        const scheduleRow = this.db.rotation_schedule.find(
-            s => {
-                if (s.week !== week) return false;
-                const ids = (s.teacherId || "").split(',').map(x => x.trim());
-                return ids.includes(this.currentUser.username);
-            }
-        );
+        // Find schedule to get baseId
+        let scheduleRow;
+        if (this.currentUser.role === 'admin' || this.currentUser.role === 'director') {
+            const baseId = this.adminSelectedBaseId || 'base1';
+            scheduleRow = this.db.rotation_schedule.find(s => s.week === week && s.baseId === baseId);
+        } else {
+            scheduleRow = this.db.rotation_schedule.find(
+                s => {
+                    if (s.week !== week) return false;
+                    const ids = (s.teacherId || "").split(',').map(x => x.trim());
+                    return ids.includes(this.currentUser.username);
+                }
+            );
+        }
 
         if (!scheduleRow) return;
 
