@@ -919,9 +919,9 @@ class AttendanceApp {
                 html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
                 directorsList.forEach(t => {
                     let roleTitle = 'ผู้บริหาร';
-                    if (t.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ 1';
-                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
-                    else if (t.username === 'deputy3') roleTitle = 'รองผู้อำนวยการ 3';
+                    if (t.username === 'deputy1') roleTitle = 'ผู้อำนวยการ';
+                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 1';
+                    else if (t.username === 'deputy3') roleTitle = 'รองผู้อำนวยการ 2';
                     else if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
                     html += `<option value="${t.username}">${t.name} (${roleTitle})</option>`;
                 });
