@@ -473,6 +473,9 @@
                                 <i class="fa-solid fa-magnifying-glass"></i>
                                 <input type="text" id="manage-student-search" placeholder="ค้นหาชื่อ, เลขประจำตัว, หรือระดับชั้น..." style="padding: 10px 12px 10px 36px; width: 100%; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-family: inherit;">
                             </div>
+                            <button class="btn btn-danger" id="btn-delete-selected-students" style="display: none;" onclick="app.deleteSelectedStudents()">
+                                <i class="fa-solid fa-trash-can"></i> ลบที่เลือก (<span id="selected-students-count">0</span>)
+                            </button>
                             <button class="btn btn-primary" onclick="app.openAddStudentModal()">
                                 <i class="fa-solid fa-user-plus"></i> เพิ่มนักเรียนใหม่
                             </button>
@@ -483,6 +486,7 @@
                                 <table>
                                     <thead>
                                         <tr>
+                                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="check-all-students" onclick="app.toggleCheckAllStudents(this)"></th>
                                             <th>เลขที่</th>
                                             <th>เลขประจำตัว</th>
                                             <th>ชื่อ-นามสกุล</th>
@@ -508,7 +512,10 @@
 
                     <!-- Sub-view: Teachers -->
                     <div class="manage-sub-view" id="manage-sub-teachers" style="display: none;">
-                        <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 16px;">
+                            <button class="btn btn-danger" id="btn-delete-selected-teachers" style="display: none;" onclick="app.deleteSelectedTeachers()">
+                                <i class="fa-solid fa-trash-can"></i> ลบที่เลือก (<span id="selected-teachers-count">0</span>)
+                            </button>
                             <button class="btn btn-primary" onclick="app.openAddTeacherModal()">
                                 <i class="fa-solid fa-plus"></i> เพิ่มคุณครู
                             </button>
@@ -518,6 +525,7 @@
                                 <table>
                                     <thead>
                                         <tr>
+                                            <th style="width: 40px; text-align: center;"><input type="checkbox" id="check-all-teachers" onclick="app.toggleCheckAllTeachers(this)"></th>
                                             <th>รหัสผู้ใช้งาน</th>
                                             <th>ชื่อครูผู้สอน</th>
                                             <th>บทบาท</th>

@@ -9,6 +9,8 @@ class AttendanceApp {
         this.systemDate = '2026-06-20'; // Current Local Time simulated
         this.studentPage = 1;
         this.pageSize = 15;
+        this.selectedStudents = [];
+        this.selectedTeachers = [];
         
         // Active Charts
         this.dashChart = null;
@@ -2591,6 +2593,16 @@ class AttendanceApp {
     switchManageTab(tabId) {
         this.manageTab = tabId;
         
+        // Reset selections
+        this.selectedStudents = [];
+        this.selectedTeachers = [];
+        const checkAllStudents = document.getElementById('check-all-students');
+        if (checkAllStudents) checkAllStudents.checked = false;
+        const checkAllTeachers = document.getElementById('check-all-teachers');
+        if (checkAllTeachers) checkAllTeachers.checked = false;
+        this.updateStudentSelectionUI();
+        this.updateTeacherSelectionUI();
+
         // Update tab buttons style
         const tabs = ['students', 'teachers', 'bases', 'schedule', 'import', 'cloud'];
         tabs.forEach(t => {
@@ -2660,12 +2672,23 @@ class AttendanceApp {
             ? `แสดง ${start + 1} - ${end} จากทั้งหมด ${total} คน`
             : `ไม่พบข้อมูลนักเรียน`;
 
+        // Sync master checkbox state
+        const master = document.getElementById('check-all-students');
+        if (master) {
+            const allVisibleSelected = paginated.length > 0 && paginated.every(st => this.selectedStudents.includes(st.studentId));
+            master.checked = allVisibleSelected;
+        }
+
         const tbody = document.getElementById('manage-students-table-body');
         tbody.innerHTML = '';
 
         paginated.forEach(st => {
+            const isChecked = this.selectedStudents.includes(st.studentId);
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td style="text-align: center;">
+                    <input type="checkbox" class="student-select-checkbox" value="${st.studentId}" ${isChecked ? 'checked' : ''} onchange="app.handleStudentCheckboxChange(this)">
+                </td>
                 <td>เลขที่ ${st.no}</td>
                 <td>${st.studentId}</td>
                 <td style="font-weight:600;">${st.name}</td>
@@ -2689,6 +2712,13 @@ class AttendanceApp {
         const tbody = document.getElementById('manage-teachers-table-body');
         tbody.innerHTML = '';
 
+        // Sync master checkbox state
+        const master = document.getElementById('check-all-teachers');
+        if (master) {
+            const allVisibleSelected = this.db.teachers.length > 0 && this.db.teachers.every(t => this.selectedTeachers.includes(t.username));
+            master.checked = allVisibleSelected;
+        }
+
         this.db.teachers.forEach(t => {
             let roleBadge = '<span class="status-badge info">ครูผู้สอน</span>';
             if (t.role === 'admin') {
@@ -2697,8 +2727,12 @@ class AttendanceApp {
                 roleBadge = '<span class="status-badge activity">ผู้บริหาร</span>';
             }
 
+            const isChecked = this.selectedTeachers.includes(t.username);
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td style="text-align: center;">
+                    <input type="checkbox" class="teacher-select-checkbox" value="${t.username}" ${isChecked ? 'checked' : ''} onchange="app.handleTeacherCheckboxChange(this)">
+                </td>
                 <td style="font-family:'Outfit';">${t.username}</td>
                 <td style="font-weight:600;">${t.name}</td>
                 <td>${roleBadge}</td>
@@ -2713,6 +2747,162 @@ class AttendanceApp {
             `;
             tbody.appendChild(tr);
         });
+    }
+
+    toggleCheckAllStudents(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.student-select-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+            const val = cb.value;
+            if (masterCheckbox.checked) {
+                if (!this.selectedStudents.includes(val)) {
+                    this.selectedStudents.push(val);
+                }
+            } else {
+                this.selectedStudents = this.selectedStudents.filter(id => id !== val);
+            }
+        });
+        this.updateStudentSelectionUI();
+    }
+
+    toggleCheckAllTeachers(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.teacher-select-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+            const val = cb.value;
+            if (masterCheckbox.checked) {
+                if (!this.selectedTeachers.includes(val)) {
+                    this.selectedTeachers.push(val);
+                }
+            } else {
+                this.selectedTeachers = this.selectedTeachers.filter(username => username !== val);
+            }
+        });
+        this.updateTeacherSelectionUI();
+    }
+
+    handleStudentCheckboxChange(cb) {
+        const val = cb.value;
+        if (cb.checked) {
+            if (!this.selectedStudents.includes(val)) {
+                this.selectedStudents.push(val);
+            }
+        } else {
+            this.selectedStudents = this.selectedStudents.filter(id => id !== val);
+        }
+        
+        // Sync master checkbox state
+        const master = document.getElementById('check-all-students');
+        if (master) {
+            const checkboxes = document.querySelectorAll('.student-select-checkbox');
+            const allChecked = Array.from(checkboxes).every(x => x.checked);
+            master.checked = checkboxes.length > 0 && allChecked;
+        }
+        this.updateStudentSelectionUI();
+    }
+
+    handleTeacherCheckboxChange(cb) {
+        const val = cb.value;
+        if (cb.checked) {
+            if (!this.selectedTeachers.includes(val)) {
+                this.selectedTeachers.push(val);
+            }
+        } else {
+            this.selectedTeachers = this.selectedTeachers.filter(username => username !== val);
+        }
+        
+        // Sync master checkbox state
+        const master = document.getElementById('check-all-teachers');
+        if (master) {
+            const checkboxes = document.querySelectorAll('.teacher-select-checkbox');
+            const allChecked = Array.from(checkboxes).every(x => x.checked);
+            master.checked = checkboxes.length > 0 && allChecked;
+        }
+        this.updateTeacherSelectionUI();
+    }
+
+    updateStudentSelectionUI() {
+        const count = this.selectedStudents.length;
+        const btn = document.getElementById('btn-delete-selected-students');
+        const countEl = document.getElementById('selected-students-count');
+        if (btn && countEl) {
+            if (count > 0) {
+                btn.style.display = 'inline-block';
+                countEl.textContent = count;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+    }
+
+    updateTeacherSelectionUI() {
+        const count = this.selectedTeachers.length;
+        const btn = document.getElementById('btn-delete-selected-teachers');
+        const countEl = document.getElementById('selected-teachers-count');
+        if (btn && countEl) {
+            if (count > 0) {
+                btn.style.display = 'inline-block';
+                countEl.textContent = count;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+    }
+
+    deleteSelectedStudents() {
+        const count = this.selectedStudents.length;
+        if (count === 0) return;
+        
+        if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลนักเรียนที่เลือกทั้งหมดจำนวน ${count} คน ใช่หรือไม่?\n(ประวัติการเข้าเรียนของนักเรียนกลุ่มนี้จะถูกลบไปด้วย)`)) {
+            // Filter out logs associated with these students too
+            this.db.students = this.db.students.filter(st => !this.selectedStudents.includes(st.studentId));
+            this.db.attendance_logs = this.db.attendance_logs.filter(log => !this.selectedStudents.includes(log.studentId));
+            
+            this.saveDatabase();
+            this.logAudit(`Bulk deleted ${count} students`);
+            
+            // Reset selection
+            this.selectedStudents = [];
+            this.updateStudentSelectionUI();
+            
+            const master = document.getElementById('check-all-students');
+            if (master) master.checked = false;
+            
+            this.renderManageStudents();
+            this.showStatusModal('success', 'ลบข้อมูลสำเร็จ', `ทำการลบข้อมูลนักเรียนจำนวน ${count} คน เรียบร้อยแล้ว`);
+        }
+    }
+
+    deleteSelectedTeachers() {
+        const count = this.selectedTeachers.length;
+        if (count === 0) return;
+
+        // Safety check to prevent deletion of protected system accounts
+        const protectedUsernames = ['director', 'deputy1', 'deputy2', 'admin'];
+        const selectedProtected = this.selectedTeachers.filter(username => protectedUsernames.includes(username));
+        
+        if (selectedProtected.length > 0) {
+            alert(`ไม่สามารถลบบัญชีผู้บริหารหรือผู้ดูแลระบบหลักได้! (${selectedProtected.join(', ')})`);
+            return;
+        }
+
+        if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลคุณครูที่เลือกทั้งหมดจำนวน ${count} ท่าน ใช่หรือไม่?`)) {
+            // Remove teachers
+            this.db.teachers = this.db.teachers.filter(t => !this.selectedTeachers.includes(t.username));
+            
+            this.saveDatabase();
+            this.logAudit(`Bulk deleted ${count} teachers`);
+            
+            // Reset selection
+            this.selectedTeachers = [];
+            this.updateTeacherSelectionUI();
+            
+            const master = document.getElementById('check-all-teachers');
+            if (master) master.checked = false;
+            
+            this.renderManageTeachers();
+            this.showStatusModal('success', 'ลบข้อมูลสำเร็จ', `ทำการลบข้อมูลคุณครูจำนวน ${count} ท่าน เรียบร้อยแล้ว`);
+        }
     }
 
     // Sub-tab: Bases CRUD
