@@ -738,7 +738,10 @@ class AttendanceApp {
         const weekNum = this.currentWeekInfo ? this.currentWeekInfo.week : '-';
         const weekDates = this.currentWeekInfo ? this.currentWeekInfo.dates : 'อยู่นอกช่วงภาคเรียน';
         
-        document.getElementById('dash-week-num').textContent = `Week ${weekNum}`;
+        const weekNumEl = document.getElementById('dash-week-num');
+        if (weekNumEl) {
+            weekNumEl.textContent = `Week ${weekNum}`;
+        }
         
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
@@ -2059,7 +2062,8 @@ class AttendanceApp {
         const tbody = document.getElementById('manage-schedule-table-body');
         tbody.innerHTML = '';
 
-        filtered.forEach((sch, idx) => {
+        filtered.forEach((sch) => {
+            const dbIndex = this.db.rotation_schedule.indexOf(sch);
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td>สัปดาห์ที่ ${sch.week}</td>
@@ -2069,10 +2073,10 @@ class AttendanceApp {
                 <td><i class="fa-solid fa-location-dot"></i> ${sch.room}</td>
                 <td>${sch.teacherName}</td>
                 <td>
-                    <button class="btn btn-outline btn-sm" onclick="app.openEditScheduleModal(${idx})">
+                    <button class="btn btn-outline btn-sm" onclick="app.openEditScheduleModal(${dbIndex})">
                         <i class="fa-solid fa-pen-to-square"></i> แก้ไข
                     </button>
-                    <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="app.deleteSchedule(${idx})">
+                    <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="app.deleteSchedule(${dbIndex})">
                         <i class="fa-solid fa-trash"></i> ลบ
                     </button>
                 </td>
