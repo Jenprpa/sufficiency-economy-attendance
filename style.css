@@ -1339,6 +1339,63 @@ tr:hover td {
     .chart-container, canvas {
         max-height: 260px !important;
     }
+
+    /* Modal Height and Scroll for mobile */
+    .modal-content {
+        max-height: 90vh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        padding: 20px !important;
+    }
+
+    /* Stacked Layout for Student Row Cards on mobile */
+    .student-row-card {
+        display: grid !important;
+        grid-template-columns: auto 1fr !important;
+        grid-template-areas:
+            "no name"
+            "id class"
+            "actions actions" !important;
+        gap: 8px 12px !important;
+        padding: 12px !important;
+        align-items: center !important;
+    }
+    .student-no {
+        grid-area: no !important;
+        font-size: 13px !important;
+        background-color: var(--gray-light) !important;
+        padding: 2px 6px !important;
+        border-radius: var(--radius-sm) !important;
+        text-align: center !important;
+        width: fit-content;
+    }
+    .student-name {
+        grid-area: name !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+    }
+    .student-id {
+        grid-area: id !important;
+        font-size: 12px !important;
+    }
+    .student-class {
+        grid-area: class !important;
+        font-size: 12px !important;
+        text-align: right !important;
+    }
+    .attendance-actions {
+        grid-area: actions !important;
+        margin-top: 6px !important;
+    }
+
+    /* Rotation Info Grid on mobile */
+    .rotation-info-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    .rotation-info-grid strong {
+        font-size: 13px !important;
+    }
 }
 
 @media (max-width: 480px) {

@@ -785,8 +785,10 @@ class AttendanceApp {
                     found.name = exec.name;
                     dbChanged = true;
                 }
-                if (exec.password && found.password !== exec.password) {
-                    found.password = exec.password;
+                // Overwrite password ONLY if it is missing, or matches old default (phone/username/June), and is not 123456
+                const isOldDefault = !found.password || found.password === exec.phone || found.password === exec.username || found.password === '20June2026';
+                if (isOldDefault && found.password !== "123456") {
+                    found.password = "123456";
                     dbChanged = true;
                 }
                 if (exec.phone && found.phone !== exec.phone) {
@@ -893,6 +895,7 @@ class AttendanceApp {
         requiredTeachers.forEach(tInfo => {
             const found = this.db.teachers.find(t => t.username === tInfo.username);
             if (!found) {
+                tInfo.password = "123456";
                 this.db.teachers.push(tInfo);
                 dbChanged = true;
             } else {
@@ -905,8 +908,10 @@ class AttendanceApp {
                     found.role = tInfo.role;
                     changed = true;
                 }
-                if (tInfo.password && found.password !== tInfo.password) {
-                    found.password = tInfo.password;
+                // Overwrite password ONLY if it is missing, or matches old default (phone/username), and is not 123456
+                const isOldDefault = !found.password || found.password === tInfo.phone || found.password === tInfo.username;
+                if (isOldDefault && found.password !== "123456") {
+                    found.password = "123456";
                     changed = true;
                 }
                 if (tInfo.phone && found.phone !== tInfo.phone) {
@@ -1061,8 +1066,12 @@ class AttendanceApp {
             { username: "kusupiya", name: "นางสาวกุสุปิยา รอดสุวรรณ", role: "teacher", password: "082-1881234", phone: "082-1881234" },
             { username: "tyler", name: "Mr.Tyler Pearce", role: "teacher", password: "096-6535892", phone: "096-6535892" },
             { username: "michael", name: "Mr.Michael Gibbs", role: "teacher", password: "062-6934689", phone: "062-6934689" },
-            { username: "shoon", name: "Miss Shoon Shoe Lei", role: "teacher", password: "065-4762287", phone: "065-4762287" }
         ];
+
+        // Reset all passwords to "123456" as default
+        teachers.forEach(t => {
+            t.password = "123456";
+        });
 
         // 3. Students Generator (realistic Thai names and classrooms)
         const firstNames = ["สมชาย", "วิชัย", "กิตติ", "พงศ์ธร", "ธีรพงษ์", "อภิสิทธิ์", "ณัฐพล", "เกียรติศักดิ์", "สิทธิพล", "จิรายุ", "วรรณนา", "นงนุช", "วิไล", "สุภาภรณ์", "นภา", "สิริพร", "รัตนา", "จิราภรณ์", "พัชรา", "ยลดา", "มาลี", "กัญญารัตน์", "ธัญญารัตน์", "เปรมิกา", "สุจิตรา", "วรัญญา", "ชลลดา", "ศิริวรรณ", "นันทนา", "ลัดดา"];
@@ -1082,8 +1091,8 @@ class AttendanceApp {
 
         studentClasses.forEach(g => {
             g.rooms.forEach(room => {
-                // Generate 5 students per classroom
-                for (let i = 1; i <= 5; i++) {
+                // Generate 40 students per classroom
+                for (let i = 1; i <= 40; i++) {
                     const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
                     const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
                     
@@ -1210,10 +1219,10 @@ class AttendanceApp {
 
         // Keep only system accounts (Admin and Directors)
         const systemTeachers = [
-            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "081-7646763", phone: "081-7646763" },
-            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "094-4976328", phone: "094-4976328" },
-            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "091-8521021", phone: "091-8521021" },
-            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "123456", phone: "081-7646763" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "123456", phone: "094-4976328" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "123456", phone: "091-8521021" },
+            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin", password: "123456" }
         ];
 
         // Default 7 bases with empty teacher assignment
@@ -1512,6 +1521,12 @@ class AttendanceApp {
     }
 
     closeModal(modalId) {
+        if (modalId === 'change-password-modal') {
+            if (this.currentUser && (this.currentUser.password === '123456' || !this.currentUser.password)) {
+                alert("กรุณาตั้งรหัสผ่านใหม่ก่อนเข้าใช้งานระบบ!");
+                return;
+            }
+        }
         document.getElementById(modalId).classList.remove('active');
     }
 
@@ -1529,6 +1544,13 @@ class AttendanceApp {
             }
             
             this.updateUserUI();
+            
+            // Force password change check on session load
+            if (this.currentUser && (this.currentUser.password === '123456' || !this.currentUser.password)) {
+                setTimeout(() => {
+                    this.openChangePasswordModal(true);
+                }, 1000);
+            }
         } else {
             // Auto show login modal if not logged in to guide users
             setTimeout(() => {
@@ -1563,6 +1585,15 @@ class AttendanceApp {
             this.switchView('admin');
         } else {
             this.switchView('checkin');
+        }
+
+        // Check if using default password, force them to change password
+        const isDefaultPassword = userObj.password === '123456' || !userObj.password;
+        if (isDefaultPassword) {
+            setTimeout(() => {
+                alert("ระบบบังคับเปลี่ยนรหัสผ่าน: เนื่องจากรหัสผ่านของคุณยังเป็นรหัสผ่านเริ่มต้น (123456) กรุณาตั้งรหัสผ่านใหม่เพื่อความปลอดภัยของข้อมูล");
+                this.openChangePasswordModal(true);
+            }, 800);
         }
     }
 
@@ -1661,7 +1692,7 @@ class AttendanceApp {
         }
 
         const passwordInput = document.getElementById('login-password').value;
-        const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
+        const expectedPassword = userObj.password || '123456';
         const email = `${userObj.username}@paiwittyakarn.local`;
 
         console.log("[Login Flow] Init Login for username:", userObj.username);
@@ -1972,10 +2003,24 @@ class AttendanceApp {
         }
     }
 
-    openChangePasswordModal() {
+    openChangePasswordModal(force = false) {
         document.getElementById('change-pwd-current').value = '';
         document.getElementById('change-pwd-new').value = '';
         document.getElementById('change-pwd-confirm').value = '';
+        
+        const closeBtn = document.querySelector('#change-password-modal .modal-close');
+        const cancelBtn = document.querySelector('#change-password-modal .modal-footer .btn-outline');
+        
+        if (force) {
+            if (closeBtn) closeBtn.style.display = 'none';
+            if (cancelBtn) cancelBtn.style.display = 'none';
+            this.forcePasswordChange = true;
+        } else {
+            if (closeBtn) closeBtn.style.display = 'block';
+            if (cancelBtn) cancelBtn.style.display = 'block';
+            this.forcePasswordChange = false;
+        }
+        
         this.openModal('change-password-modal');
     }
 
@@ -4054,7 +4099,7 @@ class AttendanceApp {
         const confirmReset = confirm(`คุณต้องการรีเซ็ตรหัสผ่านของครู ${teacher.name} ใช่หรือไม่?\nรหัสผ่านจะถูกตั้งค่ากลับเป็นหมายเลขโทรศัพท์ (${teacher.phone || teacher.username})`);
         if (!confirmReset) return;
 
-        const defaultPassword = teacher.phone || teacher.username;
+        const defaultPassword = "123456";
         teacher.password = defaultPassword;
         teacher.isAuthCreated = false;
 
@@ -4379,10 +4424,7 @@ class AttendanceApp {
                 }
                 updatedCount++;
             } else {
-                const newTeacher = { username, name, role };
-                if (password) {
-                    newTeacher.password = password;
-                }
+                const newTeacher = { username, name, role, password: password || "123456" };
                 this.db.teachers.push(newTeacher);
                 addedCount++;
             }
@@ -5085,6 +5127,31 @@ class AttendanceApp {
             "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
         };
 
+        if (baseId === 'base4' && grade === 'ม.4') {
+            const classesList = [];
+            const classRooms = {};
+            if (!isWeekB) {
+                classesList.push("ม.4/1", "ม.4/2", "ม.4/5", "ม.4/6", "ม.4/7");
+                classRooms["ม.4/1"] = "ห้อง 2101";
+                classRooms["ม.4/6"] = "ห้อง 2101";
+                classRooms["ม.4/7"] = "สวนเศรษฐกิจพอเพียง";
+                classRooms["ม.4/2"] = "ห้อง 2201";
+                classRooms["ม.4/5"] = "ห้อง 2201";
+            } else {
+                classesList.push("ม.4/3", "ม.4/4");
+                classRooms["ม.4/3"] = "ห้อง 2102-2103";
+                classRooms["ม.4/4"] = "ห้อง 2102-2103";
+            }
+            const label = !isWeekB
+                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101) | ม.4/2, ม.4/5 (ห้อง 2201)"
+                : "ม.4/3, ม.4/4 (ห้อง 2102-2103)";
+            return {
+                classes: classesList,
+                classRooms: classRooms,
+                classesLabel: label
+            };
+        }
+
         if (baseId === 'base1') { // ไฟเบอร์ ทรงพลัง
             const cls = allGradeClasses[grade] || [];
             const rooms = {};
@@ -5124,9 +5191,13 @@ class AttendanceApp {
             group4.push(`${grade}/7`);
         } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
             if (grade === 'ม.4') {
-                group1.push("ม.4/1", "ม.4/7");
-                group2.push("ม.4/2", "ม.4/5", "ม.4/6");
+                group1.push("ม.4/1", "ม.4/2", "ม.4/7");
+                group2.push("ม.4/5", "ม.4/6");
                 group3.push("ม.4/3", "ม.4/4");
+            } else if (grade === 'ม.5') {
+                group1.push("ม.5/1", "ม.5/6");
+                group2.push("ม.5/2", "ม.5/5");
+                group3.push("ม.5/3", "ม.5/4");
             } else {
                 group1.push(`${grade}/1`, `${grade}/6`);
                 group2.push(`${grade}/2`, `${grade}/5`);
@@ -5165,7 +5236,7 @@ class AttendanceApp {
             roomA = "ห้อง 1103";
             roomB = "ห้องคหกรรม";
             roomC = "ห้อง 1105";
-            roomD = isJunior ? "ห้อง 1103" : "";
+            roomD = isJunior ? "ห้อง 1107" : "";
         } else if (baseId === 'base6') { // ต้นกล้าประชาธิปไตย
             roomA = isJunior ? "ห้อง 2306" : "ห้อง 2301";
             roomB = "ห้องประชุมธนี พหลโยธิน";
