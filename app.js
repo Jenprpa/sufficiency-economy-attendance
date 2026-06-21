@@ -3,6 +3,7 @@
 class AttendanceApp {
     constructor() {
         this.db = {};
+        this.isDemoData = false; // Flag to track if demo/seed data is currently loaded
         this.currentUser = null;
         this.currentView = 'dashboard';
         this.manageTab = 'students';
@@ -570,12 +571,14 @@ class AttendanceApp {
                     loadedDb['staging_logs'] = stagingSnapshot ? stagingSnapshot.docs.map(doc => doc.data()) : [];
 
                     this.db = loadedDb;
+                    this.isDemoData = false; // Real data loaded - clear demo flag
                     this.updateFirestoreConnectionStatus(true);
                     this.runMigrationChecks();
                     return;
                 } else {
-                    console.log("No data found in Firestore, seeding demo data...");
-                    await this.resetToDemoData(false);
+                    console.log("No data in Firestore yet - initializing empty database (not seeding demo data)");
+                    // Do NOT auto-seed demo data. Initialize minimal empty structure from default teacher list.
+                    this.initializeEmptyDatabase();
                     return;
                 }
             } catch (e) {
@@ -602,7 +605,8 @@ class AttendanceApp {
 
         if (!students || !teachers || !bases || !schedule || !logs) {
             this.db = this.db || {};
-            this.resetToDemoData(false); // Seed without forcing confirmation on first load
+            // Do NOT auto-seed demo data. Initialize minimal empty structure.
+            this.initializeEmptyDatabase();
         } else {
             this.db = this.db || {};
             this.db.students = JSON.parse(students);
@@ -614,9 +618,45 @@ class AttendanceApp {
             this.db.activeSemesterId = activeSemesterId || "1-2569";
             this.db.base_activity_logs = baseActivityLogs ? JSON.parse(baseActivityLogs) : [];
             this.db.staging_logs = stagingLogs ? JSON.parse(stagingLogs) : [];
+            this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
         }
         this.populateLoginSuggestions();
+    }
+
+    // Initialize a minimal empty database structure without demo students
+    // Only call this when real data is unavailable - NEVER auto-seed fake students
+    initializeEmptyDatabase() {
+        const existingTeachers = this.db && this.db.teachers && this.db.teachers.length > 0 
+            ? this.db.teachers 
+            : [
+                { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "123456" },
+                { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "123456" },
+                { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "123456" },
+                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin", password: "123456" }
+            ];
+
+        this.db = {
+            students: [],
+            teachers: existingTeachers,
+            bases: this.db && this.db.bases && this.db.bases.length > 0 ? this.db.bases : [
+                { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "", teacherId: "" },
+                { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "", teacherId: "" },
+                { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "", teacherId: "" },
+                { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
+                { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
+                { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
+                { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "", teacherId: "" }
+            ],
+            rotation_schedule: this.db && this.db.rotation_schedule ? this.db.rotation_schedule : [],
+            attendance_logs: this.db && this.db.attendance_logs ? this.db.attendance_logs : [],
+            semesters: [{ id: "1-2569", name: "ภาคเรียนที่ 1/2569", active: true }],
+            activeSemesterId: "1-2569",
+            base_activity_logs: [],
+            staging_logs: []
+        };
+        this.isDemoData = false;
+        console.log("[DB Init] Empty database initialized. Students: 0. Awaiting real data import.");
     }
 
     async loadDatabaseFromCloudInBackground() {
@@ -686,6 +726,7 @@ class AttendanceApp {
                 });
 
                 this.runMigrationChecks();
+                this.isDemoData = false; // Real data loaded from cloud - clear demo flag
                 // Save to localStorage
                 localStorage.setItem('school_students', JSON.stringify(this.db.students));
                 localStorage.setItem('school_teachers', JSON.stringify(this.db.teachers));
@@ -1310,6 +1351,22 @@ class AttendanceApp {
             dbChanged = true;
         }
 
+        // Ensure all schedule rows have attendingClasses and classRooms populated
+        let scheduleReprocessed = false;
+        if (this.db.rotation_schedule) {
+            this.db.rotation_schedule.forEach(sch => {
+                const oldLen = sch.attendingClasses ? sch.attendingClasses.length : 0;
+                this.ensureScheduleRowProperties(sch);
+                const newLen = sch.attendingClasses ? sch.attendingClasses.length : 0;
+                if (oldLen !== newLen) {
+                    scheduleReprocessed = true;
+                }
+            });
+        }
+        if (scheduleReprocessed) {
+            dbChanged = true;
+        }
+
         if (dbChanged) {
             this.saveDatabase(false, ['bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'students', 'teachers']);
         }
@@ -1540,6 +1597,7 @@ class AttendanceApp {
 
         // Save DB
         this.db = { students, teachers, bases, rotation_schedule, attendance_logs };
+        this.isDemoData = true; // Mark as demo data so dashboard can detect it
         this.saveDatabase(true);
 
         // Show UI Notification
@@ -1762,7 +1820,7 @@ class AttendanceApp {
             }
         } else if (this.currentUser.role === 'teacher') {
             // Teacher mode
-            const teacherViews = ['checkin', 'teacher-history'];
+            const teacherViews = ['checkin'];
             if (!teacherViews.includes(viewId)) {
                 viewId = 'checkin';
             }
@@ -2482,7 +2540,27 @@ class AttendanceApp {
                             alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากไม่สามารถลงทะเบียนคลาวด์ได้ในขณะนี้)");
                             await this.completeLogin(userObj);
                         } else if (createErr.code === 'auth/email-already-in-use') {
-                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง (คุณอาจเคยเปลี่ยนรหัสผ่านแล้ว กรุณาใช้รหัสผ่านล่าสุดของคุณ)');
+                            // Firebase Auth account already exists - try signing in directly
+                            // This handles: deleted+recreated accounts, or accounts whose Auth was reset
+                            console.log("[Login Flow] Auth account already exists. Attempting signIn instead of create...");
+                            try {
+                                await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
+                                console.log("[Login Flow] SignIn after email-already-in-use: SUCCESS");
+                                this.initFirestore();
+                                await this.loadDatabase(15000).catch(() => {});
+                                this.pendingLoginUser = null;
+                                await this.completeLogin(userObj);
+                            } catch (retrySignInErr) {
+                                console.error("[Login Flow] SignIn after email-already-in-use: FAIL", retrySignInErr);
+                                if (retrySignInErr.code === 'auth/wrong-password' || retrySignInErr.code === 'auth/invalid-credential') {
+                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ',
+                                        'บัญชีคลาวด์ของคุณมีรหัสผ่านไม่ตรงกับฐานข้อมูล กรุณาแจ้งผู้ดูแลระบบให้รีเซ็ตรหัสผ่านผ่าน Firebase Console');
+                                } else {
+                                    // Fall through to local login if any other error
+                                    alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราว)");
+                                    await this.completeLogin(userObj);
+                                }
+                            }
                         } else {
                             this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัยบนระบบคลาวด์: ' + createErr.message);
                         }
@@ -2923,7 +3001,27 @@ class AttendanceApp {
 
         // Update stats card UI
         const totalStudEl = document.getElementById('dash-total-students');
-        if (totalStudEl) totalStudEl.textContent = `${this.db.students.length}`;
+        const realStudentCount = this.db.students.length;
+        const looksLikeDemoData = this.isDemoData || (realStudentCount === 1800);
+        if (totalStudEl) {
+            if (looksLikeDemoData && realStudentCount > 0) {
+                // Show warning: demo data is being displayed, not real imported data
+                totalStudEl.textContent = '⚠ ข้อมูลทดสอบ';
+                totalStudEl.style.fontSize = '14px';
+                totalStudEl.style.color = 'var(--accent, #B22222)';
+                totalStudEl.title = `กำลังแสดงข้อมูลทดสอบ (${realStudentCount} คน) กรุณานำเข้าข้อมูลนักเรียนจริง`;
+            } else if (realStudentCount === 0) {
+                totalStudEl.textContent = 'ยังไม่มีข้อมูล';
+                totalStudEl.style.fontSize = '14px';
+                totalStudEl.style.color = 'var(--text-light, #666)';
+                totalStudEl.title = 'กรุณานำเข้าข้อมูลนักเรียน';
+            } else {
+                totalStudEl.textContent = `${realStudentCount}`;
+                totalStudEl.style.fontSize = '';
+                totalStudEl.style.color = '';
+                totalStudEl.title = '';
+            }
+        }
 
         const totalTeachEl = document.getElementById('dash-total-teachers');
         if (totalTeachEl) totalTeachEl.textContent = `${this.db.teachers.filter(t => t.role === 'teacher').length}`;
@@ -3266,6 +3364,51 @@ class AttendanceApp {
                     <p>สัปดาห์นี้ฐาน ${scheduleRow.baseName} ไม่มีนักเรียนหมุนเวียนเข้ามาจัดเรียนตามปฏิทิน</p>
                 </div>
             `;
+            return;
+        }
+
+        this.ensureScheduleRowProperties(scheduleRow);
+
+        // Validate classrooms
+        const validation = this.validateAttendanceGeneration(scheduleRow);
+        if (!validation.valid) {
+            document.getElementById('checkin-week-label').innerHTML = `สัปดาห์เรียนที่ ${week} (${this.formatThaiDate(todayDate)})`;
+            document.getElementById('checkin-base-title').textContent = `ฐาน: ${scheduleRow.baseName}`;
+            document.getElementById('checkin-base-info').innerHTML = `<i class="fa-solid fa-user"></i> ครูผู้สอน: ${scheduleRow.teacherName} | <i class="fa-solid fa-location-dot"></i> สถานที่สอน: ${scheduleRow.room}`;
+            document.getElementById('checkin-classes-label').textContent = scheduleRow.classes;
+            
+            const targetClassesEl = document.getElementById('checkin-target-classes');
+            if (targetClassesEl) targetClassesEl.textContent = "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล";
+
+            if (selectorCard) selectorCard.style.display = 'none';
+
+            const listContainer = document.getElementById('student-attendance-list-container');
+            if (listContainer) {
+                listContainer.innerHTML = `
+                    <div class="alert-banner" style="background-color: var(--danger-bg); border-color: var(--danger); color: var(--danger); margin: 24px 0; text-align: left; padding: 16px; border-radius: var(--radius-md);">
+                        <i class="fa-solid fa-circle-exclamation" style="font-size: 24px; margin-right: 12px; float: left;"></i>
+                        <div style="overflow: hidden;">
+                            <strong>ข้อผิดพลาดในการสร้างใบเช็กชื่อ!</strong> ไม่สามารถแสดงรายชื่อนักเรียนได้เนื่องจากไม่พบข้อมูลนักเรียนในห้องเรียนดังต่อไปนี้ในระบบ:
+                            <ul style="margin: 8px 0 0 20px; padding: 0;">
+                                ${validation.missingClasses.map(c => `<li>ห้องเรียน ${c}</li>`).join('')}
+                            </ul>
+                            <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.85;">* กรุณาแจ้งผู้ดูแลระบบเพื่อนำเข้าข้อมูลนักเรียนสำหรับห้องดังกล่าว หรือตรวจสอบตารางเรียนหมุนฐาน</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Disable search input and filter buttons
+            const searchInput = document.getElementById('checkin-student-search');
+            if (searchInput) searchInput.disabled = true;
+            const btnCheckAll = document.getElementById('btn-check-all-present');
+            if (btnCheckAll) btnCheckAll.disabled = true;
+            const btnReset = document.getElementById('btn-reset-checkin');
+            if (btnReset) btnReset.disabled = true;
+            const btnSave = document.getElementById('btn-save-attendance');
+            if (btnSave) btnSave.disabled = true;
+            
+            this.updateCheckinCounters();
             return;
         }
 
@@ -5781,6 +5924,7 @@ class AttendanceApp {
             week, dates, startDate, endDate, baseId, baseName, classes, room, teacherName, teacherId,
             groupIndex: matchedWeek ? matchedWeek.groupIndex : 0
         };
+        this.ensureScheduleRowProperties(newSch);
 
         if (indexVal === "") { // Create
             this.db.rotation_schedule.push(newSch);
@@ -5951,7 +6095,7 @@ class AttendanceApp {
         const newSchedule = [];
         
         rows.forEach(row => {
-            newSchedule.push({
+            const schItem = {
                 week: parseInt(row.week),
                 dates: String(row.dates || ''),
                 startDate: String(row.startDate || '2026-05-11'),
@@ -5963,7 +6107,9 @@ class AttendanceApp {
                 teacherName: String(row.teacherName || 'ครูผู้สอน'),
                 teacherId: String(row.teacherId || 'teacher1'),
                 groupIndex: parseInt(row.groupIndex || 0)
-            });
+            };
+            this.ensureScheduleRowProperties(schItem);
+            newSchedule.push(schItem);
         });
 
         this.db.rotation_schedule = newSchedule;
@@ -6772,7 +6918,107 @@ class AttendanceApp {
         };
     }
 
-    
+    // Ensure schedule row properties (attendingClasses, classRooms) are populated dynamically from classes label
+    ensureScheduleRowProperties(sch) {
+        if (!sch || !sch.classes) return;
+
+        const expectedClasses = {
+            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9"],
+            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9"],
+            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8"],
+            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7"],
+            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6"],
+            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
+        };
+
+        const classesRegex = /ม\.[1-6]\/\d+/g;
+        const gradeRegex = /ม\.[1-6](?!\/\d+)/g;
+        
+        let parsedClasses = [];
+        
+        // Match whole grades (e.g. "ม.5") and expand them
+        const gradeMatches = sch.classes.match(gradeRegex) || [];
+        gradeMatches.forEach(g => {
+            if (expectedClasses[g]) {
+                parsedClasses.push(...expectedClasses[g]);
+            }
+        });
+        
+        // Match individual classes (e.g. "ม.5/1")
+        const individualMatches = sch.classes.match(classesRegex) || [];
+        parsedClasses.push(...individualMatches);
+        
+        const uniqueClasses = [...new Set(parsedClasses)];
+        sch.attendingClasses = uniqueClasses;
+
+        // Populate classRooms mapping
+        sch.classRooms = sch.classRooms || {};
+        const parts = sch.classes.split('|');
+        parts.forEach(part => {
+            const roomMatch = part.match(/\(([^)]+)\)/);
+            const partRoom = roomMatch ? roomMatch[1] : (sch.room || '-');
+            
+            // Assign this room to all classes in this part
+            const partClasses = part.match(classesRegex) || [];
+            partClasses.forEach(cls => {
+                sch.classRooms[cls] = partRoom;
+            });
+            
+            // If the part matches a whole grade (e.g. "ม.5"), assign this room to all its sub-classes
+            const partGrades = part.match(gradeRegex) || [];
+            partGrades.forEach(g => {
+                if (expectedClasses[g]) {
+                    expectedClasses[g].forEach(cls => {
+                        sch.classRooms[cls] = partRoom;
+                    });
+                }
+            });
+        });
+
+        // Fallback for any classrooms that didn't get mapped
+        uniqueClasses.forEach(cls => {
+            if (!sch.classRooms[cls]) {
+                sch.classRooms[cls] = sch.room || '-';
+            }
+        });
+    }
+
+    // Validate attendance generation before displaying
+    validateAttendanceGeneration(scheduleRow) {
+        if (!scheduleRow) return { valid: false, missingClasses: ["ไม่พบข้อมูลตารางเรียน"] };
+        
+        // Parse expected classrooms from the schedule row
+        const uniqueExpected = scheduleRow.attendingClasses || [];
+
+        // Check if any classroom is missing student data in the database
+        const missingClasses = [];
+        uniqueExpected.forEach(clsName => {
+            const parts = clsName.split('/');
+            if (parts.length < 2) return;
+            const grade = parts[0];
+            const room = parseInt(parts[1]);
+            const studentsInClass = this.db.students.filter(st => st.grade === grade && st.room == room);
+            if (studentsInClass.length === 0) {
+                missingClasses.push(clsName);
+            }
+        });
+
+        if (missingClasses.length > 0) {
+            const errorMsg = `[Attendance Validation Error] Week ${scheduleRow.week}, Base ${scheduleRow.baseName}: Missing student data for classrooms: ${missingClasses.join(', ')}`;
+            console.error(errorMsg);
+            this.logAudit(errorMsg);
+            return {
+                valid: false,
+                missingClasses: missingClasses
+            };
+        }
+
+        return {
+            valid: true,
+            missingClasses: []
+        };
+    }
+
     showStatusModal(type, title, message) {
         const modal = document.getElementById('status-modal');
         if (!modal) return;
