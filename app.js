@@ -1169,12 +1169,6 @@ class AttendanceApp {
                 });
                 html += '</optgroup>';
 
-                html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
-                adminsList.forEach(t => {
-                    html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
-                });
-                html += '</optgroup>';
-
                 html += '<optgroup label="ครูประจำฐานการเรียนรู้">';
                 teachersList.forEach(t => {
                       const bases = this.db.bases.filter(b => {
@@ -1184,6 +1178,12 @@ class AttendanceApp {
                       const baseName = bases.length > 0 ? ` (ฐาน ${bases.map(b => b.name).join(', ')})` : '';
                       html += `<option value="${t.username}">${t.name}${baseName}</option>`;
                   });
+                html += '</optgroup>';
+
+                html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
+                adminsList.forEach(t => {
+                    html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
+                });
                 html += '</optgroup>';
                 
                 select.innerHTML = html;
