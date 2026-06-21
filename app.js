@@ -967,6 +967,15 @@ class AttendanceApp {
             }
         });
 
+        // Force regeneration of rotation schedule to match the new 1/2569 calendar (Migration Version 3)
+        const migrationVersion = localStorage.getItem('school_migration_version') || '0';
+        if (parseInt(migrationVersion) < 3) {
+            console.log("[Migration] Regenerating rotation schedule to match new calendar layout...");
+            this.db.rotation_schedule = this.generateDefaultRotationSchedule();
+            localStorage.setItem('school_migration_version', '3');
+            dbChanged = true;
+        }
+
         if (dbChanged) {
             this.saveDatabase();
         }
@@ -5150,20 +5159,19 @@ class AttendanceApp {
             const classesList = [];
             const classRooms = {};
             if (!isWeekB) {
-                classesList.push("ม.4/1", "ม.4/2", "ม.4/5", "ม.4/6", "ม.4/7");
-                classRooms["ม.4/1"] = "ห้อง 2101";
+                classesList.push("ม.4/6", "ม.4/7");
                 classRooms["ม.4/6"] = "ห้อง 2101";
                 classRooms["ม.4/7"] = "สวนเศรษฐกิจพอเพียง";
+            } else {
+                classesList.push("ม.4/2", "ม.4/5", "ม.4/3", "ม.4/4");
                 classRooms["ม.4/2"] = "ห้อง 2201";
                 classRooms["ม.4/5"] = "ห้อง 2201";
-            } else {
-                classesList.push("ม.4/3", "ม.4/4");
                 classRooms["ม.4/3"] = "ห้อง 2102-2103";
                 classRooms["ม.4/4"] = "ห้อง 2102-2103";
             }
             const label = !isWeekB
-                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101) | ม.4/2, ม.4/5 (ห้อง 2201)"
-                : "ม.4/3, ม.4/4 (ห้อง 2102-2103)";
+                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101)"
+                : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
             return {
                 classes: classesList,
                 classRooms: classRooms,
@@ -5210,11 +5218,11 @@ class AttendanceApp {
             group4.push(`${grade}/7`);
         } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
             if (grade === 'ม.4') {
-                group1.push("ม.4/1", "ม.4/2", "ม.4/7");
+                group1.push("ม.4/2", "ม.4/7");
                 group2.push("ม.4/5", "ม.4/6");
                 group3.push("ม.4/3", "ม.4/4");
             } else if (grade === 'ม.5') {
-                group1.push("ม.5/1", "ม.5/6");
+                group1.push("ม.5/6");
                 group2.push("ม.5/2", "ม.5/5");
                 group3.push("ม.5/3", "ม.5/4");
             } else {
