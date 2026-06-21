@@ -930,7 +930,7 @@ class AttendanceApp {
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
-            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
         ];
 
         newBasesData.forEach(bData => {
@@ -967,12 +967,12 @@ class AttendanceApp {
             }
         });
 
-        // Force regeneration of rotation schedule to match the new 1/2569 calendar (Migration Version 3)
+        // Force regeneration of rotation schedule to match the new 1/2569 calendar (Migration Version 4)
         const migrationVersion = localStorage.getItem('school_migration_version') || '0';
-        if (parseInt(migrationVersion) < 3) {
-            console.log("[Migration] Regenerating rotation schedule to match new calendar layout...");
+        if (parseInt(migrationVersion) < 4) {
+            console.log("[Migration] Regenerating rotation schedule to match new calendar layout (V4)...");
             this.db.rotation_schedule = this.generateDefaultRotationSchedule();
-            localStorage.setItem('school_migration_version', '3');
+            localStorage.setItem('school_migration_version', '4');
             dbChanged = true;
         }
 
@@ -995,7 +995,7 @@ class AttendanceApp {
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
-            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
         ];
 
         // 2. Teachers
@@ -1242,7 +1242,7 @@ class AttendanceApp {
             { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
-            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมศุภเมธี", defaultTeacher: "", teacherId: "" }
+            { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "", teacherId: "" }
         ];
 
         this.db.students = [];
@@ -5161,7 +5161,7 @@ class AttendanceApp {
             if (!isWeekB) {
                 classesList.push("ม.4/6", "ม.4/7");
                 classRooms["ม.4/6"] = "ห้อง 2101";
-                classRooms["ม.4/7"] = "สวนเศรษฐกิจพอเพียง";
+                classRooms["ม.4/7"] = "สวนเศรษฐกิจพิเพียง";
             } else {
                 classesList.push("ม.4/2", "ม.4/5", "ม.4/3", "ม.4/4");
                 classRooms["ม.4/2"] = "ห้อง 2201";
@@ -5170,7 +5170,7 @@ class AttendanceApp {
                 classRooms["ม.4/4"] = "ห้อง 2102-2103";
             }
             const label = !isWeekB
-                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101)"
+                ? "ม.4/7 (สวนเศรษฐกิจพิเพียง) | ม.4/6 (ห้อง 2101)"
                 : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
             return {
                 classes: classesList,
@@ -5193,11 +5193,11 @@ class AttendanceApp {
         if (baseId === 'base7') { // หลู่ส่างกานเครือ เกื้อบุญ
             const cls = allGradeClasses[grade] || [];
             const rooms = {};
-            cls.forEach(c => { rooms[c] = "หอประชุมศุภเมธี"; });
+            cls.forEach(c => { rooms[c] = "หอประชุมสุภเมธี"; });
             return {
                 classes: cls,
                 classRooms: rooms,
-                classesLabel: `${grade} (หอประชุมศุภเมธี)`
+                classesLabel: `${grade} (หอประชุมสุภเมธี)`
             };
         }
 
