@@ -103,6 +103,12 @@ class AttendanceApp {
             this.useFirestore = true;
             console.log("Firebase Firestore initialized successfully.");
 
+            // Enable offline persistence for faster subsequent loads
+            this.firestore.enablePersistence()
+                .catch(err => {
+                    console.warn("Firestore persistence error:", err.code);
+                });
+
             // Listen for Firebase Auth state changes
             firebase.auth().onAuthStateChanged(user => {
                 if (user) {
@@ -162,12 +168,13 @@ class AttendanceApp {
                 const loadedDb = {};
                 let hasData = true;
 
-                // Load all collections concurrently
+                // Load all collections and logs concurrently
                 const promises = collections.map(col => this.firestore.collection('system_data').doc(col).get());
-                const docs = await Promise.all(promises);
+                promises.push(this.firestore.collection('attendance_logs').get());
+                const results = await Promise.all(promises);
 
                 for (let i = 0; i < collections.length; i++) {
-                    const doc = docs[i];
+                    const doc = results[i];
                     if (doc.exists) {
                         loadedDb[collections[i]] = doc.data().data || [];
                     } else {
@@ -177,8 +184,7 @@ class AttendanceApp {
                 }
 
                 if (hasData) {
-                    // Load attendance_logs from the separate collection
-                    const logsSnapshot = await this.firestore.collection('attendance_logs').get();
+                    const logsSnapshot = results[results.length - 1];
                     loadedDb['attendance_logs'] = logsSnapshot.docs.map(doc => doc.data());
 
                     this.db = loadedDb;
