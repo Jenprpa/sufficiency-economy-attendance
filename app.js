@@ -177,16 +177,69 @@ class AttendanceApp {
             if (hasPending || !navigator.onLine || !this.useFirestore) {
                 badge.style.display = 'flex';
                 const textEl = badge.querySelector('span');
+                const btn = badge.querySelector('button');
                 if (textEl) {
-                    if (!navigator.onLine || !this.useFirestore) {
-                        textEl.textContent = 'ระบบอยู่ในโหมดออฟไลน์ ข้อมูลเช็กชื่อจะบันทึกเก็บในเครื่องและซิงค์เมื่อออนไลน์';
+                    if (!navigator.onLine) {
+                        textEl.textContent = 'ระบบอยู่ในโหมดออฟไลน์ (ไม่มีอินเทอร์เน็ต) ข้อมูลจะซิงค์เมื่อออนไลน์';
+                        if (btn) btn.style.display = 'none';
+                    } else if (!this.useFirestore) {
+                        textEl.textContent = 'ไม่ได้เชื่อมต่อคลาวด์ (โหลดฐานข้อมูลช้าหรือหลุดการเชื่อมต่อ)';
+                        if (btn) btn.style.display = 'flex';
                     } else {
                         textEl.textContent = 'มีข้อมูลเช็กชื่อค้างอยู่ในเครื่องยังไม่ได้ซิงค์ขึ้นคลาวด์ กรุณาอย่าปิดแอปหรือล้างประวัติเบราว์เซอร์';
+                        if (btn) btn.style.display = 'none';
                     }
                 }
             } else {
                 badge.style.display = 'none';
             }
+        }
+    }
+
+    async tryReconnectCloud(event) {
+        if (event) event.stopPropagation();
+
+        const btn = document.querySelector('#unsynced-warning-badge button');
+        if (!btn) return;
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเชื่อมต่อ...';
+
+        try {
+            console.log("Forcing cloud reconnection attempt...");
+            if (!this.firestore && typeof firebase !== 'undefined') {
+                this.initFirestore();
+            }
+            
+            if (this.firestore) {
+                this.useFirestore = true;
+                
+                // Force a query to Firestore to check if it actually connects (timeout in 3.5 seconds)
+                const checkPromise = this.firestore.collection('system_data').doc('bases').get();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Connection timeout")), 3500)
+                );
+                
+                await Promise.race([checkPromise, timeoutPromise]);
+                
+                // Connection successful! Reload database
+                await this.loadDatabase();
+                this.updateFirestoreConnectionStatus(true);
+                this.render();
+                
+                // Show success notification
+                this.showStatusModal('success', 'เชื่อมต่อคลาวด์สำเร็จ', 'ระบบเชื่อมต่อกับ Firebase Firestore เรียบร้อยแล้ว ข้อมูลจะอัปเดตแบบเรียลไทม์!');
+            } else {
+                throw new Error("Firebase SDK not loaded");
+            }
+        } catch (err) {
+            console.error("Cloud reconnection failed:", err);
+            this.useFirestore = false;
+            this.updateFirestoreConnectionStatus(false);
+            alert("ไม่สามารถเชื่อมต่อคลาวด์ได้ในขณะนี้: " + (err.message === "Connection timeout" ? "การเชื่อมต่อหมดเวลา (เครือข่ายช้า)" : err.message));
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     }
 
