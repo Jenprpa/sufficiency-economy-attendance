@@ -1159,6 +1159,22 @@ class AttendanceApp {
                 
                 let html = '<option value="" disabled selected>-- เลือกสิทธิ์การใช้งาน --</option>';
                 
+                html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
+                directorsList.forEach(t => {
+                    let roleTitle = 'ผู้บริหาร';
+                    if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
+                    else if (t.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ 1';
+                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
+                    html += `<option value="${t.username}">${t.name} (${roleTitle})</option>`;
+                });
+                html += '</optgroup>';
+
+                html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
+                adminsList.forEach(t => {
+                    html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
+                });
+                html += '</optgroup>';
+
                 html += '<optgroup label="ครูประจำฐานการเรียนรู้">';
                 teachersList.forEach(t => {
                       const bases = this.db.bases.filter(b => {
@@ -1168,22 +1184,6 @@ class AttendanceApp {
                       const baseName = bases.length > 0 ? ` (ฐาน ${bases.map(b => b.name).join(', ')})` : '';
                       html += `<option value="${t.username}">${t.name}${baseName}</option>`;
                   });
-                html += '</optgroup>';
-                
-                html += '<optgroup label="ผู้ดูแลระบบ (Admin)">';
-                adminsList.forEach(t => {
-                    html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
-                });
-                html += '</optgroup>';
-                
-                html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
-                directorsList.forEach(t => {
-                    let roleTitle = 'ผู้บริหาร';
-                    if (t.username === 'director') roleTitle = 'ผู้อำนวยการ';
-                    else if (t.username === 'deputy1') roleTitle = 'รองผู้อำนวยการ 1';
-                    else if (t.username === 'deputy2') roleTitle = 'รองผู้อำนวยการ 2';
-                    html += `<option value="${t.username}">${t.name} (${roleTitle})</option>`;
-                });
                 html += '</optgroup>';
                 
                 select.innerHTML = html;
