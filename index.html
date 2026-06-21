@@ -39,6 +39,11 @@
     </div>
 
     <div class="app-container">
+        <!-- Global Unsynced Logs Warning Badge -->
+        <div id="unsynced-warning-badge" class="unsynced-warning-badge" style="display: none;">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>มีข้อมูลเช็กชื่อค้างอยู่ในเครื่องยังไม่ได้ซิงค์ขึ้นคลาวด์ กรุณาอย่าปิดแอปหรือล้างประวัติเบราว์เซอร์</span>
+        </div>
         
         <!-- Top Navigation Bar -->
         <header class="top-nav-bar">
@@ -71,7 +76,7 @@
             
             <div class="nav-right">
                 <!-- Date Simulation Widget -->
-                <div class="date-simulator" title="จำลองวันที่ปัจจุบันของระบบเพื่อทดสอบการเช็กชื่อในสัปดาห์อื่น">
+                <div class="date-simulator" id="date-simulator-widget" title="จำลองวันที่ปัจจุบันของระบบเพื่อทดสอบการเช็กชื่อในสัปดาห์อื่น">
                     <i class="fa-solid fa-clock-rotate-left"></i>
                     <input type="date" id="system-date-input" value="2026-06-20">
                 </div>
@@ -550,6 +555,7 @@
                                             <th>รหัสผู้ใช้งาน</th>
                                             <th>ชื่อครูผู้สอน</th>
                                             <th>บทบาท</th>
+                                            <th>สถานะบัญชี</th>
                                             <th>การจัดการ</th>
                                         </tr>
                                     </thead>
@@ -1106,10 +1112,15 @@
                 </div>
 
                 <div class="main-grid" style="grid-template-columns: 1fr 2.5fr; gap: 20px; margin-top: 15px;">
-                    <!-- Column 1: OCR Text extracted -->
+                    <!-- Column 1: OCR Text & Grid analysis -->
                     <div>
+                        <h4 style="font-weight: 700; margin-bottom: 8px; color: var(--text-primary);"><i class="fa-solid fa-square-poll-horizontal text-primary"></i> โครงสร้างตารางที่ตรวจจับได้ (Grid Detection)</h4>
+                        <div id="ocr-canvas-container" style="position: relative; width: 100%; height: 180px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; background-color: #F8FAFC; margin-bottom: 12px; display: flex; justify-content: center; align-items: center;">
+                            <canvas id="ocr-grid-canvas" style="max-width: 100%; max-height: 100%; object-fit: contain;"></canvas>
+                            <div id="ocr-no-image-text" style="position: absolute; color: var(--text-light); font-size: 12px;"><i class="fa-regular fa-image" style="font-size: 24px; display: block; margin: 0 auto 8px auto; text-align: center;"></i>ไม่มีรูปภาพ / กำลังรอคิว</div>
+                        </div>
                         <h4 style="font-weight: 700; margin-bottom: 8px; color: var(--text-primary);"><i class="fa-solid fa-align-left text-primary"></i> ข้อความที่ระบบตรวจพบ (Raw OCR)</h4>
-                        <textarea id="ocr-raw-text" style="width: 100%; height: 350px; font-size: 12px; font-family: 'Courier New', monospace; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: none; background-color: #F8FAFC;" placeholder="เมื่อวิเคราะห์เสร็จ ข้อความทั้งหมดที่ตรวจพบจะแสดงขึ้นที่นี่..."></textarea>
+                        <textarea id="ocr-raw-text" style="width: 100%; height: 160px; font-size: 11px; font-family: 'Courier New', monospace; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: none; background-color: #F8FAFC;" placeholder="เมื่อวิเคราะห์เสร็จ ข้อความทั้งหมดที่ตรวจพบจะแสดงขึ้นที่นี่..."></textarea>
                     </div>
                     
                     <!-- Column 2: Extracted Grid Preview for correction -->

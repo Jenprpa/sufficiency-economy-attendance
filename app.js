@@ -158,6 +158,27 @@ class AttendanceApp {
                 badge.style.backgroundColor = 'var(--accent)'; // red
             }
         }
+        // Sync warning badge status
+        this.updateOfflineSyncWarning(false);
+    }
+
+    updateOfflineSyncWarning(hasPending) {
+        const badge = document.getElementById('unsynced-warning-badge');
+        if (badge) {
+            if (hasPending || !navigator.onLine || !this.useFirestore) {
+                badge.style.display = 'flex';
+                const textEl = badge.querySelector('span');
+                if (textEl) {
+                    if (!navigator.onLine || !this.useFirestore) {
+                        textEl.textContent = 'ระบบอยู่ในโหมดออฟไลน์ ข้อมูลเช็กชื่อจะบันทึกเก็บในเครื่องและซิงค์เมื่อออนไลน์';
+                    } else {
+                        textEl.textContent = 'มีข้อมูลเช็กชื่อค้างอยู่ในเครื่องยังไม่ได้ซิงค์ขึ้นคลาวด์ กรุณาอย่าปิดแอปหรือล้างประวัติเบราว์เซอร์';
+                    }
+                }
+            } else {
+                badge.style.display = 'none';
+            }
+        }
     }
 
     // Check localStorage, if empty seed dummy data
@@ -168,9 +189,54 @@ class AttendanceApp {
                 const loadedDb = {};
                 let hasData = true;
 
-                // Load all collections and logs concurrently with a strict 4-second timeout race
+                // Unsubscribe existing listener if any to prevent memory leaks and duplicate listeners
+                if (this.logsUnsubscribe) {
+                    this.logsUnsubscribe();
+                    this.logsUnsubscribe = null;
+                }
+
+                // Load all collections concurrently
                 const promises = collections.map(col => this.firestore.collection('system_data').doc(col).get());
-                promises.push(this.firestore.collection('attendance_logs').get());
+
+                // Set up onSnapshot listener inside a Promise for the initial data
+                let initialLogsReceived = false;
+                let logsResolve;
+                let logsReject;
+                const logsPromise = new Promise((resolve, reject) => {
+                    logsResolve = resolve;
+                    logsReject = reject;
+                });
+
+                this.logsUnsubscribe = this.firestore.collection('attendance_logs').onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+                    const updatedLogs = snapshot.docs.map(doc => doc.data());
+                    if (this.db) {
+                        this.db.attendance_logs = updatedLogs;
+                        localStorage.setItem('school_attendance_logs', JSON.stringify(updatedLogs));
+                        
+                        // If it's a subsequent real-time update, trigger render to update dashboards
+                        if (initialLogsReceived) {
+                            console.log("Real-time attendance logs updated from Firestore!");
+                            this.render();
+                        }
+                    }
+                    
+                    // Show orange warning badge based on hasPendingWrites
+                    const hasPending = snapshot.metadata.hasPendingWrites;
+                    this.updateOfflineSyncWarning(hasPending);
+                    this.updateFirestoreConnectionStatus(true);
+
+                    if (!initialLogsReceived) {
+                        initialLogsReceived = true;
+                        logsResolve(snapshot);
+                    }
+                }, (error) => {
+                    console.error("Firestore onSnapshot error for logs:", error);
+                    if (!initialLogsReceived) {
+                        logsReject(error);
+                    }
+                });
+
+                promises.push(logsPromise);
 
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error("Firestore fetch timeout")), 4000)
@@ -1314,9 +1380,21 @@ class AttendanceApp {
             const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
             const email = `${userObj.username}@paiwittyakarn.local`;
 
-            const doLoginSuccess = () => {
+            const doLoginSuccess = async () => {
                 this.currentUser = userObj;
                 sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+                
+                if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
+                    if (!userObj.isAuthCreated) {
+                        userObj.isAuthCreated = true;
+                        try {
+                            await this.saveDatabase(false);
+                        } catch (e) {
+                            console.error("Failed to update teacher isAuthCreated status:", e);
+                        }
+                    }
+                }
+
                 this.updateUserUI();
                 this.closeModal('login-modal');
                 
@@ -1462,6 +1540,30 @@ class AttendanceApp {
             if (changePwdBtn) changePwdBtn.style.display = 'flex';
         } else {
             if (changePwdBtn) changePwdBtn.style.display = 'none';
+        }
+
+        // Date simulator permission lock
+        const dateSimulator = document.getElementById('date-simulator-widget');
+        if (dateSimulator) {
+            if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'director')) {
+                dateSimulator.style.display = 'flex';
+            } else {
+                dateSimulator.style.display = 'none';
+                // Lock systemDate to real local date
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                const realDate = `${year}-${month}-${day}`;
+                if (this.systemDate !== realDate) {
+                    this.systemDate = realDate;
+                    const dateInput = document.getElementById('system-date-input');
+                    if (dateInput) {
+                        dateInput.value = realDate;
+                    }
+                    this.currentWeekInfo = this.getWeekByDate(this.systemDate);
+                }
+            }
         }
     }
 
@@ -3018,6 +3120,26 @@ class AttendanceApp {
                 roleBadge = '<span class="status-badge activity">ผู้บริหาร</span>';
             }
 
+            let authStatusBadge = '';
+            if (t.role === 'admin' || t.role === 'director') {
+                authStatusBadge = '<span class="status-badge info" style="background-color:#E2E8F0; color:#475569;">บัญชีระบบ</span>';
+            } else {
+                if (t.isAuthCreated) {
+                    authStatusBadge = '<span class="status-badge success" style="background-color:#DCFCE7; color:#16A34A; font-weight:600;"><i class="fa-solid fa-circle-check"></i> เปิดใช้งานแล้ว</span>';
+                } else {
+                    authStatusBadge = '<span class="status-badge" style="background-color:#F1F5F9; color:#94A3B8;"><i class="fa-solid fa-clock"></i> รอการล็อกอิน</span>';
+                }
+            }
+
+            let resetBtn = '';
+            if (t.role !== 'admin' && t.role !== 'director') {
+                resetBtn = `
+                    <button class="btn btn-outline btn-sm" style="color:var(--primary);" onclick="app.resetTeacherPassword('${t.username}')">
+                        <i class="fa-solid fa-key"></i> รีเซ็ตรหัส
+                    </button>
+                `;
+            }
+
             const isChecked = this.selectedTeachers.includes(t.username);
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -3027,10 +3149,12 @@ class AttendanceApp {
                 <td style="font-family:'Outfit';">${t.username}</td>
                 <td style="font-weight:600;">${t.name}</td>
                 <td>${roleBadge}</td>
+                <td>${authStatusBadge}</td>
                 <td>
                     <button class="btn btn-outline btn-sm" onclick="app.openEditTeacherModal('${t.username}')">
                         <i class="fa-solid fa-pen-to-square"></i> แก้ไข
                     </button>
+                    ${resetBtn}
                     <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="app.deleteTeacher('${t.username}')">
                         <i class="fa-solid fa-trash"></i> ลบ
                     </button>
@@ -3487,6 +3611,45 @@ class AttendanceApp {
             this.saveDatabase();
             this.logAudit(`Deleted teacher: ${username}`);
             this.renderManageTeachers();
+        }
+    }
+
+    async resetTeacherPassword(username) {
+        const teacher = this.db.teachers.find(t => t.username === username);
+        if (!teacher) {
+            this.showStatusModal('error', 'ไม่พบรายชื่อครู', `ไม่พบครูผู้สอนชื่อผู้ใช้: ${username}`);
+            return;
+        }
+
+        const confirmReset = confirm(`คุณต้องการรีเซ็ตรหัสผ่านของครู ${teacher.name} ใช่หรือไม่?\nรหัสผ่านจะถูกตั้งค่ากลับเป็นหมายเลขโทรศัพท์ (${teacher.phone || teacher.username})`);
+        if (!confirmReset) return;
+
+        const defaultPassword = teacher.phone || teacher.username;
+        teacher.password = defaultPassword;
+        teacher.isAuthCreated = false;
+
+        try {
+            await this.saveDatabase(false);
+            
+            // Show custom alert warning the admin about deleting the Firebase Auth user
+            const msg = `
+                <div style="text-align: left; line-height: 1.6;">
+                    <p>ระบบได้รีเซ็ตรหัสผ่านในฐานข้อมูลคลาวด์และเครื่องเป็น <strong>${defaultPassword}</strong> เรียบร้อยแล้ว</p>
+                    <div style="background-color: #FFF3CD; border-left: 4px solid #FFC107; padding: 12px; margin-top: 12px; border-radius: 4px;">
+                        <strong style="color: #856404; display: block; margin-bottom: 6px;"><i class="fa-solid fa-triangle-exclamation"></i> ขั้นตอนสำคัญสำหรับผู้ดูแลระบบ (Admin)</strong>
+                        <p style="margin: 0; font-size: 13px; color: #664d03;">
+                            เนื่องจากนโยบายความปลอดภัยของระบบคลาวด์ Firebase 
+                            <strong>คุณต้องเข้าสู่ระบบ Firebase Console (Authentication) และทำการลบบัญชีผู้ใช้ของครูท่านนี้ออก</strong> 
+                            เพื่อให้ระบบยอมให้ครูเข้าสู่ระบบด้วยรหัสผ่านใหม่นี้เป็นครั้งแรก (ระบบจะสร้างบัญชีความปลอดภัยบนคลาวด์ให้ครูใหม่โดยอัตโนมัติเมื่อครูทำรายการล็อกอินในครั้งถัดไป)
+                        </p>
+                    </div>
+                </div>
+            `;
+            this.showStatusModal('success', 'รีเซ็ตรหัสผ่านสำเร็จ', msg);
+            this.renderManageTeachers();
+        } catch (e) {
+            console.error("Failed to reset teacher password:", e);
+            this.showStatusModal('error', 'รีเซ็ตรหัสผ่านไม่สำเร็จ', `เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${e.message}`);
         }
     }
 
@@ -4126,6 +4289,23 @@ class AttendanceApp {
         progressBar.style.width = "0%";
         rawTextArea.value = "";
 
+        // Reset and draw image to canvas
+        const canvas = document.getElementById('ocr-grid-canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const noImageText = document.getElementById('ocr-no-image-text');
+        if (noImageText) noImageText.style.display = 'none';
+
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+        };
+        const objectUrl = URL.createObjectURL(file);
+        img.src = objectUrl;
+
         // Start Tesseract AI Recognition
         Tesseract.recognize(
             file,
@@ -4142,11 +4322,25 @@ class AttendanceApp {
                     }
                 }
             }
-        ).then(({ data: { text } }) => {
+        ).then(({ data: { text, words } }) => {
             statusLabel.textContent = "ประมวลผลรูปภาพเสร็จสิ้น! กำลังจำแนกปฏิทินรายสัปดาห์...";
             percentLabel.textContent = "100%";
             progressBar.style.width = "100%";
             rawTextArea.value = text;
+
+            // Draw bounding boxes of detected words on canvas
+            if (words && words.length > 0) {
+                ctx.strokeStyle = '#22C55E';
+                ctx.lineWidth = 3;
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+                words.forEach(word => {
+                    const { x0, y0, x1, y1 } = word.bbox;
+                    const w = x1 - x0;
+                    const h = y1 - y0;
+                    ctx.fillRect(x0, y0, w, h);
+                    ctx.strokeRect(x0, y0, w, h);
+                });
+            }
 
             // Analyze text to extract schedule draft
             const parsedData = this.parseOcrTextToCalendar(text);
@@ -4159,8 +4353,11 @@ class AttendanceApp {
         }).catch(err => {
             console.error(err);
             statusLabel.innerHTML = "<span style='color:var(--danger); font-weight:700;'><i class='fa-solid fa-triangle-exclamation'></i> การประมวลผลรูปภาพล้มเหลว กรุณาตรวจสอบคุณภาพรูปภาพแล้วอัปโหลดใหม่อีกครั้ง</span>";
+            if (noImageText) noImageText.style.display = 'block';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
         }).finally(() => {
             inputElement.value = ''; // Reset input element
+            URL.revokeObjectURL(objectUrl);
         });
     }
 
