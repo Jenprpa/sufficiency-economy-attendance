@@ -34,6 +34,13 @@ class AttendanceApp {
     // Initialize databases and bindings
     async init() {
         try {
+            // Register Service Worker for PWA Add-to-Home-Screen support
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            }
+
             // Initialize Firestore
             this.initFirestore();
 
