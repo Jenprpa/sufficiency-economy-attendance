@@ -75,12 +75,15 @@
             </button>
             
             <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-view="dashboard">🏠 หน้าหลัก</a>
-                <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;">📋 เช็กชื่อ</a>
-                <a href="#" class="nav-item" data-view="rotation" id="menu-rotation">🏫 ฐานเรียนรู้</a>
-                <a href="#" class="nav-item" data-view="reports" id="menu-reports">📊 รายงาน</a>
-                <a href="#" class="nav-item" data-view="admin" id="menu-admin" style="display: none;">👨‍🏫 ครู</a>
-                <a href="#" class="nav-item" data-view="manage" id="menu-manage" style="display: none;">⚙ ตั้งค่า</a>
+                <a href="#" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i> หน้าหลัก</a>
+                <a href="#" class="nav-item" data-view="calendar" id="menu-calendar"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
+                <a href="#" class="nav-item" data-view="bases" id="menu-bases"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
+                <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-table"></i> ตารางสอน</a>
+                <a href="#" class="nav-item" data-view="search" id="menu-search"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</a>
+                <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;"><i class="fa-solid fa-user-check"></i> เช็กชื่อ</a>
+                <a href="#" class="nav-item" data-view="reports" id="menu-reports" style="display: none;"><i class="fa-solid fa-chart-simple"></i> รายงาน</a>
+                <a href="#" class="nav-item" data-view="admin" id="menu-admin" style="display: none;"><i class="fa-solid fa-user-tie"></i> ผู้บริหาร</a>
+                <a href="#" class="nav-item" data-view="manage" id="menu-manage" style="display: none;"><i class="fa-solid fa-sliders"></i> ตั้งค่า</a>
             </nav>
             
             <div class="nav-right">
@@ -244,7 +247,7 @@
                                     <th>ไฟเบอร์ ทรงพลัง (ฐาน 1)</th>
                                     <th>อาณาจักรอักษร (ฐาน 2)</th>
                                     <th>เงาในน้ำ (ฐาน 3)</th>
-                                    <th>ไก่ไข่อารมณ์ดี (ฐาน 4)</th>
+                                    <th>สวนเศรษฐกิจพอเพียง (ฐาน 4)</th>
                                     <th>หรรษาสุธารสเห็ด (ฐาน 5)</th>
                                     <th>ต้นกล้าประชาธิปไตย (ฐาน 6)</th>
                                     <th>หลู่ส่างกานเครือ เกื้อบุญ (ฐาน 7)</th>
@@ -325,9 +328,70 @@
                         <!-- Dynamic Student check-in rows loaded by JS -->
                     </div>
 
-                    <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-                        <button class="btn btn-primary btn-lg" id="btn-save-attendance" style="padding: 14px 40px; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.4);">
-                            <i class="fa-solid fa-floppy-disk"></i> บันทึกการเข้าเรียน
+                    <!-- Section: Base Teacher checkin, evaluation, and file uploads -->
+                    <div style="margin-top: 24px; border-top: 2px solid var(--border-color); padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                        <!-- Column 1: Teacher checkin & Evaluation -->
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div>
+                                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;"><i class="fa-solid fa-user-check text-primary"></i> 1. ครูประจำฐานปฏิบัติหน้าที่วันนี้</h4>
+                                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 10px;">เลือกรายชื่อคุณครูที่เข้าสอนจริงในวันนี้เพื่อเช็กชื่อครูประจำฐาน</p>
+                                <div id="checkin-teachers-checkboxes-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; background: var(--gray-light); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); max-height: 150px; overflow-y: auto;">
+                                    <!-- Populated dynamically via JS -->
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;"><i class="fa-solid fa-star text-primary"></i> 2. ประเมินผลกิจกรรมการเรียนรู้</h4>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <span style="font-size: 13px; color: var(--text-secondary);">คะแนนประเมินฐาน:</span>
+                                    <div class="rating-stars-input" id="checkin-rating-stars" style="display: flex; gap: 6px; font-size: 20px; color: #D1D5DB; cursor: pointer;">
+                                        <i class="fa-regular fa-star" data-rating="1" onclick="app.setCheckinRating(1)"></i>
+                                        <i class="fa-regular fa-star" data-rating="2" onclick="app.setCheckinRating(2)"></i>
+                                        <i class="fa-regular fa-star" data-rating="3" onclick="app.setCheckinRating(3)"></i>
+                                        <i class="fa-regular fa-star" data-rating="4" onclick="app.setCheckinRating(4)"></i>
+                                        <i class="fa-regular fa-star" data-rating="5" onclick="app.setCheckinRating(5)"></i>
+                                    </div>
+                                    <span id="checkin-rating-value-label" style="font-weight: 700; color: var(--accent); font-size: 14px; display: none;">5.0</span>
+                                </div>
+                                <textarea id="checkin-evaluation-notes" class="form-control" placeholder="สรุปหัวข้อที่จัดสอน ปัญหาอุปสรรค คำแนะนำ หรือข้อคิดเห็นเพิ่มเติม..." style="width: 100%; height: 80px; padding: 10px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Column 2: Upload photo and documents -->
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div>
+                                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;"><i class="fa-solid fa-camera text-primary"></i> 3. บันทึกภาพกิจกรรมวันนี้</h4>
+                                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">อัปโหลดหรือถ่ายภาพการจัดกิจกรรมเช็กชื่อ/การสอน (จำกัดขนาดไม่เกิน 2MB)</p>
+                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                    <input type="file" id="checkin-photo-input" accept="image/*" style="display: none;" onchange="app.handleCheckinPhotoSelected(this)">
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('checkin-photo-input').click()"><i class="fa-solid fa-upload"></i> เลือกรูปภาพ</button>
+                                    <span id="checkin-photo-filename-label" style="font-size: 12px; color: var(--text-secondary);">ไม่ได้เลือกไฟล์</span>
+                                </div>
+                                <div id="checkin-photo-preview-container" style="display: none; margin-top: 10px; position: relative; width: fit-content; max-width: 100%;">
+                                    <img id="checkin-photo-preview" src="#" alt="Preview" style="max-height: 120px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+                                    <button onclick="app.clearCheckinPhoto(event)" style="position: absolute; top: -6px; right: -6px; background-color: var(--danger); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 10px; box-shadow: var(--shadow-sm);"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;"><i class="fa-solid fa-file-pdf text-primary"></i> 4. อัปโหลดเอกสารประกอบ / แผนสอน</h4>
+                                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">อัปโหลดไฟล์คู่มือ แผนกิจกรรม ใบงาน หรือสแกนกระดาษ (PDF, DOCX, XLSX, TXT, PNG)</p>
+                                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                    <input type="file" id="checkin-doc-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.png" style="display: none;" onchange="app.handleCheckinDocSelected(this)">
+                                    <button class="btn btn-outline btn-sm" onclick="document.getElementById('checkin-doc-input').click()"><i class="fa-solid fa-file-arrow-up"></i> แนบไฟล์เอกสาร</button>
+                                    <span id="checkin-doc-filename-label" style="font-size: 12px; color: var(--text-secondary);">ไม่ได้เลือกไฟล์</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Staging vs Live Action Buttons -->
+                    <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap;">
+                        <button class="btn btn-outline" id="btn-save-attendance-staging" style="border-color: #E28743; color: #E28743; padding: 14px 24px; font-weight: bold;" onclick="app.saveCurrentAttendanceWithOptions(true)">
+                            <i class="fa-solid fa-list-check"></i> บันทึกร่างรออนุมัติ (Staging)
+                        </button>
+                        <button class="btn btn-primary" id="btn-save-attendance" style="padding: 14px 40px; box-shadow: 0 4px 10px rgba(46, 125, 50, 0.4);" onclick="app.saveCurrentAttendanceWithOptions(false)">
+                            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหลักทันที (Live)
                         </button>
                     </div>
                 </div>
@@ -497,6 +561,7 @@
                         <button class="btn btn-outline btn-sm" id="btn-tab-teachers" onclick="app.switchManageTab('teachers')">จัดการคุณครู</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-bases" onclick="app.switchManageTab('bases')">จัดการฐานการเรียนรู้</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-schedule" onclick="app.switchManageTab('schedule')">จัดการตารางหมุนฐาน</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-semesters" onclick="app.switchManageTab('semesters')">จัดการภาคเรียน</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-import" onclick="app.switchManageTab('import')">Import/Export Excel</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-staging" onclick="app.switchManageTab('staging')" style="position: relative; margin-right: 8px;">
                             กล่องพักเช็กชื่อ
@@ -594,6 +659,7 @@
                                         <tr>
                                             <th>ชื่อฐานการเรียนรู้</th>
                                             <th>สถานที่/ห้องเรียนประจำ</th>
+                                            <th>ห้องเรียนตามกลุ่มชั้นเรียน</th>
                                             <th>ครูรับผิดชอบเริ่มต้น</th>
                                             <th>การจัดการ</th>
                                         </tr>
@@ -716,6 +782,37 @@
                         </div>
                     </div>
 
+                    <!-- Sub-view: Semesters & Academic Years -->
+                    <div class="manage-sub-view" id="manage-sub-semesters" style="display: none;">
+                        <div class="card" style="margin-bottom: 24px;">
+                            <div class="card-header" style="justify-content: space-between; align-items: center;">
+                                <h3><i class="fa-solid fa-graduation-cap text-primary"></i> จัดการภาคเรียน & ปีการศึกษา (Academic Semesters)</h3>
+                                <button class="btn btn-primary btn-sm" onclick="app.openAddSemesterModal()">
+                                    <i class="fa-solid fa-plus"></i> เพิ่มภาคเรียนใหม่
+                                </button>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+                                ระบบรองรับการเพิ่มปีการศึกษาและภาคเรียนใหม่เพื่อใช้งานแบบ Dynamic เมื่อเปลี่ยนภาคเรียน ระบบจะคัดกรองตารางสอน ตรวจชื่อนักเรียน และประวัติการเข้าเรียนตามภาคเรียนที่เลือกโดยอัตโนมัติ
+                            </p>
+                            <div class="table-responsive">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>ชื่อภาคเรียน/ปีการศึกษา</th>
+                                            <th>ปีการศึกษา</th>
+                                            <th>ภาคเรียนที่</th>
+                                            <th style="text-align: center;">สถานะใช้งาน</th>
+                                            <th style="text-align: center;">การจัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="manage-semesters-table-body">
+                                        <!-- Loaded dynamically via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Sub-view: Staging Logs Review -->
                     <div class="manage-sub-view" id="manage-sub-staging" style="display: none;">
                         <div class="card" style="margin-bottom: 24px;">
@@ -834,6 +931,230 @@
                     </div>
                     <i class="fa-solid fa-lock" style="font-size: 64px; color: var(--text-light); margin-bottom: 16px;"></i>
                     <p style="color: var(--text-secondary); font-size: 15px; font-weight: 500;">บัญชีปัจจุบันของคุณไม่มีสิทธิ์ระดับผู้ดูแลระบบในการแก้ไขฐานข้อมูล</p>
+                </div>
+            </section>
+            <!-- VIEW: Course Calendar & Timeline -->
+            <section class="view-container" id="view-calendar">
+                <div class="filter-bar no-print" style="margin-bottom: 20px;">
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1;">
+                        <div class="filter-group">
+                            <label for="cal-filter-week">สัปดาห์เรียน</label>
+                            <select id="cal-filter-week" onchange="app.renderCalendar()">
+                                <option value="all">ทุกสัปดาห์ (1-20)</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="cal-filter-base">ฐานการเรียนรู้</label>
+                            <select id="cal-filter-base" onchange="app.renderCalendar()">
+                                <option value="all">ทุกฐานการเรียนรู้</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="cal-filter-grade">ระดับชั้น</label>
+                            <select id="cal-filter-grade" onchange="app.renderCalendar()">
+                                <option value="all">ทุกระดับชั้น</option>
+                                <option value="ม.1">ม.1</option>
+                                <option value="ม.2">ม.2</option>
+                                <option value="ม.3">ม.3</option>
+                                <option value="ม.4">ม.4</option>
+                                <option value="ม.5">ม.5</option>
+                                <option value="ม.6">ม.6</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="cal-filter-date">วันที่จัดกิจกรรม</label>
+                            <input type="date" id="cal-filter-date" onchange="app.renderCalendar()">
+                        </div>
+                    </div>
+                    <div>
+                        <button class="btn btn-outline" onclick="app.resetCalendarFilters()"><i class="fa-solid fa-rotate-left"></i> ล้างตัวกรอง</button>
+                    </div>
+                </div>
+
+                <!-- Tab navigation for Calendar View vs Timeline View -->
+                <div style="display: flex; gap: 8px; border-bottom: 2px solid var(--border-color); margin-bottom: 20px;">
+                    <button class="btn btn-outline btn-sm active" id="btn-cal-mode-grid" onclick="app.switchCalendarMode('grid')">
+                        <i class="fa-solid fa-calendar-days"></i> ปฏิทินรายสัปดาห์ (Calendar Grid)
+                    </button>
+                    <button class="btn btn-outline btn-sm" id="btn-cal-mode-timeline" onclick="app.switchCalendarMode('timeline')">
+                        <i class="fa-solid fa-timeline"></i> เส้นแนวเวลา (Timeline View)
+                    </button>
+                </div>
+
+                <!-- Calendar Grid mode -->
+                <div id="cal-grid-wrapper">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-calendar-days text-primary"></i> ปฏิทินรายสัปดาห์วิชาเศรษฐกิจพอเพียง</h3>
+                        </div>
+                        <div class="calendar-board-grid" id="calendar-board-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); gap: 16px; padding: 15px 0;">
+                            <!-- Loaded dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Timeline view mode -->
+                <div id="cal-timeline-wrapper" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-timeline text-primary"></i> ลำดับเวลาการจัดกิจกรรม</h3>
+                        </div>
+                        <div class="timeline-container" id="timeline-flow-container" style="position: relative; padding: 20px 0; margin-left: 20px;">
+                            <!-- Loaded dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Learning Bases Directory -->
+            <section class="view-container" id="view-bases">
+                <div id="bases-grid-wrapper">
+                    <div class="card-header" style="padding-left: 0; margin-bottom: 20px; border-bottom: none;">
+                        <h2><i class="fa-solid fa-leaf text-primary"></i> ทำเนียบฐานการเรียนรู้เศรษฐกิจพอเพียง</h2>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">ทำความรู้จักบทเรียน แผนการเรียนการสอน และคณะครูของทั้ง 7 ฐานการเรียนรู้</p>
+                    </div>
+                    
+                    <div class="bases-cards-grid" id="bases-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                        <!-- Loaded dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- Base Details View -->
+                <div id="base-detail-wrapper" style="display: none;">
+                    <button class="btn btn-outline btn-sm" onclick="app.showBasesGrid()" style="margin-bottom: 20px;">
+                        <i class="fa-solid fa-arrow-left"></i> กลับสู่ทำเนียบฐานเรียนรู้
+                    </button>
+                    
+                    <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                            <div>
+                                <span class="status-badge" style="background-color: rgba(255, 255, 255, 0.2); color: white; margin-bottom: 8px;" id="base-detail-badge">ฐานการเรียนรู้ที่ -</span>
+                                <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;" id="base-detail-name">-</h2>
+                                <p style="opacity: 0.9;" id="base-detail-room-info"><i class="fa-solid fa-location-dot"></i> สถานที่ประจำ: -</p>
+                            </div>
+                            <div style="text-align: right;" id="base-detail-header-stats">
+                                <p style="font-size: 14px; opacity: 0.9;">สถิติการเข้าเรียนเฉลี่ย</p>
+                                <h3 style="font-size: 28px; font-weight: 800;" id="base-detail-avg-attendance">0.0%</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="main-grid">
+                        <!-- Left Column: General Info and teachers -->
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-chalkboard-user text-primary"></i> คณะครูผู้รับผิดชอบประจำฐาน</h3>
+                                </div>
+                                <div class="teachers-list-container" id="base-detail-teachers-list" style="padding: 10px 0; display: flex; flex-direction: column; gap: 10px;">
+                                    <!-- Loaded dynamically -->
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-circle-info text-primary"></i> ข้อมูลบทเรียน & ห้องเรียน</h3>
+                                </div>
+                                <div style="font-size: 14px; display: flex; flex-direction: column; gap: 12px; padding: 10px 0;">
+                                    <div><strong>ระดับชั้นเรียนที่รับผิดชอบหมุนฐาน:</strong> <span id="base-detail-responsible-grades">-</span></div>
+                                    <div><strong>ห้องเรียนย่อยที่ใช้ในการจัดการสอน:</strong> <div id="base-detail-classrooms-list" style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 6px;"></div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Schedule & Activity History -->
+                        <div style="display: flex; flex-direction: column; gap: 20px;">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-table text-primary"></i> ตารางแผนการจัดกิจกรรมแบบหมุนฐาน</h3>
+                                </div>
+                                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 70px;">สัปดาห์</th>
+                                                <th>ชั้นเรียน</th>
+                                                <th>ห้องเรียน/สถานที่</th>
+                                                <th>การจัดการ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="base-detail-schedule-table-body">
+                                            <!-- Loaded dynamically -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header">
+                                    <h3><i class="fa-solid fa-history text-primary"></i> ประวัติการจัดกิจกรรมและประเมินผล</h3>
+                                </div>
+                                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>วันที่</th>
+                                                <th>สัปดาห์</th>
+                                                <th>ชั้นเรียน</th>
+                                                <th>ผู้สอน / คะแนน</th>
+                                                <th style="text-align: center;">เข้าเรียน (%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="base-detail-history-table-body">
+                                            <!-- Loaded dynamically -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Search Portal -->
+            <section class="view-container" id="view-search">
+                <div class="card" style="margin-bottom: 24px; padding: 24px;">
+                    <div class="card-header" style="padding-left: 0; border-bottom: none; margin-bottom: 12px;">
+                        <h2><i class="fa-solid fa-magnifying-glass text-primary"></i> ระบบค้นหาข้อมูลกิจกรรมวิชาเศรษฐกิจพอเพียง</h2>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <div class="search-wrapper" style="position: relative; width: 100%;">
+                            <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 16px;"></i>
+                            <input type="text" id="search-query-input" placeholder="ค้นหาข้อมูลกิจกรรม เช่น เลขที่ห้องเรียน (2206), ชั้นเรียน (ม.4), ชื่อฐานเรียนรู้, สถานที่, คีย์เวิร์ด..." oninput="app.searchActivities()" style="padding: 14px 16px 14px 48px; width: 100%; border-radius: var(--radius-md); border: 2px solid var(--border-color); font-family: inherit; font-size: 15px; box-shadow: var(--shadow-sm); outline: none; transition: border-color 0.2s;">
+                        </div>
+                        
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                            <span style="font-weight: 600; color: var(--text-primary); font-size: 14px;">ตัวเลือกการกรองพิเศษ:</span>
+                            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <select id="search-filter-base" onchange="app.searchActivities()" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 13px; font-family: inherit;">
+                                    <option value="all">ทุกฐานการเรียนรู้</option>
+                                </select>
+                                <select id="search-filter-grade" onchange="app.searchActivities()" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 13px; font-family: inherit;">
+                                    <option value="all">ทุกระดับชั้น</option>
+                                    <option value="ม.1">ม.1</option>
+                                    <option value="ม.2">ม.2</option>
+                                    <option value="ม.3">ม.3</option>
+                                    <option value="ม.4">ม.4</option>
+                                    <option value="ม.5">ม.5</option>
+                                    <option value="ม.6">ม.6</option>
+                                </select>
+                                <button class="btn btn-outline btn-sm" onclick="app.clearSearchFilters()" style="padding: 4px 12px; font-size: 12px;">ล้างตัวเลือก</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3><i class="fa-solid fa-list text-primary"></i> ผลการค้นหากิจกรรมที่ตรงตามเงื่อนไข (<span id="search-results-count">0</span> รายการ)</h3>
+                    </div>
+                    
+                    <div class="search-results-list" id="search-results-container" style="display: flex; flex-direction: column; gap: 12px; padding: 15px 0;">
+                        <p style="text-align: center; color: var(--text-secondary); margin: 20px 0;">ป้อนข้อมูลลงในช่องค้นหาเพื่อสืบค้นข้อมูลกิจกรรมการเรียนรู้แบบละเอียด</p>
+                    </div>
                 </div>
             </section>
         </main>
@@ -1058,6 +1379,49 @@
         </div>
     </div>
 
+    <!-- MODAL: MANAGE BASE CLASS-ROOM ASSIGNMENTS -->
+    <div class="modal" id="base-classrooms-modal">
+        <div class="modal-content" style="max-width: 620px;">
+            <div class="modal-header">
+                <h3 id="base-classrooms-modal-title"><i class="fa-solid fa-door-open"></i> จัดการห้องเรียนประจำฐาน</h3>
+                <button class="modal-close" onclick="app.closeModal('base-classrooms-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="base-classrooms-form-id">
+                <p id="base-classrooms-modal-desc" style="font-size:13px; color:var(--text-secondary); margin-bottom: 12px;"></p>
+
+                <div style="background: var(--bg-secondary); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size:13px; color:var(--text-secondary);">
+                    <i class="fa-solid fa-circle-info" style="color: var(--info);"></i>
+                    ระบุห้องเรียนแยกตามกลุ่มชั้นเรียน เช่น <strong>ม.4/6 → ห้อง 2101</strong><br>
+                    ข้อมูลนี้จะใช้แสดงในตารางเช็กชื่อและรายงาน
+                </div>
+
+                <!-- Column headers -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr 36px; gap: 8px; margin-bottom: 6px; font-weight: 600; font-size: 13px; color: var(--text-secondary); padding: 0 4px;">
+                    <span>กลุ่มชั้นเรียน (เช่น ม.4/6)</span>
+                    <span>ห้องเรียน / สถานที่</span>
+                    <span></span>
+                </div>
+
+                <!-- Dynamic rows container -->
+                <div id="base-classrooms-rows-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+                    <!-- JS fills rows here -->
+                </div>
+
+                <!-- Add row button -->
+                <button class="btn btn-outline btn-sm" onclick="app.addBaseClassRoomRow()" style="margin-top: 12px; width: 100%;">
+                    <i class="fa-solid fa-plus"></i> เพิ่มกลุ่มชั้นเรียน
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('base-classrooms-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveBaseClassRoomsFromModal()">
+                    <i class="fa-solid fa-floppy-disk"></i> บันทึกห้องเรียน
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: ADD/EDIT SCHEDULE -->
     <div class="modal" id="schedule-modal">
         <div class="modal-content">
@@ -1103,6 +1467,40 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="app.closeModal('schedule-modal')">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="app.saveScheduleFromForm()">บันทึก</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD SEMESTER -->
+    <div class="modal" id="semester-modal">
+        <div class="modal-content" style="max-width: 400px; width: 90%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-graduation-cap"></i> เพิ่มปีการศึกษา / ภาคเรียนใหม่</h3>
+                <button class="modal-close" onclick="app.closeModal('semester-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <div class="form-group">
+                    <label for="sem-form-year">ปีการศึกษา (พ.ศ.)</label>
+                    <input type="number" id="sem-form-year" placeholder="เช่น 2570" value="2570">
+                </div>
+                <div class="form-group">
+                    <label for="sem-form-term">ภาคเรียนที่</label>
+                    <select id="sem-form-term">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="sem-form-label">คำอธิบาย/ป้ายกำกับ</label>
+                    <input type="text" id="sem-form-label" placeholder="เช่น ภาคเรียนที่ 1/2570" value="ภาคเรียนที่ 1/2570">
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); background: #FFF9E6; border: 1px solid #FFE0B2; padding: 10px; border-radius: var(--radius-sm); line-height: 1.5; margin-top: 12px;">
+                    <i class="fa-solid fa-circle-info text-warning"></i> ระบบจะทำการสร้างตารางแผนการจัดกิจกรรมแบบหมุนฐาน 20 สัปดาห์เลียนแบบภาคเรียนปัจจุบันโดยอัตโนมัติเป็นตารางตั้งต้นสำหรับภาคเรียนใหม่นี้
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('semester-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveSemesterFromForm()">สร้างภาคเรียน</button>
             </div>
         </div>
     </div>
@@ -1183,10 +1581,11 @@
                     <div><strong>ครูผู้บันทึก:</strong> <span id="staging-detail-teacher">-</span></div>
                 </div>
                 
-                <div class="table-responsive" style="max-height: 350px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto; margin-bottom: 16px;">
                     <table>
                         <thead>
                             <tr>
+                                <th style="width: 60px; text-align: center;">เลขที่</th>
                                 <th>รหัสนักเรียน</th>
                                 <th>ชื่อ-นามสกุล</th>
                                 <th style="text-align: center;">สถานะเข้าเรียน</th>
@@ -1197,6 +1596,8 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <div id="staging-detail-extras"></div>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between;">
                 <div>
@@ -1292,6 +1693,55 @@
                 <button class="btn btn-primary" id="btn-save-ocr-import" disabled onclick="app.saveOcrImportedSchedule()">
                     <i class="fa-solid fa-circle-check"></i> บันทึกนำเข้าข้อมูลปฏิทินหมุนฐาน
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ACTIVITY DETAILS -->
+    <div class="modal" id="activity-details-modal">
+        <div class="modal-content" style="max-width: 550px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                <h3><i class="fa-solid fa-circle-info"></i> รายละเอียดกิจกรรมการเรียนรู้</h3>
+                <button class="modal-close" style="color: white;" onclick="app.closeModal('activity-details-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 20px;">
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">ฐานเรียนรู้:</span>
+                        <strong id="act-det-base" style="font-size: 16px; color: var(--primary);">-</strong>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">สัปดาห์ที่:</span>
+                        <span id="act-det-week" style="font-weight: 600;">-</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">วันที่:</span>
+                        <span id="act-det-date" style="font-weight: 600;">-</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">เวลาเรียน:</span>
+                        <span id="act-det-time" style="font-weight: 600;">คาบเรียนที่ 8-9 (13:30 - 15:20 น.) หรือตามกำหนด</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">ระดับชั้น:</span>
+                        <span id="act-det-grade" style="font-weight: 600;">-</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">ห้องเรียน:</span>
+                        <span id="act-det-rooms" style="font-weight: 600;">-</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: baseline;">
+                        <span style="color: var(--text-secondary); font-weight: 500;">สถานที่:</span>
+                        <span id="act-det-location" style="font-weight: 600; color: var(--primary-dark); font-size: 15px;">-</span>
+                    </div>
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px;">
+                        <span style="color: var(--text-secondary); font-weight: 500; display: block; margin-bottom: 6px;">รายละเอียดจากเอกสารปฏิทิน:</span>
+                        <div id="act-det-description" style="background: var(--bg-color); padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color); line-height: 1.6; font-size: 14px; white-space: pre-line;">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('activity-details-modal')">ปิด</button>
             </div>
         </div>
     </div>
