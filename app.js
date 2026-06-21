@@ -168,10 +168,18 @@ class AttendanceApp {
                 const loadedDb = {};
                 let hasData = true;
 
-                // Load all collections and logs concurrently
+                // Load all collections and logs concurrently with a strict 4-second timeout race
                 const promises = collections.map(col => this.firestore.collection('system_data').doc(col).get());
                 promises.push(this.firestore.collection('attendance_logs').get());
-                const results = await Promise.all(promises);
+
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Firestore fetch timeout")), 4000)
+                );
+
+                const results = await Promise.race([
+                    Promise.all(promises),
+                    timeoutPromise
+                ]);
 
                 for (let i = 0; i < collections.length; i++) {
                     const doc = results[i];
