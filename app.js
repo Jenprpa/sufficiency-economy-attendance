@@ -309,6 +309,25 @@ class AttendanceApp {
         }
     }
 
+    async getDocWithCacheFallback(docRef) {
+        try {
+            // Try fetching from server first with a 3-second timeout
+            const serverPromise = docRef.get({ source: 'server' });
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Server timeout")), 3000)
+            );
+            return await Promise.race([serverPromise, timeoutPromise]);
+        } catch (e) {
+            console.log(`[Firestore Cache Fallback] Reading ${docRef.id} from local cache due to slow connection / error:`, e.message);
+            try {
+                return await docRef.get({ source: 'cache' });
+            } catch (cacheErr) {
+                console.error("[Firestore Cache Fallback] Failed to read from cache:", cacheErr);
+                throw cacheErr;
+            }
+        }
+    }
+
     // Check localStorage, if empty seed dummy data
     async loadDatabase(timeoutMs = 8000) {
         if (this.useFirestore) {
@@ -323,8 +342,11 @@ class AttendanceApp {
                     this.logsUnsubscribe = null;
                 }
 
-                // Load all collections concurrently
-                const promises = collections.map(col => this.firestore.collection('system_data').doc(col).get());
+                // Load all collections concurrently with cache fallback helper
+                const promises = collections.map(col => {
+                    const docRef = this.firestore.collection('system_data').doc(col);
+                    return this.getDocWithCacheFallback(docRef);
+                });
 
                 // Set up onSnapshot listener inside a Promise for the initial data
                 let initialLogsReceived = false;
