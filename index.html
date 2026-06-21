@@ -830,6 +830,10 @@
                     <label for="login-password">รหัสผ่าน</label>
                     <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
                 </div>
+                <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: 13px;">
+                    <a href="#" onclick="app.tryReconnectCloudFromLogin(event)" style="color: #FF6F00; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-rotate"></i> ลองเชื่อมต่อใหม่</a>
+                    <a href="#" onclick="app.clearSystemCache(event)" style="color: var(--danger); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-trash-can"></i> ล้างแคชระบบ</a>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="app.closeModal('login-modal')">ยกเลิก</button>

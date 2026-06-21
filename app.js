@@ -26,6 +26,7 @@ class AttendanceApp {
         // Firestore properties
         this.useFirestore = false;
         this.firestore = null;
+        this.firestoreNetworkError = false;
 
         // Initialize App
         this.init();
@@ -243,8 +244,73 @@ class AttendanceApp {
         }
     }
 
+    async tryReconnectCloudFromLogin(event) {
+        if (event) event.preventDefault();
+        
+        try {
+            console.log("Login Modal: Reconnect attempt initiated...");
+            if (!this.firestore && typeof firebase !== 'undefined') {
+                this.initFirestore();
+            }
+            
+            if (this.firestore) {
+                this.useFirestore = true;
+                
+                // Force a query to Firestore to check if it actually connects (timeout in 6 seconds)
+                const checkPromise = this.firestore.collection('system_data').doc('bases').get();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error("Connection timeout")), 6000)
+                );
+                
+                await Promise.race([checkPromise, timeoutPromise]);
+                
+                // Connection successful! Reload database with a 15-second timeout
+                await this.loadDatabase(15000);
+                this.updateFirestoreConnectionStatus(true);
+                this.render();
+                
+                alert("เชื่อมต่อคลาวด์สำเร็จ! ฐานข้อมูลอัปเดตเป็นปัจจุบันเรียบร้อยแล้ว");
+            } else {
+                throw new Error("Firebase SDK not loaded");
+            }
+        } catch (err) {
+            console.error("Cloud reconnection from login failed:", err);
+            this.useFirestore = false;
+            this.updateFirestoreConnectionStatus(false);
+            alert("ไม่สามารถเชื่อมต่อคลาวด์ได้: " + (err.message === "Connection timeout" ? "การเชื่อมต่อหมดเวลา (เน็ตช้า)" : err.message));
+        }
+    }
+
+    clearSystemCache(event) {
+        if (event) event.preventDefault();
+        
+        const confirmClear = confirm("คุณต้องการล้างแคชระบบใช่หรือไม่?\nการล้างแคชจะทำการเคลียร์ข้อมูลชั่วคราวในเครื่อง และรีโหลดหน้าเว็บใหม่เพื่อดาวน์โหลดระบบล่าสุดจากเซิร์ฟเวอร์");
+        if (!confirmClear) return;
+        
+        try {
+            // 1. Clear storage
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // 2. Unregister service workers
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                    for (let registration of registrations) {
+                        registration.unregister();
+                    }
+                }).catch(err => console.error("Error unregistering service worker:", err));
+            }
+            
+            alert("ล้างแคชระบบสำเร็จ! ระบบจะทำการรีโหลดหน้าเว็บใหม่");
+            window.location.reload(true); // Force reload from server
+        } catch (e) {
+            console.error("Error clearing cache:", e);
+            alert("เกิดข้อผิดพลาดในการล้างแคช: " + e.message);
+        }
+    }
+
     // Check localStorage, if empty seed dummy data
-    async loadDatabase() {
+    async loadDatabase(timeoutMs = 8000) {
         if (this.useFirestore) {
             try {
                 const collections = ['students', 'teachers', 'bases', 'rotation_schedule'];
@@ -284,6 +350,7 @@ class AttendanceApp {
                     
                     // Show orange warning badge based on hasPendingWrites
                     const hasPending = snapshot.metadata.hasPendingWrites;
+                    this.firestoreNetworkError = false;
                     this.updateOfflineSyncWarning(hasPending);
                     this.updateFirestoreConnectionStatus(true);
 
@@ -293,6 +360,8 @@ class AttendanceApp {
                     }
                 }, (error) => {
                     console.error("Firestore onSnapshot error for logs:", error);
+                    this.firestoreNetworkError = true;
+                    this.updateOfflineSyncWarning(false);
                     if (!initialLogsReceived) {
                         logsReject(error);
                     }
@@ -301,7 +370,7 @@ class AttendanceApp {
                 promises.push(logsPromise);
 
                 const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error("Firestore fetch timeout")), 4000)
+                    setTimeout(() => reject(new Error("Firestore fetch timeout")), timeoutMs)
                 );
 
                 const results = await Promise.race([
@@ -1436,124 +1505,145 @@ class AttendanceApp {
         }
 
         const userObj = this.db.teachers.find(t => t.username === selectedId);
+        if (!userObj) {
+            this.showStatusModal('error', 'ไม่พบโปรไฟล์ผู้ใช้', 'ไม่พบข้อมูลผู้ใช้นี้ในระบบสำรอง กรุณาลองล้างแคชระบบ');
+            return;
+        }
 
-        if (userObj) {
-            const passwordInput = document.getElementById('login-password').value;
-            const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
-            const email = `${userObj.username}@paiwittyakarn.local`;
+        const passwordInput = document.getElementById('login-password').value;
+        const expectedPassword = userObj.role === 'admin' ? '20June2026' : (userObj.password || userObj.username);
+        const email = `${userObj.username}@paiwittyakarn.local`;
 
-            const doLoginSuccess = async () => {
-                this.currentUser = userObj;
-                sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+        console.log("[Login Flow] Init Login for username:", userObj.username);
+        console.log("[Login Flow] Browser Online Status:", navigator.onLine);
+
+        const doLoginSuccess = async () => {
+            this.currentUser = userObj;
+            sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+            
+            if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
+                if (!userObj.isAuthCreated) {
+                    userObj.isAuthCreated = true;
+                    try {
+                        await this.saveDatabase(false);
+                    } catch (e) {
+                        console.error("[Login Flow] Failed to update teacher isAuthCreated status:", e);
+                    }
+                }
+            }
+
+            this.updateUserUI();
+            this.closeModal('login-modal');
+            
+            // Auto redirect depending on role
+            if (userObj.role === 'admin') {
+                this.switchView('manage');
+            } else if (userObj.role === 'director') {
+                this.switchView('admin');
+            } else {
+                this.switchView('checkin');
+            }
+        };
+
+        const hasNetwork = navigator.onLine;
+        
+        if (!hasNetwork) {
+            console.log("[Login Flow] Cache fallback used: NO (Offline login blocked)");
+            this.showStatusModal('error', 'ระบบออฟไลน์', 'ไม่สามารถเข้าสู่ระบบได้เนื่องจากเครื่องของคุณไม่มีการเชื่อมต่ออินเทอร์เน็ต กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อตรวจสอบสิทธิ์ผ่านระบบความปลอดภัยคลาวด์');
+            return;
+        }
+
+        const loginBtn = document.getElementById('btn-login-submit');
+        const originalText = loginBtn.innerHTML;
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบรหัสผ่านคลาวด์...';
+
+        try {
+            // 1. Authenticate with Firebase Auth
+            await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
+            console.log("[Login Flow] Firebase Auth Status: SUCCESS");
+            
+            // 2. Auth succeeded, now load or restore Firestore connection
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูลโปรไฟล์...';
+            
+            try {
+                this.initFirestore();
+                await this.loadDatabase(25000); // 25 seconds timeout for login flow to allow slow networks
+                console.log("[Login Flow] Firestore User Profile Load: SUCCESS");
+                console.log("[Login Flow] Cache fallback used: NO");
                 
-                if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
-                    if (!userObj.isAuthCreated) {
-                        userObj.isAuthCreated = true;
-                        try {
-                            await this.saveDatabase(false);
-                        } catch (e) {
-                            console.error("Failed to update teacher isAuthCreated status:", e);
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalText;
+                await doLoginSuccess();
+            } catch (firestoreErr) {
+                console.error("[Login Flow] Firestore User Profile Load: FAIL, Error:", firestoreErr);
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalText;
+                
+                // Firestore profile load failed, but Auth succeeded! Show special error message.
+                this.showStatusModal('error', 'ข้อผิดพลาดระบบข้อมูล', 'เข้าสู่ระบบสำเร็จ แต่โหลดข้อมูลโปรไฟล์จากคลาวด์ไม่สำเร็จ (การเชื่อมต่อคลาวด์ล่าช้า) กรุณาลองใหม่อีกครั้ง');
+            }
+            
+        } catch (authErr) {
+            console.log("[Login Flow] Firebase Auth Status: FAIL, Error Code:", authErr.code);
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = originalText;
+
+            // Handle wrong passwords / auto-provisioning
+            if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
+                if (passwordInput === expectedPassword) {
+                    loginBtn.disabled = true;
+                    loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสร้างบัญชีความปลอดภัยใหม่...';
+                    try {
+                        await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                        console.log("[Login Flow] Auto-provisioning Account: SUCCESS");
+                        
+                        this.initFirestore();
+                        await this.loadDatabase(25000);
+                        
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                        await doLoginSuccess();
+                    } catch (createErr) {
+                        console.error("[Login Flow] Auto-provisioning failed:", createErr);
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                        if (createErr.code === 'auth/email-already-in-use') {
+                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (คุณอาจเคยเปลี่ยนรหัสผ่านแล้ว กรุณาใช้รหัสผ่านล่าสุดของคุณ)');
+                        } else {
+                            this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัย: ' + createErr.message);
                         }
                     }
-                }
-
-                this.updateUserUI();
-                this.closeModal('login-modal');
-                
-                // Auto redirect depending on role
-                if (userObj.role === 'admin') {
-                    this.switchView('manage'); // Admin goes straight to Database Settings
-                } else if (userObj.role === 'director') {
-                    this.switchView('admin'); // Directors go straight to Executive Overview
                 } else {
-                    this.switchView('checkin'); // Teachers go straight to Attendance Sheet
+                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง!');
                 }
-            };
-
-            // Robust login flow: if navigator is online, try Firebase Auth first even if useFirestore is false (e.g. initial timeout)
-            const tryCloudAuth = this.useFirestore || (navigator.onLine && typeof firebase !== 'undefined' && firebase.auth);
-
-            if (tryCloudAuth) {
-                const loginBtn = document.getElementById('btn-login-submit');
-                const originalText = loginBtn.innerHTML;
+            } else if (authErr.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
                 loginBtn.disabled = true;
-                loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังเข้าสู่ระบบ...';
-
+                loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลงทะเบียนบัญชีความปลอดภัย...';
                 try {
-                    await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
-                    // If connection was offline/timed out but now works, re-initialize Firestore
-                    if (!this.useFirestore) {
-                        this.initFirestore();
-                        await this.loadDatabase();
-                    }
+                    await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                    this.initFirestore();
+                    await this.loadDatabase(25000);
+                    
                     loginBtn.disabled = false;
                     loginBtn.innerHTML = originalText;
                     await doLoginSuccess();
-                } catch (err) {
-                    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-                        if (passwordInput === expectedPassword) {
-                            try {
-                                // First time login - auto-create account in Firebase Auth
-                                await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
-                                if (!this.useFirestore) {
-                                    this.initFirestore();
-                                    await this.loadDatabase();
-                                }
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
-                                await doLoginSuccess();
-                            } catch (createErr) {
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
-                                if (createErr.code === 'auth/email-already-in-use') {
-                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (กรุณาใช้รหัสผ่านล่าสุดของคุณ)!');
-                                } else {
-                                    console.error("Auto-provisioning failed:", createErr);
-                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', "เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
-                                }
-                            }
-                        } else {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
-                        }
-                    } else if (err.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
-                        try {
-                            await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
-                            if (!this.useFirestore) {
-                                this.initFirestore();
-                                await this.loadDatabase();
-                            }
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                            await doLoginSuccess();
-                        } catch (createErr) {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                            console.error("Auto-provisioning failed:", createErr);
-                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', "เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
-                        }
-                    } else {
-                        // Network error or connection timeout
-                        console.warn("Firebase auth error, checking offline credentials:", err);
-                        if (passwordInput !== expectedPassword) {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
-                        } else {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                            await doLoginSuccess();
-                        }
-                    }
+                } catch (createErr) {
+                    console.error("[Login Flow] Auto-provisioning failed:", createErr);
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = originalText;
+                    this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถสร้างบัญชีความปลอดภัย: ' + createErr.message);
                 }
             } else {
-                // Truly offline login (local check)
-                if (passwordInput !== expectedPassword) {
-                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
-                    return;
+                console.warn("[Login Flow] Network/Firebase error during auth:", authErr);
+                
+                let errorMsg = 'ระบบความปลอดภัยคลาวด์ขัดข้องไม่สามารถตรวจสอบสิทธิ์ได้ในขณะนี้: ' + authErr.message;
+                if (authErr.code === 'auth/network-request-failed') {
+                    errorMsg = 'การเชื่อมต่อเครือข่ายล้มเหลว (Network Request Failed) กรุณาตรวจสอบสัญญาณเน็ตมือถือ 4G/5G หรือลองใช้ปุ่ม "ลองเชื่อมต่อใหม่" ด้านล่าง';
+                } else if (authErr.code === 'auth/timeout' || authErr.message.includes('timeout')) {
+                    errorMsg = 'การเชื่อมต่อหมดเวลา (Timeout) สัญญาณอินเทอร์เน็ตอาจช้าเกินไปในการดึงโปรไฟล์ความปลอดภัยคลาวด์';
                 }
-                doLoginSuccess();
+                this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', errorMsg);
             }
         }
     }
