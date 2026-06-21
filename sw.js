@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sufficiency-economy-attendance-v2';
+const CACHE_NAME = 'sufficiency-economy-attendance-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -9,7 +9,10 @@ const ASSETS = [
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js'
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', e => {
@@ -37,8 +40,14 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Let the browser handle Firebase and outside APIs directly (not cached)
-  if (e.request.url.includes('firebase') || e.request.url.includes('firestore') || e.request.method !== 'GET') {
+  // Let the browser handle dynamic Firebase/Google API requests and non-GET requests directly (not cached by SW)
+  if (
+    e.request.method !== 'GET' ||
+    e.request.url.includes('.googleapis.com') ||
+    e.request.url.includes('identitytoolkit') ||
+    e.request.url.includes('securetoken') ||
+    e.request.url.includes('/identity/')
+  ) {
     return;
   }
   

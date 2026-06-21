@@ -38,7 +38,23 @@ class AttendanceApp {
             // Register Service Worker for PWA Add-to-Home-Screen support
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .then(reg => {
+                        console.log('Service Worker registered successfully:', reg.scope);
+                        // Check for updates
+                        reg.onupdatefound = () => {
+                            const installingWorker = reg.installing;
+                            if (installingWorker) {
+                                installingWorker.onstatechange = () => {
+                                    if (installingWorker.state === 'installed') {
+                                        if (navigator.serviceWorker.controller) {
+                                            // New content is available; show update notification
+                                            this.showVersionUpdateBanner();
+                                        }
+                                    }
+                                };
+                            }
+                        };
+                    })
                     .catch(err => console.error('Service Worker registration failed:', err));
             }
 
@@ -327,6 +343,15 @@ class AttendanceApp {
                     }
                 }).catch(err => console.error("Error unregistering service worker:", err));
             }
+
+            // 3. Clear Cache Storage
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    for (let name of names) {
+                        caches.delete(name);
+                    }
+                }).catch(err => console.error("Error clearing cache storage:", err));
+            }
             
             alert("ล้างแคชระบบสำเร็จ! ระบบจะทำการรีโหลดหน้าเว็บใหม่");
             window.location.reload(true); // Force reload from server
@@ -334,6 +359,79 @@ class AttendanceApp {
             console.error("Error clearing cache:", e);
             alert("เกิดข้อผิดพลาดในการล้างแคช: " + e.message);
         }
+    }
+
+    showVersionUpdateBanner() {
+        // Prevent duplicate banners
+        if (document.getElementById('version-update-banner')) return;
+
+        const banner = document.createElement('div');
+        banner.id = 'version-update-banner';
+        banner.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            color: white;
+            padding: 16px 24px;
+            border-radius: var(--radius-md);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-family: inherit;
+            font-weight: 500;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        `;
+
+        banner.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-cloud-arrow-down fa-bounce" style="font-size: 20px;"></i>
+                <span>ตรวจพบเวอร์ชันใหม่พร้อมใช้งาน!</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-update-reload" style="
+                    background: white;
+                    color: var(--primary);
+                    border: none;
+                    padding: 6px 16px;
+                    border-radius: var(--radius-sm);
+                    cursor: pointer;
+                    font-weight: 600;
+                    font-size: 13px;
+                    box-shadow: var(--shadow-sm);
+                    transition: all 0.2s;
+                ">อัปเดตทันที</button>
+                <button id="btn-update-close" style="
+                    background: rgba(255,255,255,0.2);
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: var(--radius-sm);
+                    cursor: pointer;
+                    font-size: 13px;
+                    transition: all 0.2s;
+                ">ภายหลัง</button>
+            </div>
+        `;
+
+        document.body.appendChild(banner);
+
+        // Slide down animation
+        setTimeout(() => {
+            banner.style.transform = 'translateX(-50%) translateY(0)';
+        }, 100);
+
+        // Bind events
+        document.getElementById('btn-update-reload').addEventListener('click', () => {
+            window.location.reload(true);
+        });
+        document.getElementById('btn-update-close').addEventListener('click', () => {
+            banner.style.transform = 'translateX(-50%) translateY(-100px)';
+            setTimeout(() => banner.remove(), 500);
+        });
     }
 
     async getDocWithCacheFallback(docRef) {
@@ -355,6 +453,26 @@ class AttendanceApp {
         }
     }
 
+    async getCollectionWithCacheFallback(colRef) {
+        try {
+            // Try fetching from server first with a 3-second timeout
+            const serverPromise = colRef.get({ source: 'server' });
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Server timeout")), 3000)
+            );
+            return await Promise.race([serverPromise, timeoutPromise]);
+        } catch (e) {
+            console.log(`[Firestore Cache Fallback] Reading collection ${colRef.id} from local cache due to slow connection / error:`, e.message);
+            try {
+                return await colRef.get({ source: 'cache' });
+            } catch (cacheErr) {
+                console.error("[Firestore Cache Fallback] Failed to read collection from cache:", cacheErr);
+                throw cacheErr;
+            }
+        }
+    }
+
+    // Check localStorage, if empty seed dummy data
     // Check localStorage, if empty seed dummy data
     async loadDatabase(timeoutMs = 20000) {
         if (this.useFirestore) {
@@ -368,10 +486,14 @@ class AttendanceApp {
                     this.logsUnsubscribe = null;
                 }
 
-                const promises = collections.map(col => {
+                const docPromises = collections.map(col => {
                     const docRef = this.firestore.collection('system_data').doc(col);
                     return this.getDocWithCacheFallback(docRef);
                 });
+
+                // Parallel fetches for collections
+                const baseActPromise = this.getCollectionWithCacheFallback(this.firestore.collection('base_activity_logs'));
+                const stagingPromise = this.getCollectionWithCacheFallback(this.firestore.collection('staging_logs'));
 
                 // Set up onSnapshot listener inside a Promise for the initial data
                 let initialLogsReceived = false;
@@ -411,19 +533,25 @@ class AttendanceApp {
                     }
                 });
 
-                promises.push(logsPromise);
+                // Run them all concurrently
+                const allPromises = [
+                    Promise.all(docPromises),
+                    baseActPromise,
+                    stagingPromise,
+                    logsPromise
+                ];
 
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error("Firestore fetch timeout")), timeoutMs)
                 );
 
-                const results = await Promise.race([
-                    Promise.all(promises),
+                const [docResults, baseActSnapshot, stagingSnapshot, logsSnapshot] = await Promise.race([
+                    Promise.all(allPromises),
                     timeoutPromise
                 ]);
 
                 for (let i = 0; i < collections.length; i++) {
-                    const doc = results[i];
+                    const doc = docResults[i];
                     if (doc && doc.exists) {
                         if (collections[i] === 'activeSemesterId') {
                             loadedDb['activeSemesterId'] = doc.data().data?.id || "1-2569";
@@ -437,15 +565,9 @@ class AttendanceApp {
                 }
 
                 if (hasData) {
-                    const logsSnapshot = results[results.length - 1];
                     loadedDb['attendance_logs'] = logsSnapshot ? logsSnapshot.docs.map(doc => doc.data()) : [];
-
-                    // Also fetch base_activity_logs and staging_logs
-                    const baseActSnapshot = await this.firestore.collection('base_activity_logs').get();
-                    loadedDb['base_activity_logs'] = baseActSnapshot.docs.map(doc => doc.data());
-
-                    const stagingSnapshot = await this.firestore.collection('staging_logs').get();
-                    loadedDb['staging_logs'] = stagingSnapshot.docs.map(doc => doc.data());
+                    loadedDb['base_activity_logs'] = baseActSnapshot ? baseActSnapshot.docs.map(doc => doc.data()) : [];
+                    loadedDb['staging_logs'] = stagingSnapshot ? stagingSnapshot.docs.map(doc => doc.data()) : [];
 
                     this.db = loadedDb;
                     this.updateFirestoreConnectionStatus(true);
@@ -506,15 +628,23 @@ class AttendanceApp {
             const loadedDb = {};
             let hasData = true;
 
-            const promises = collections.map(col => {
+            const docPromises = collections.map(col => {
                 const docRef = this.firestore.collection('system_data').doc(col);
                 return this.getDocWithCacheFallback(docRef);
             });
 
-            const results = await Promise.all(promises);
+            // Parallel fetches for collections
+            const baseActPromise = this.getCollectionWithCacheFallback(this.firestore.collection('base_activity_logs'));
+            const stagingPromise = this.getCollectionWithCacheFallback(this.firestore.collection('staging_logs'));
+
+            const [docResults, baseActSnapshot, stagingSnapshot] = await Promise.all([
+                Promise.all(docPromises),
+                baseActPromise,
+                stagingPromise
+            ]);
 
             for (let i = 0; i < collections.length; i++) {
-                const doc = results[i];
+                const doc = docResults[i];
                 if (doc.exists) {
                     if (collections[i] === 'activeSemesterId') {
                         loadedDb['activeSemesterId'] = doc.data().data?.id || "1-2569";
@@ -528,12 +658,8 @@ class AttendanceApp {
             }
 
             if (hasData) {
-                // Fetch base_activity_logs and staging_logs
-                const baseActSnapshot = await this.firestore.collection('base_activity_logs').get();
-                loadedDb['base_activity_logs'] = baseActSnapshot.docs.map(doc => doc.data());
-
-                const stagingSnapshot = await this.firestore.collection('staging_logs').get();
-                loadedDb['staging_logs'] = stagingSnapshot.docs.map(doc => doc.data());
+                loadedDb['base_activity_logs'] = baseActSnapshot ? baseActSnapshot.docs.map(doc => doc.data()) : [];
+                loadedDb['staging_logs'] = stagingSnapshot ? stagingSnapshot.docs.map(doc => doc.data()) : [];
 
                 // Update db references
                 this.db.students = loadedDb.students;
