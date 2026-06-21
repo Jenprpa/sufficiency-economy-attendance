@@ -1897,12 +1897,6 @@ class AttendanceApp {
     }
 
     closeModal(modalId) {
-        if (modalId === 'change-password-modal') {
-            if (this.currentUser && (this.currentUser.password === '123456' || !this.currentUser.password)) {
-                alert("กรุณาตั้งรหัสผ่านใหม่ก่อนเข้าใช้งานระบบ!");
-                return;
-            }
-        }
         document.getElementById(modalId).classList.remove('active');
     }
 
@@ -2119,6 +2113,14 @@ class AttendanceApp {
             if (this.currentUser && this.currentUser.role === 'teacher') {
                 this.switchView('checkin');
             }
+
+            // Optional prompt to change default password
+            const isDefaultPassword = this.currentUser.password === '123456' || !this.currentUser.password;
+            if (isDefaultPassword) {
+                setTimeout(() => {
+                    this.showOptionalPasswordChangePrompt();
+                }, 1500);
+            }
         } else {
             // Auto show login modal if not logged in to guide users
             setTimeout(() => {
@@ -2154,6 +2156,25 @@ class AttendanceApp {
             this.switchView('admin');
         } else {
             this.switchView('checkin');
+        }
+
+        // Optional prompt to change default password
+        const isDefaultPassword = userObj.password === '123456' || !userObj.password;
+        if (isDefaultPassword) {
+            setTimeout(() => {
+                this.showOptionalPasswordChangePrompt();
+            }, 1500);
+        }
+    }
+
+    // Optional password change prompt
+    showOptionalPasswordChangePrompt() {
+        if (sessionStorage.getItem('password_prompt_shown')) return;
+        sessionStorage.setItem('password_prompt_shown', 'true');
+
+        const confirmChange = confirm("คำแนะนำด้านความปลอดภัย: รหัสผ่านของคุณยังคงเป็นรหัสผ่านเริ่มต้น (123456) คุณต้องการเปลี่ยนรหัสผ่านเพื่อความปลอดภัยหรือไม่?");
+        if (confirmChange) {
+            this.openChangePasswordModal(false);
         }
     }
 
