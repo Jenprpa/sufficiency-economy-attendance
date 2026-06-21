@@ -1021,6 +1021,26 @@ class AttendanceApp {
             this.render();
         });
 
+        // Online/Offline Network Status Listener
+        window.addEventListener('online', async () => {
+            console.log("Network status: ONLINE");
+            if (this.firestore) {
+                this.useFirestore = true;
+                this.updateFirestoreConnectionStatus(true);
+                try {
+                    await this.loadDatabase();
+                    this.render();
+                } catch (err) {
+                    console.error("Error reloading database on restore online:", err);
+                }
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            console.log("Network status: OFFLINE");
+            this.updateFirestoreConnectionStatus(false);
+        });
+
         // Login Actions
         document.getElementById('auth-action-btn').addEventListener('click', () => {
             if (this.currentUser) {
