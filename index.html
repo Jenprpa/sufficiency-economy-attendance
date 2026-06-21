@@ -830,6 +830,12 @@
                     <label for="login-password">รหัสผ่าน</label>
                     <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
                 </div>
+                <div id="login-loading-status" style="display: none; margin-top: 15px; padding: 12px; border-radius: var(--radius-sm); background-color: #F8FAFC; border: 1px solid var(--border-color); text-align: center;">
+                    <div style="color: var(--text-primary); font-weight: 600; margin-bottom: 8px;" id="login-loading-text-container">
+                        <i class="fa-solid fa-spinner fa-spin text-primary"></i> <span id="login-loading-text">กำลังโหลดข้อมูลผู้ใช้...</span>
+                    </div>
+                    <button class="btn btn-outline btn-sm" id="btn-login-retry" style="display: none; margin: 4px auto 0 auto;" onclick="app.retryLoginProfileLoad(event)">ลองใหม่อีกครั้ง</button>
+                </div>
                 <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: 13px;">
                     <a href="#" onclick="app.tryReconnectCloudFromLogin(event)" style="color: #FF6F00; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-rotate"></i> ลองเชื่อมต่อใหม่</a>
                     <a href="#" onclick="app.clearSystemCache(event)" style="color: var(--danger); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-trash-can"></i> ล้างแคชระบบ</a>

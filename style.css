@@ -1478,3 +1478,47 @@ tr:hover td {
     0% { transform: translate(-50%, 100px); opacity: 0; }
     100% { transform: translate(-50%, 0); opacity: 1; }
 }
+
+/* Loading Skeleton */
+.skeleton-loader {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 24px;
+    background: white;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-color);
+    margin: 20px 0;
+}
+
+.skeleton-item {
+    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite linear;
+    border-radius: var(--radius-sm);
+}
+
+.skeleton-title {
+    height: 28px;
+    width: 60%;
+}
+
+.skeleton-text {
+    height: 16px;
+    width: 90%;
+}
+
+.skeleton-text.short {
+    width: 40%;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+

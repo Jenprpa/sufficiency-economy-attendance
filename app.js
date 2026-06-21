@@ -175,21 +175,41 @@ class AttendanceApp {
     updateOfflineSyncWarning(hasPending) {
         const badge = document.getElementById('unsynced-warning-badge');
         if (badge) {
-            if (hasPending || !navigator.onLine || !this.useFirestore) {
+            const textEl = badge.querySelector('span');
+            const btn = badge.querySelector('button');
+            const iconEl = badge.querySelector('i');
+            
+            const isOffline = !navigator.onLine;
+            const isNetworkError = this.firestoreNetworkError;
+            const isNotConnected = !this.useFirestore;
+
+            if (hasPending || isOffline || isNetworkError || isNotConnected) {
                 badge.style.display = 'flex';
-                const textEl = badge.querySelector('span');
-                const btn = badge.querySelector('button');
-                if (textEl) {
-                    if (!navigator.onLine) {
-                        textEl.textContent = 'ระบบอยู่ในโหมดออฟไลน์ (ไม่มีอินเทอร์เน็ต) ข้อมูลจะซิงค์เมื่อออนไลน์';
-                        if (btn) btn.style.display = 'none';
-                    } else if (!this.useFirestore) {
-                        textEl.textContent = 'ไม่ได้เชื่อมต่อคลาวด์ (โหลดฐานข้อมูลช้าหรือหลุดการเชื่อมต่อ)';
-                        if (btn) btn.style.display = 'flex';
-                    } else {
-                        textEl.textContent = 'มีข้อมูลเช็กชื่อค้างอยู่ในเครื่องยังไม่ได้ซิงค์ขึ้นคลาวด์ กรุณาอย่าปิดแอปหรือล้างประวัติเบราว์เซอร์';
-                        if (btn) btn.style.display = 'none';
-                    }
+                
+                if (isOffline) {
+                    // Orange offline style
+                    badge.style.background = 'linear-gradient(135deg, #FF8C00 0%, #FF6F00 100%)';
+                    if (iconEl) iconEl.className = 'fa-solid fa-triangle-exclamation';
+                    if (textEl) textEl.textContent = 'ระบบอยู่ในโหมดออฟไลน์ (ไม่มีอินเทอร์เน็ต) ข้อมูลจะบันทึกที่เครื่องและซิงค์เมื่อออนไลน์';
+                    if (btn) btn.style.display = 'none';
+                } else if (isNetworkError) {
+                    // Orange network error style
+                    badge.style.background = 'linear-gradient(135deg, #FF8C00 0%, #FF6F00 100%)';
+                    if (iconEl) iconEl.className = 'fa-solid fa-triangle-exclamation';
+                    if (textEl) textEl.textContent = 'ไม่ได้เชื่อมต่อคลาวด์ (ปัญหาเครือข่าย) ข้อมูลจะบันทึกที่เครื่องและซิงค์เมื่อออนไลน์';
+                    if (btn) btn.style.display = 'flex';
+                } else if (hasPending) {
+                    // Orange unsynced writes style
+                    badge.style.background = 'linear-gradient(135deg, #FF8C00 0%, #FF6F00 100%)';
+                    if (iconEl) iconEl.className = 'fa-solid fa-triangle-exclamation';
+                    if (textEl) textEl.textContent = 'มีข้อมูลเช็กชื่อค้างอยู่ในเครื่องยังไม่ได้ซิงค์ขึ้นคลาวด์ กรุณาอย่าปิดแอปหรือล้างประวัติเบราว์เซอร์';
+                    if (btn) btn.style.display = 'none';
+                } else if (isNotConnected) {
+                    // Blue connecting style for slow network
+                    badge.style.background = 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)';
+                    if (iconEl) iconEl.className = 'fa-solid fa-spinner fa-spin';
+                    if (textEl) textEl.textContent = 'กำลังเชื่อมต่อ...';
+                    if (btn) btn.style.display = 'none';
                 }
             } else {
                 badge.style.display = 'none';
@@ -265,7 +285,7 @@ class AttendanceApp {
                 await Promise.race([checkPromise, timeoutPromise]);
                 
                 // Connection successful! Reload database with a 15-second timeout
-                await this.loadDatabase(15000);
+                await this.loadDatabase(20000);
                 this.updateFirestoreConnectionStatus(true);
                 this.render();
                 
@@ -329,7 +349,7 @@ class AttendanceApp {
     }
 
     // Check localStorage, if empty seed dummy data
-    async loadDatabase(timeoutMs = 8000) {
+    async loadDatabase(timeoutMs = 20000) {
         if (this.useFirestore) {
             try {
                 const collections = ['students', 'teachers', 'bases', 'rotation_schedule'];
@@ -1517,6 +1537,114 @@ class AttendanceApp {
         }
     }
 
+    // Complete the login flow after successful auth and profile loading
+    async completeLogin(userObj) {
+        this.currentUser = userObj;
+        sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+        
+        if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
+            if (!userObj.isAuthCreated) {
+                userObj.isAuthCreated = true;
+                try {
+                    await this.saveDatabase(false);
+                } catch (e) {
+                    console.error("[Login Flow] Failed to update teacher isAuthCreated status:", e);
+                }
+            }
+        }
+
+        this.updateUserUI();
+        this.closeModal('login-modal');
+        
+        // Auto redirect depending on role
+        if (userObj.role === 'admin') {
+            this.switchView('manage');
+        } else if (userObj.role === 'director') {
+            this.switchView('admin');
+        } else {
+            this.switchView('checkin');
+        }
+    }
+
+    // Retry profile load when login auth succeeded but database load was slow/failed
+    async retryLoginProfileLoad(event) {
+        if (event) event.preventDefault();
+        
+        if (!this.pendingLoginUser) {
+            console.warn("No pending login user found for profile load retry");
+            return;
+        }
+
+        const retryBtn = document.getElementById('btn-login-retry');
+        const loadingText = document.getElementById('login-loading-text');
+        
+        if (retryBtn) {
+            retryBtn.disabled = true;
+            retryBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลองใหม่...';
+        }
+        if (loadingText) {
+            loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
+        }
+
+        try {
+            console.log("[Login Flow] Retrying profile load for:", this.pendingLoginUser.username);
+            this.initFirestore();
+            await this.loadDatabase(20000);
+            console.log("[Login Flow] Retry profile load: SUCCESS");
+            
+            if (retryBtn) {
+                retryBtn.disabled = false;
+                retryBtn.style.display = 'none';
+                retryBtn.textContent = 'ลองใหม่อีกครั้ง';
+            }
+            const loadingStatus = document.getElementById('login-loading-status');
+            if (loadingStatus) loadingStatus.style.display = 'none';
+
+            const userObj = this.pendingLoginUser;
+            this.pendingLoginUser = null;
+            await this.completeLogin(userObj);
+        } catch (err) {
+            console.error("[Login Flow] Retry profile load: FAIL, Error:", err);
+            if (retryBtn) {
+                retryBtn.disabled = false;
+                retryBtn.innerHTML = 'ลองใหม่อีกครั้ง';
+                retryBtn.style.display = 'block';
+            }
+            if (loadingText) {
+                loadingText.textContent = 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ';
+            }
+            this.showStatusModal('error', 'โหลดข้อมูลไม่สำเร็จ', 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ');
+        }
+    }
+
+    // Retry database loading for the check-in view on slow network
+    async retryCheckinDataLoad(event) {
+        if (event) event.preventDefault();
+        
+        const retryBtn = document.getElementById('btn-checkin-retry');
+        if (retryBtn) {
+            retryBtn.disabled = true;
+            retryBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลองใหม่...';
+        }
+
+        try {
+            console.log("[Checkin Flow] Retrying database load from checkin view...");
+            this.initFirestore();
+            this.useFirestore = true;
+            await this.loadDatabase(20000);
+            console.log("[Checkin Flow] Database load retry: SUCCESS");
+            
+            this.renderCheckin();
+        } catch (err) {
+            console.error("[Checkin Flow] Database load retry failed:", err);
+            if (retryBtn) {
+                retryBtn.disabled = false;
+                retryBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> ลองโหลดข้อมูลใหม่';
+            }
+            alert("ไม่สามารถโหลดข้อมูลผู้ใช้ได้ในขณะนี้: " + err.message);
+        }
+    }
+
     // Login logic
     async login() {
         const userSelect = document.getElementById('login-user-select');
@@ -1539,34 +1667,6 @@ class AttendanceApp {
         console.log("[Login Flow] Init Login for username:", userObj.username);
         console.log("[Login Flow] Browser Online Status:", navigator.onLine);
 
-        const doLoginSuccess = async () => {
-            this.currentUser = userObj;
-            sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
-            
-            if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
-                if (!userObj.isAuthCreated) {
-                    userObj.isAuthCreated = true;
-                    try {
-                        await this.saveDatabase(false);
-                    } catch (e) {
-                        console.error("[Login Flow] Failed to update teacher isAuthCreated status:", e);
-                    }
-                }
-            }
-
-            this.updateUserUI();
-            this.closeModal('login-modal');
-            
-            // Auto redirect depending on role
-            if (userObj.role === 'admin') {
-                this.switchView('manage');
-            } else if (userObj.role === 'director') {
-                this.switchView('admin');
-            } else {
-                this.switchView('checkin');
-            }
-        };
-
         const hasNetwork = navigator.onLine;
         
         if (!hasNetwork) {
@@ -1580,6 +1680,13 @@ class AttendanceApp {
         loginBtn.disabled = true;
         loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบรหัสผ่านคลาวด์...';
 
+        // Hide and reset status elements inside modal
+        const loadingStatus = document.getElementById('login-loading-status');
+        const loadingText = document.getElementById('login-loading-text');
+        const retryBtn = document.getElementById('btn-login-retry');
+        if (loadingStatus) loadingStatus.style.display = 'none';
+        if (retryBtn) retryBtn.style.display = 'none';
+
         try {
             // 1. Authenticate with Firebase Auth
             await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
@@ -1588,28 +1695,54 @@ class AttendanceApp {
             // 2. Auth succeeded, now load or restore Firestore connection
             loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูลโปรไฟล์...';
             
+            if (loadingStatus) loadingStatus.style.display = 'block';
+            if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
+            if (retryBtn) retryBtn.style.display = 'none';
+
+            // Show retry button if database load takes more than 4 seconds
+            const retryTimer = setTimeout(() => {
+                if (retryBtn) retryBtn.style.display = 'block';
+            }, 4000);
+
+            this.pendingLoginUser = userObj;
+
             try {
                 this.initFirestore();
-                await this.loadDatabase(25000); // 25 seconds timeout for login flow to allow slow networks
+                await this.loadDatabase(20000); // 20 seconds timeout for login flow
                 console.log("[Login Flow] Firestore User Profile Load: SUCCESS");
-                console.log("[Login Flow] Cache fallback used: NO");
                 
+                clearTimeout(retryTimer);
+                if (loadingStatus) loadingStatus.style.display = 'none';
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = originalText;
-                await doLoginSuccess();
+                this.pendingLoginUser = null;
+                await this.completeLogin(userObj);
             } catch (firestoreErr) {
                 console.error("[Login Flow] Firestore User Profile Load: FAIL, Error:", firestoreErr);
+                clearTimeout(retryTimer);
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = originalText;
                 
-                // Firestore profile load failed, but Auth succeeded! Show special error message.
-                this.showStatusModal('error', 'ข้อผิดพลาดระบบข้อมูล', 'เข้าสู่ระบบสำเร็จ แต่โหลดข้อมูลโปรไฟล์จากคลาวด์ไม่สำเร็จ (การเชื่อมต่อคลาวด์ล่าช้า) กรุณาลองใหม่อีกครั้ง');
+                if (retryBtn) retryBtn.style.display = 'block';
+                if (loadingText) loadingText.textContent = 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ';
+                
+                this.showStatusModal('error', 'โหลดข้อมูลไม่สำเร็จ', 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ');
             }
             
         } catch (authErr) {
             console.log("[Login Flow] Firebase Auth Status: FAIL, Error Code:", authErr.code);
             loginBtn.disabled = false;
             loginBtn.innerHTML = originalText;
+
+            const isNetworkError = authErr.code === 'auth/network-request-failed' || 
+                                   authErr.code === 'auth/timeout' || 
+                                   authErr.message.includes('timeout') ||
+                                   authErr.message.includes('network');
+
+            if (isNetworkError) {
+                this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                return;
+            }
 
             // Handle wrong passwords / auto-provisioning
             if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
@@ -1621,23 +1754,45 @@ class AttendanceApp {
                         console.log("[Login Flow] Auto-provisioning Account: SUCCESS");
                         
                         this.initFirestore();
-                        await this.loadDatabase(25000);
                         
+                        if (loadingStatus) loadingStatus.style.display = 'block';
+                        if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
+                        if (retryBtn) retryBtn.style.display = 'none';
+
+                        const retryTimer = setTimeout(() => {
+                            if (retryBtn) retryBtn.style.display = 'block';
+                        }, 4000);
+
+                        this.pendingLoginUser = userObj;
+
+                        await this.loadDatabase(20000);
+                        clearTimeout(retryTimer);
+                        
+                        if (loadingStatus) loadingStatus.style.display = 'none';
                         loginBtn.disabled = false;
                         loginBtn.innerHTML = originalText;
-                        await doLoginSuccess();
+                        this.pendingLoginUser = null;
+                        await this.completeLogin(userObj);
                     } catch (createErr) {
                         console.error("[Login Flow] Auto-provisioning failed:", createErr);
                         loginBtn.disabled = false;
                         loginBtn.innerHTML = originalText;
-                        if (createErr.code === 'auth/email-already-in-use') {
-                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (คุณอาจเคยเปลี่ยนรหัสผ่านแล้ว กรุณาใช้รหัสผ่านล่าสุดของคุณ)');
+                        
+                        const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
+                                                     createErr.code === 'auth/timeout' || 
+                                                     createErr.message.includes('timeout') ||
+                                                     createErr.message.includes('network');
+
+                        if (isCreateNetworkError) {
+                            this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                        } else if (createErr.code === 'auth/email-already-in-use') {
+                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง (คุณอาจเคยเปลี่ยนรหัสผ่านแล้ว กรุณาใช้รหัสผ่านล่าสุดของคุณ)');
                         } else {
                             this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัย: ' + createErr.message);
                         }
                     }
                 } else {
-                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบและลองใหม่อีกครั้ง!');
+                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง');
                 }
             } else if (authErr.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
                 loginBtn.disabled = true;
@@ -1645,27 +1800,44 @@ class AttendanceApp {
                 try {
                     await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
                     this.initFirestore();
-                    await this.loadDatabase(25000);
                     
+                    if (loadingStatus) loadingStatus.style.display = 'block';
+                    if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
+                    if (retryBtn) retryBtn.style.display = 'none';
+
+                    const retryTimer = setTimeout(() => {
+                        if (retryBtn) retryBtn.style.display = 'block';
+                    }, 4000);
+
+                    this.pendingLoginUser = userObj;
+
+                    await this.loadDatabase(20000);
+                    clearTimeout(retryTimer);
+                    
+                    if (loadingStatus) loadingStatus.style.display = 'none';
                     loginBtn.disabled = false;
                     loginBtn.innerHTML = originalText;
-                    await doLoginSuccess();
+                    this.pendingLoginUser = null;
+                    await this.completeLogin(userObj);
                 } catch (createErr) {
                     console.error("[Login Flow] Auto-provisioning failed:", createErr);
                     loginBtn.disabled = false;
                     loginBtn.innerHTML = originalText;
-                    this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถสร้างบัญชีความปลอดภัย: ' + createErr.message);
+
+                    const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
+                                                 createErr.code === 'auth/timeout' || 
+                                                 createErr.message.includes('timeout') ||
+                                                 createErr.message.includes('network');
+
+                    if (isCreateNetworkError) {
+                        this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                    } else {
+                        this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถสร้างบัญชีความปลอดภัย: ' + createErr.message);
+                    }
                 }
             } else {
                 console.warn("[Login Flow] Network/Firebase error during auth:", authErr);
-                
-                let errorMsg = 'ระบบความปลอดภัยคลาวด์ขัดข้องไม่สามารถตรวจสอบสิทธิ์ได้ในขณะนี้: ' + authErr.message;
-                if (authErr.code === 'auth/network-request-failed') {
-                    errorMsg = 'การเชื่อมต่อเครือข่ายล้มเหลว (Network Request Failed) กรุณาตรวจสอบสัญญาณเน็ตมือถือ 4G/5G หรือลองใช้ปุ่ม "ลองเชื่อมต่อใหม่" ด้านล่าง';
-                } else if (authErr.code === 'auth/timeout' || authErr.message.includes('timeout')) {
-                    errorMsg = 'การเชื่อมต่อหมดเวลา (Timeout) สัญญาณอินเทอร์เน็ตอาจช้าเกินไปในการดึงโปรไฟล์ความปลอดภัยคลาวด์';
-                }
-                this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', errorMsg);
+                this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
             }
         }
     }
@@ -2174,6 +2346,31 @@ class AttendanceApp {
         if (!document.getElementById('checkin-base-title')) {
             // Simple refresh page element
             location.reload();
+            return;
+        }
+
+        if (!this.db || !this.db.bases || this.db.bases.length === 0) {
+            const titleEl = document.getElementById('checkin-base-title');
+            const infoEl = document.getElementById('checkin-base-info');
+            if (titleEl) titleEl.textContent = "กำลังโหลดข้อมูล...";
+            if (infoEl) infoEl.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> กรุณารอระบบดึงข้อมูลจากระบบคลาวด์";
+
+            const listContainer = document.getElementById('student-attendance-list-container');
+            if (listContainer) {
+                listContainer.innerHTML = `
+                    <div class="skeleton-loader">
+                        <div class="skeleton-item skeleton-title"></div>
+                        <div class="skeleton-item skeleton-text"></div>
+                        <div class="skeleton-item skeleton-text"></div>
+                        <div class="skeleton-item skeleton-text short"></div>
+                    </div>
+                    <div style="text-align: center; margin-top: 16px; padding-bottom: 24px;">
+                        <button class="btn btn-outline" id="btn-checkin-retry" onclick="app.retryCheckinDataLoad(event)">
+                            <i class="fa-solid fa-rotate"></i> ลองโหลดข้อมูลใหม่
+                        </button>
+                    </div>
+                `;
+            }
             return;
         }
 
