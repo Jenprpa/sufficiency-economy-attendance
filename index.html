@@ -872,7 +872,12 @@
                 </div>
                 <div class="form-group">
                     <label for="login-password">รหัสผ่าน</label>
-                    <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
+                    <div class="password-wrapper">
+                        <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
+                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('login-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="login-loading-status" style="display: none; margin-top: 15px; padding: 12px; border-radius: var(--radius-sm); background-color: #F8FAFC; border: 1px solid var(--border-color); text-align: center;">
                     <div style="color: var(--text-primary); font-weight: 600; margin-bottom: 8px;" id="login-loading-text-container">
@@ -902,15 +907,30 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label for="change-pwd-current">รหัสผ่านปัจจุบัน</label>
-                    <input type="password" id="change-pwd-current" placeholder="กรอกรหัสผ่านปัจจุบัน..." style="width: 100%;">
+                    <div class="password-wrapper">
+                        <input type="password" id="change-pwd-current" placeholder="กรอกรหัสผ่านปัจจุบัน..." style="width: 100%;">
+                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('change-pwd-current', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="change-pwd-new">รหัสผ่านใหม่</label>
-                    <input type="password" id="change-pwd-new" placeholder="กรอกรหัสผ่านใหม่..." style="width: 100%;">
+                    <div class="password-wrapper">
+                        <input type="password" id="change-pwd-new" placeholder="กรอกรหัสผ่านใหม่..." style="width: 100%;">
+                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('change-pwd-new', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="change-pwd-confirm">ยืนยันรหัสผ่านใหม่</label>
-                    <input type="password" id="change-pwd-confirm" placeholder="กรอกยืนยันรหัสผ่านใหม่..." style="width: 100%;">
+                    <div class="password-wrapper">
+                        <input type="password" id="change-pwd-confirm" placeholder="กรอกยืนยันรหัสผ่านใหม่..." style="width: 100%;">
+                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('change-pwd-confirm', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -992,7 +1012,12 @@
                 </div>
                 <div class="form-group">
                     <label for="teacher-form-password" id="teacher-form-password-label">รหัสผ่านเริ่มต้น</label>
-                    <input type="password" id="teacher-form-password" placeholder="ปล่อยว่างไว้หากใช้รหัสผ่านเริ่มต้น...">
+                    <div class="password-wrapper">
+                        <input type="password" id="teacher-form-password" placeholder="ปล่อยว่างไว้หากใช้รหัสผ่านเริ่มต้น...">
+                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('teacher-form-password', this)">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">

@@ -1530,6 +1530,25 @@ class AttendanceApp {
         document.getElementById(modalId).classList.remove('active');
     }
 
+    togglePasswordVisibility(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            if (icon) {
+                icon.className = 'fa-solid fa-eye-slash';
+            }
+        } else {
+            input.type = 'password';
+            if (icon) {
+                icon.className = 'fa-solid fa-eye';
+            }
+        }
+    }
+
+
     // Load auth session
     loadSession() {
         const savedUser = sessionStorage.getItem('school_current_user');

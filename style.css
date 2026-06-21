@@ -1579,3 +1579,48 @@ tr:hover td {
     }
 }
 
+/* Password visibility toggle wrapper */
+.password-wrapper {
+    position: relative;
+    display: block;
+    width: 100%;
+}
+
+.password-wrapper input {
+    width: 100% !important;
+    padding-right: 40px !important; /* Space for eye icon */
+}
+
+.password-toggle-btn {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    
+    /* Reset features from Global Mobile Button style */
+    min-height: unset !important;
+    height: 30px !important;
+    width: 30px !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.password-toggle-btn:hover {
+    color: var(--primary) !important;
+    background: transparent !important;
+}
+
+.password-toggle-btn i {
+    font-size: 16px;
+}
+
+
