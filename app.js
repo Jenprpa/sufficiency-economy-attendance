@@ -6,7 +6,14 @@ class AttendanceApp {
         this.currentUser = null;
         this.currentView = 'dashboard';
         this.manageTab = 'students';
-        this.systemDate = '2026-06-20'; // Current Local Time simulated
+        
+        // Initialize simulated system date to current real local date dynamically
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        this.systemDate = `${year}-${month}-${day}`;
+
         this.studentPage = 1;
         this.pageSize = 15;
         this.selectedStudents = [];
