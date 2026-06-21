@@ -967,12 +967,12 @@ class AttendanceApp {
             }
         });
 
-        // Force regeneration of rotation schedule to match the new 1/2569 calendar (Migration Version 4)
+        // Force regeneration of rotation schedule to match the new 1/2569 calendar (Migration Version 5)
         const migrationVersion = localStorage.getItem('school_migration_version') || '0';
-        if (parseInt(migrationVersion) < 4) {
-            console.log("[Migration] Regenerating rotation schedule to match new calendar layout (V4)...");
+        if (parseInt(migrationVersion) < 5) {
+            console.log("[Migration] Regenerating rotation schedule to match new calendar layout (V5)...");
             this.db.rotation_schedule = this.generateDefaultRotationSchedule();
-            localStorage.setItem('school_migration_version', '4');
+            localStorage.setItem('school_migration_version', '5');
             dbChanged = true;
         }
 
@@ -5161,7 +5161,7 @@ class AttendanceApp {
             if (!isWeekB) {
                 classesList.push("ม.4/6", "ม.4/7");
                 classRooms["ม.4/6"] = "ห้อง 2101";
-                classRooms["ม.4/7"] = "สวนเศรษฐกิจพิเพียง";
+                classRooms["ม.4/7"] = "สวนเศรษฐกิจพอเพียง";
             } else {
                 classesList.push("ม.4/2", "ม.4/5", "ม.4/3", "ม.4/4");
                 classRooms["ม.4/2"] = "ห้อง 2201";
@@ -5170,7 +5170,7 @@ class AttendanceApp {
                 classRooms["ม.4/4"] = "ห้อง 2102-2103";
             }
             const label = !isWeekB
-                ? "ม.4/7 (สวนเศรษฐกิจพิเพียง) | ม.4/6 (ห้อง 2101)"
+                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101)"
                 : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
             return {
                 classes: classesList,
