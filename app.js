@@ -1176,6 +1176,14 @@ class AttendanceApp {
             dbChanged = true;
         }
 
+        // Migration Version 7 (Regenerate rotation schedule to restore missing classrooms ม.4/1 and ม.5/1)
+        if (parseInt(migrationVersion) < 7) {
+            console.log("[Migration] Regenerating rotation schedule to restore ม.4/1 and ม.5/1 (V7)...");
+            this.db.rotation_schedule = this.generateDefaultRotationSchedule();
+            localStorage.setItem('school_migration_version', '7');
+            dbChanged = true;
+        }
+
         if (dbChanged) {
             this.saveDatabase(false, ['bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'students', 'teachers']);
         }
@@ -6492,7 +6500,8 @@ class AttendanceApp {
             const classesList = [];
             const classRooms = {};
             if (!isWeekB) {
-                classesList.push("ม.4/6", "ม.4/7");
+                classesList.push("ม.4/1", "ม.4/6", "ม.4/7");
+                classRooms["ม.4/1"] = "ห้อง 2101";
                 classRooms["ม.4/6"] = "ห้อง 2101";
                 classRooms["ม.4/7"] = "ไก่ไข่อารมณ์ดี";
             } else {
@@ -6503,7 +6512,7 @@ class AttendanceApp {
                 classRooms["ม.4/4"] = "ห้อง 2102-2103";
             }
             const label = !isWeekB
-                ? "ม.4/7 (ไก่ไข่อารมณ์ดี) | ม.4/6 (ห้อง 2101)"
+                ? "ม.4/7 (ไก่ไข่อารมณ์ดี) | ม.4/1, ม.4/6 (ห้อง 2101)"
                 : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
             return {
                 classes: classesList,
@@ -6551,11 +6560,11 @@ class AttendanceApp {
             group4.push(`${grade}/7`);
         } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
             if (grade === 'ม.4') {
-                group1.push("ม.4/2", "ม.4/7");
+                group1.push("ม.4/1", "ม.4/2", "ม.4/7");
                 group2.push("ม.4/5", "ม.4/6");
                 group3.push("ม.4/3", "ม.4/4");
             } else if (grade === 'ม.5') {
-                group1.push("ม.5/6");
+                group1.push("ม.5/1", "ม.5/6");
                 group2.push("ม.5/2", "ม.5/5");
                 group3.push("ม.5/3", "ม.5/4");
             } else {
