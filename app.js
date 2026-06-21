@@ -1722,11 +1722,13 @@ class AttendanceApp {
                 clearTimeout(retryTimer);
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = originalText;
+                this.pendingLoginUser = null;
                 
-                if (retryBtn) retryBtn.style.display = 'block';
-                if (loadingText) loadingText.textContent = 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ';
+                if (loadingStatus) loadingStatus.style.display = 'none';
                 
-                this.showStatusModal('error', 'โหลดข้อมูลไม่สำเร็จ', 'เข้าสู่ระบบแล้ว แต่โหลดข้อมูลผู้ใช้ไม่สำเร็จ');
+                // Fallback to local database but complete login to unblock user
+                alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
+                await this.completeLogin(userObj);
             }
             
         } catch (authErr) {
@@ -1765,14 +1767,25 @@ class AttendanceApp {
 
                         this.pendingLoginUser = userObj;
 
-                        await this.loadDatabase(20000);
-                        clearTimeout(retryTimer);
-                        
-                        if (loadingStatus) loadingStatus.style.display = 'none';
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
-                        this.pendingLoginUser = null;
-                        await this.completeLogin(userObj);
+                        try {
+                            await this.loadDatabase(20000);
+                            clearTimeout(retryTimer);
+                            
+                            if (loadingStatus) loadingStatus.style.display = 'none';
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            this.pendingLoginUser = null;
+                            await this.completeLogin(userObj);
+                        } catch (loadErr) {
+                            console.error("[Login Flow] Profile load failed after auto-provision:", loadErr);
+                            clearTimeout(retryTimer);
+                            if (loadingStatus) loadingStatus.style.display = 'none';
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            this.pendingLoginUser = null;
+                            alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
+                            await this.completeLogin(userObj);
+                        }
                     } catch (createErr) {
                         console.error("[Login Flow] Auto-provisioning failed:", createErr);
                         loginBtn.disabled = false;
@@ -1811,14 +1824,25 @@ class AttendanceApp {
 
                     this.pendingLoginUser = userObj;
 
-                    await this.loadDatabase(20000);
-                    clearTimeout(retryTimer);
-                    
-                    if (loadingStatus) loadingStatus.style.display = 'none';
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = originalText;
-                    this.pendingLoginUser = null;
-                    await this.completeLogin(userObj);
+                    try {
+                        await this.loadDatabase(20000);
+                        clearTimeout(retryTimer);
+                        
+                        if (loadingStatus) loadingStatus.style.display = 'none';
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                        this.pendingLoginUser = null;
+                        await this.completeLogin(userObj);
+                    } catch (loadErr) {
+                        console.error("[Login Flow] Profile load failed after registration:", loadErr);
+                        clearTimeout(retryTimer);
+                        if (loadingStatus) loadingStatus.style.display = 'none';
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                        this.pendingLoginUser = null;
+                        alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
+                        await this.completeLogin(userObj);
+                    }
                 } catch (createErr) {
                     console.error("[Login Flow] Auto-provisioning failed:", createErr);
                     loginBtn.disabled = false;
