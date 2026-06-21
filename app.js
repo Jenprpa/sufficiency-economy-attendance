@@ -26,34 +26,50 @@ class AttendanceApp {
 
     // Initialize databases and bindings
     async init() {
-        // Initialize Firestore
-        this.initFirestore();
+        try {
+            // Initialize Firestore
+            this.initFirestore();
 
-        // 1. Load database or seed demo data
-        await this.loadDatabase();
+            // 1. Load database or seed demo data
+            await this.loadDatabase();
 
-        // Sync with Firebase Auth state if loaded
-        if (this.useFirestore) {
-            this.syncFirebaseUser();
-        }
+            // Sync with Firebase Auth state if loaded
+            if (this.useFirestore) {
+                this.syncFirebaseUser();
+            }
 
-        // 2. Bind DOM Events
-        this.bindEvents();
+            // 2. Bind DOM Events
+            this.bindEvents();
 
-        // 3. Sync Simulator Date
-        document.getElementById('system-date-input').value = this.systemDate;
+            // 3. Sync Simulator Date
+            document.getElementById('system-date-input').value = this.systemDate;
 
-        // 4. Load Current User Session
-        this.loadSession();
+            // 4. Load Current User Session
+            this.loadSession();
 
-        // 5. Render active view
-        this.render();
+            // 5. Render active view
+            this.render();
 
-        // Check Nightly Backup
-        if (this.useFirestore) {
-            this.checkNightlyBackup();
-            this.loadCloudBackups();
-            this.loadAuditLogs();
+            // Check Nightly Backup
+            if (this.useFirestore) {
+                this.checkNightlyBackup();
+                this.loadCloudBackups();
+                this.loadAuditLogs();
+            }
+        } catch (e) {
+            console.error("Initialization error:", e);
+        } finally {
+            // Hide loading screen after a short delay for smooth transition
+            setTimeout(() => {
+                const loadingScreen = document.getElementById('app-loading-screen');
+                if (loadingScreen) {
+                    loadingScreen.classList.add('fade-out');
+                    // Remove from DOM after CSS transition completes
+                    setTimeout(() => {
+                        loadingScreen.remove();
+                    }, 500);
+                }
+            }, 600);
         }
     }
 

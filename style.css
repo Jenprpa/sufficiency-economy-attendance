@@ -1351,3 +1351,104 @@ tr:hover td {
     }
 }
 
+/* Global App Loading Screen Overlay */
+.app-loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #FFFDF7 0%, #FAF6EE 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    opacity: 1;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s;
+    visibility: visible;
+}
+
+.app-loading-screen.fade-out {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.loading-container {
+    text-align: center;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(232, 221, 208, 0.6);
+    padding: 40px 60px;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    max-width: 480px;
+    width: 90%;
+    transform: scale(1);
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-loading-screen.fade-out .loading-container {
+    transform: scale(0.9);
+}
+
+.loading-logo-wrapper {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 10px;
+}
+
+.loading-logo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 4px 8px rgba(140, 106, 43, 0.15));
+    animation: pulse-glow 2s infinite ease-in-out;
+}
+
+.loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(140, 106, 43, 0.1);
+    border-top: 4px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 1s infinite cubic-bezier(0.55, 0.15, 0.45, 0.85);
+}
+
+.loading-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+    font-family: 'Kanit', sans-serif;
+    letter-spacing: 0.5px;
+}
+
+.loading-subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0;
+    font-family: 'Prompt', sans-serif;
+}
+
+/* Animations */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        transform: scale(1);
+        filter: drop-shadow(0 4px 8px rgba(140, 106, 43, 0.15));
+    }
+    50% {
+        transform: scale(1.05);
+        filter: drop-shadow(0 8px 16px rgba(140, 106, 43, 0.3));
+    }
+}
