@@ -98,7 +98,9 @@ class AttendanceApp {
         }
 
         try {
-            firebase.initializeApp(firebaseConfig);
+            if (firebase.apps.length === 0) {
+                firebase.initializeApp(firebaseConfig);
+            }
             this.firestore = firebase.firestore();
             this.useFirestore = true;
             console.log("Firebase Firestore initialized successfully.");
@@ -1408,7 +1410,10 @@ class AttendanceApp {
                 }
             };
 
-            if (this.useFirestore) {
+            // Robust login flow: if navigator is online, try Firebase Auth first even if useFirestore is false (e.g. initial timeout)
+            const tryCloudAuth = this.useFirestore || (navigator.onLine && typeof firebase !== 'undefined' && firebase.auth);
+
+            if (tryCloudAuth) {
                 const loginBtn = document.getElementById('btn-login-submit');
                 const originalText = loginBtn.innerHTML;
                 loginBtn.disabled = true;
@@ -1416,42 +1421,74 @@ class AttendanceApp {
 
                 try {
                     await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
+                    // If connection was offline/timed out but now works, re-initialize Firestore
+                    if (!this.useFirestore) {
+                        this.initFirestore();
+                        await this.loadDatabase();
+                    }
                     loginBtn.disabled = false;
                     loginBtn.innerHTML = originalText;
-                    doLoginSuccess();
+                    await doLoginSuccess();
                 } catch (err) {
-                    // Modern Firebase Auth v10 returns 'auth/invalid-credential' for both wrong password and user-not-found.
-                    if ((err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') && passwordInput === expectedPassword) {
-                        try {
-                            // First time login - auto-create account in Firebase Auth
-                            await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                    if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                        if (passwordInput === expectedPassword) {
+                            try {
+                                // First time login - auto-create account in Firebase Auth
+                                await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                                if (!this.useFirestore) {
+                                    this.initFirestore();
+                                    await this.loadDatabase();
+                                }
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                                await doLoginSuccess();
+                            } catch (createErr) {
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                                if (createErr.code === 'auth/email-already-in-use') {
+                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (กรุณาใช้รหัสผ่านล่าสุดของคุณ)!');
+                                } else {
+                                    console.error("Auto-provisioning failed:", createErr);
+                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', "เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
+                                }
+                            }
+                        } else {
                             loginBtn.disabled = false;
                             loginBtn.innerHTML = originalText;
-                            doLoginSuccess();
-                        } catch (createErr) {
-                            if (createErr.code === 'auth/email-already-in-use') {
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
-                                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านคลาวด์ไม่ถูกต้อง (กรุณาใช้รหัสผ่านล่าสุดของคุณ)!');
-                            } else {
-                                console.error("Auto-provisioning failed:", createErr);
-                                alert("เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
+                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
+                        }
+                    } else if (err.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
+                        try {
+                            await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
+                            if (!this.useFirestore) {
+                                this.initFirestore();
+                                await this.loadDatabase();
                             }
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            await doLoginSuccess();
+                        } catch (createErr) {
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            console.error("Auto-provisioning failed:", createErr);
+                            this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', "เกิดข้อผิดพลาดในการลงทะเบียนบัญชีความปลอดภัย: " + createErr.message);
                         }
                     } else {
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
-                        if (err.code === 'auth/wrong-password' || passwordInput !== expectedPassword) {
+                        // Network error or connection timeout
+                        console.warn("Firebase auth error, checking offline credentials:", err);
+                        if (passwordInput !== expectedPassword) {
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
                             this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
                         } else {
-                            console.error("Firebase auth error:", err);
-                            alert("เกิดข้อผิดพลาดจากระบบรักษาความปลอดภัย: " + err.message);
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                            await doLoginSuccess();
                         }
                     }
                 }
             } else {
+                // Truly offline login (local check)
                 if (passwordInput !== expectedPassword) {
                     this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง!');
                     return;
