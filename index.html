@@ -247,7 +247,7 @@
                                     <th>ไฟเบอร์ ทรงพลัง (ฐาน 1)</th>
                                     <th>อาณาจักรอักษร (ฐาน 2)</th>
                                     <th>เงาในน้ำ (ฐาน 3)</th>
-                                    <th>สวนเศรษฐกิจพอเพียง (ฐาน 4)</th>
+                                    <th>ไก่ไข่อารมณ์ดี (ฐาน 4)</th>
                                     <th>หรรษาสุธารสเห็ด (ฐาน 5)</th>
                                     <th>ต้นกล้าประชาธิปไตย (ฐาน 6)</th>
                                     <th>หลู่ส่างกานเครือ เกื้อบุญ (ฐาน 7)</th>
@@ -1170,56 +1170,46 @@
         <div class="modal-content" style="max-width: 420px;">
             <div class="modal-header">
                 <h3>เข้าสู่ระบบผู้ใช้งาน</h3>
-                <button class="modal-close" onclick="app.closeModal('login-modal')"><i class="fa-solid fa-xmark"></i></button>
+                <button type="button" class="modal-close" onclick="app.closeModal('login-modal')"><i class="fa-solid fa-xmark"></i></button>
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="login-user-select">เลือกบทบาท / รายชื่อผู้สอนเพื่อจำลอง Login</label>
-                    <select id="login-user-select" style="width: 100%;">
-                        <option value="" disabled selected>-- เลือกสิทธิ์การใช้งาน --</option>
-                        <optgroup label="ครูประจำฐานการเรียนรู้">
-                            <option value="nattawadee">นางสาวณัฐวดี เขียวภูมิชัย (ฐาน ไฟเบอร์ ทรงพลัง)</option>
-                            <option value="praeploy">นางสาวแพรพลอย บุศยาณิน (ฐาน อาณาจักรอักษร)</option>
-                            <option value="arnon">นายอานนท์ ตื้อจันตา (ฐาน เงาในน้ำ)</option>
-                            <option value="nattapong">นายณัฐพงศ์ หาญพอ (ฐาน ไก่ไข่อารมณ์ดี)</option>
-                            <option value="pattaya">นางสาวพัทยา ยะมะโน (ฐาน หรรษาสุธารสเห็ด)</option>
-                            <option value="tidarat">นางสาวธิดารัตน์ วงศ์ใหญ่ (ฐาน ต้นกล้าประชาธิปไตย)</option>
-                            <option value="apiradee">นางอภิระดี เพ่งพิศ (ฐาน หลู่ส่างกานเครือ เกื้อบุญ)</option>
-                        </optgroup>
-                        <optgroup label="ผู้ดูแลระบบ (Admin)">
-                            <option value="admin">นางสาวเจนประภา เรือนคำ (แอดมิน)</option>
-                        </optgroup>
-                        <optgroup label="ผู้บริหารโรงเรียน (Executive)">
-                            <option value="director">นายปุรเชษฐ์ มธุรส (ผู้อำนวยการ)</option>
-                            <option value="deputy1">นางสาวกษมา อุดทาเรือน (รองผู้อำนวยการ 1)</option>
-                            <option value="deputy2">นางสาวหัสดาภรณ์ พรหมคำติ๊บ (รองผู้อำนวยการ 2)</option>
-                        </optgroup>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="login-password">รหัสผ่าน</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="login-password" placeholder="กรอกรหัสผ่าน..." style="width: 100%;">
-                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('login-password', this)">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
+            <form id="login-form" onsubmit="event.preventDefault();">
+                <div class="modal-body">
+                    <div class="form-group" style="position: relative;">
+                        <label for="login-username">ชื่อผู้ใช้งาน หรือ ชื่อคุณครู</label>
+                        <div class="username-wrapper">
+                            <input type="text" id="login-username" name="username" placeholder="พิมพ์ชื่อ/ชื่อผู้ใช้ หรือคลิกเพื่อเลือก..." autocomplete="username" style="width: 100%; padding-right: 40px;" required>
+                            <button type="button" class="password-toggle-btn" id="btn-username-dropdown" style="right: 10px; color: var(--text-secondary); height: 30px; width: 30px;">
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
+                        </div>
+                        <div class="username-suggestions" id="login-username-suggestions" style="display: none;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">รหัสผ่าน</label>
+                        <div class="password-wrapper">
+                            <input type="password" id="login-password" name="password" placeholder="กรอกรหัสผ่าน..." autocomplete="current-password" style="width: 100%;" required>
+                            <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('login-password', this)">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="login-loading-status" style="display: none; margin-top: 15px; padding: 12px; border-radius: var(--radius-sm); background-color: #F8FAFC; border: 1px solid var(--border-color); text-align: center;">
+                        <div style="color: var(--text-primary); font-weight: 600; margin-bottom: 8px;" id="login-loading-text-container">
+                            <i class="fa-solid fa-spinner fa-spin text-primary"></i> <span id="login-loading-text">กำลังโหลดข้อมูลผู้ใช้...</span>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" id="btn-login-retry" style="display: none; margin: 4px auto 0 auto;" onclick="app.retryLoginProfileLoad(event)">ลองใหม่อีกครั้ง</button>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: 13px;">
+                        <a href="#" onclick="app.tryReconnectCloudFromLogin(event)" style="color: #FF6F00; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-rotate"></i> ลองเชื่อมต่อใหม่</a>
+                        <a href="#" onclick="app.clearSystemCache(event)" style="color: var(--danger); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-trash-can"></i> ล้างแคชระบบ</a>
                     </div>
                 </div>
-                <div id="login-loading-status" style="display: none; margin-top: 15px; padding: 12px; border-radius: var(--radius-sm); background-color: #F8FAFC; border: 1px solid var(--border-color); text-align: center;">
-                    <div style="color: var(--text-primary); font-weight: 600; margin-bottom: 8px;" id="login-loading-text-container">
-                        <i class="fa-solid fa-spinner fa-spin text-primary"></i> <span id="login-loading-text">กำลังโหลดข้อมูลผู้ใช้...</span>
-                    </div>
-                    <button class="btn btn-outline btn-sm" id="btn-login-retry" style="display: none; margin: 4px auto 0 auto;" onclick="app.retryLoginProfileLoad(event)">ลองใหม่อีกครั้ง</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="app.closeModal('login-modal')">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary" id="btn-login-submit">ตกลงเข้าสู่ระบบ</button>
                 </div>
-                <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: 13px;">
-                    <a href="#" onclick="app.tryReconnectCloudFromLogin(event)" style="color: #FF6F00; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-rotate"></i> ลองเชื่อมต่อใหม่</a>
-                    <a href="#" onclick="app.clearSystemCache(event)" style="color: var(--danger); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-trash-can"></i> ล้างแคชระบบ</a>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-outline" onclick="app.closeModal('login-modal')">ยกเลิก</button>
-                <button class="btn btn-primary" id="btn-login-submit">ตกลงเข้าสู่ระบบ</button>
-            </div>
+            </form>
+        </div>
         </div>
     </div>
 

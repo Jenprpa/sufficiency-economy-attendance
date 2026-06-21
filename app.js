@@ -50,6 +50,7 @@ class AttendanceApp {
 
             // 2. Bind DOM Events
             this.bindEvents();
+            this.setupLoginAutoComplete();
 
             // 3. Sync Simulator Date
             document.getElementById('system-date-input').value = this.systemDate;
@@ -110,24 +111,32 @@ class AttendanceApp {
             this.useFirestore = true;
             console.log("Firebase Firestore initialized successfully.");
 
-            // Enable offline persistence for faster subsequent loads
-            this.firestore.enablePersistence()
-                .catch(err => {
-                    console.warn("Firestore persistence error:", err.code);
-                });
+            // Enable offline persistence for faster subsequent loads (wrapped in try/catch for Samsung/private mode compatibility)
+            try {
+                this.firestore.enablePersistence()
+                    .catch(err => {
+                        console.warn("Firestore persistence error:", err.code);
+                    });
+            } catch (persistErr) {
+                console.warn("Firestore enablePersistence crashed synchronously:", persistErr);
+            }
 
-            // Listen for Firebase Auth state changes
+            // Set Auth persistence explicitly to LOCAL (with safety wrappers)
+            try {
+                firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+                    .catch(err => {
+                        console.warn("Firebase Auth setPersistence error:", err);
+                    });
+            } catch (authPersistErr) {
+                console.warn("Firebase Auth setPersistence crashed synchronously:", authPersistErr);
+            }
+
+            // Listen for Firebase Auth state changes (does not forcefully log out anymore to separate Authn and Authz)
             firebase.auth().onAuthStateChanged(user => {
                 if (user) {
                     this.syncFirebaseUser();
                 } else {
-                    if (this.currentUser) {
-                        this.currentUser = null;
-                        sessionStorage.removeItem('school_current_user');
-                        this.updateUserUI();
-                        this.switchView('dashboard');
-                        setTimeout(() => this.openModal('login-modal'), 500);
-                    }
+                    console.log("[Firebase Auth] State: No active cloud session / Offline");
                 }
             });
         } catch (e) {
@@ -146,6 +155,7 @@ class AttendanceApp {
                 const prevUser = this.currentUser;
                 this.currentUser = dbUser;
                 sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
+                localStorage.setItem('school_current_user', JSON.stringify(dbUser));
                 this.updateUserUI();
                 if (!prevUser) {
                     this.render();
@@ -452,8 +462,9 @@ class AttendanceApp {
                 this.updateFirestoreConnectionStatus(false);
             }
         }
-
+        
         this.loadDatabaseFromLocalStorage();
+        this.populateLoginSuggestions();
     }
 
     loadDatabaseFromLocalStorage() {
@@ -483,6 +494,7 @@ class AttendanceApp {
             this.db.staging_logs = stagingLogs ? JSON.parse(stagingLogs) : [];
             this.runMigrationChecks();
         }
+        this.populateLoginSuggestions();
     }
 
     async loadDatabaseFromCloudInBackground() {
@@ -561,6 +573,7 @@ class AttendanceApp {
                 this.updateFirestoreConnectionStatus(true);
                 this.updateStagingBadgeCount();
                 this.render();
+                this.populateLoginSuggestions();
                 console.log("[Background Sync] Firestore database sync complete!");
             }
         } catch (e) {
@@ -1067,7 +1080,7 @@ class AttendanceApp {
             { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "นางสาวณัฐวดี เขียวภูมิชัย, นายปุญญพัฒน์ ธิมา, นางสาวเพ็ญศิริ วงค์เทพ, นางสาววิพิมพ์สาย หิ่งคำ, นางสาวนัฎฐิดา ปันงาม, นางสาวเกียรติติมา มณีวรรณ, นางสาวจริยา ทวีกิจสถาพร, นางประไพศรี กำแพงแก้ว, นางสาวณัฐกาญจน์ แก้วสุวรรณ, นางสาวพิมพ์ประภา เสาสวัสดิ์", teacherId: "nattawadee, punyapat, phensiri, wipimsai, nattida, kiattima, jariya, prapaisri, nattakarn, pimprabha" },
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "นางสาวแพรพลอย บุศยาณิน, นางสาวภัทรา กันทะคำ, นางสาวปัทมา หาญยศ, นางสาวศุทธินี โภชพิพิธ, นางธัญญาธร ศิริสุภาศักดิ์, นางสาวปิยดา ปวงฟู, นางสาวจิรภา พันธ์ธรรม, นางสาวธัญกร ยอดทอง, นายเกษมสันต์ จอมพิจิตร, นางสาวอภิชญา สุขแสงงาม", teacherId: "praeploy, pattra, patama, suthinee, thanyathorn, piyada, jirapha, thanyakorn, kasemsan, apichaya" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "นายอานนท์ ตื้อจันตา, นายไชโย ธัมหมื่นยอง, นายนวพรรษ พุทธิปา, นายวชิร ยะถามกรรม, นางสาวสุนทรี จิโนบัว, นางหัตถยาภรณ์ เอกจีน, นางสาวกุลปริยา รอดสุวรรณ, นางสาวกชกร รัตนศาสตร์ชาญ, นางสาวอังคนา วงค์คำ, นายภูวดล สุระจินดา", teacherId: "arnon, chaiyo, nawaphat, wachira, suntree, hattayaporn, kulpriya, kodchakorn, angkana_w, phuwadol" },
-            { id: "base4", name: "สวนเศรษฐกิจพอเพียง", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
             { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
@@ -1179,7 +1192,7 @@ class AttendanceApp {
             { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "นางสาวณัฐวดี เขียวภูมิชัย, นายปุญญพัฒน์ ธิมา, นางสาวเพ็ญศิริ วงค์เทพ, นางสาววิพิมพ์สาย หิ่งคำ, นางสาวนัฎฐิดา ปันงาม, นางสาวเกียรติติมา มณีวรรณ, นางสาวจริยา ทวีกิจสถาพร, นางประไพศรี กำแพงแก้ว, นางสาวณัฐกาญจน์ แก้วสุวรรณ, นางสาวพิมพ์ประภา เสาสวัสดิ์", teacherId: "nattawadee, punyapat, phensiri, wipimsai, nattida, kiattima, jariya, prapaisri, nattakarn, pimprabha" },
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "นางสาวแพรพลอย บุศยาณิน, นางสาวภัทรา กันทะคำ, นางสาวปัทมา หาญยศ, นางสาวศุทธินี โภชพิพิธ, นางธัญญาธร ศิริสุภาศักดิ์, นางสาวปิยดา ปวงฟู, นางสาวจิรภา พันธ์ธรรม, นางสาวธัญกร ยอดทอง, นายเกษมสันต์ จอมพิจิตร, นางสาวอภิชญา สุขแสงงาม", teacherId: "praeploy, pattra, patama, suthinee, thanyathorn, piyada, jirapha, thanyakorn, kasemsan, apichaya" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "นายอานนท์ ตื้อจันตา, นายไชโย ธัมหมื่นยอง, นายนวพรรษ พุทธิปา, นายวชิร ยะถามกรรม, นางสาวสุนทรี จิโนบัว, นางหัตถยาภรณ์ เอกจีน, นางสาวกุลปริยา รอดสุวรรณ, นางสาวกชกร รัตนศาสตร์ชาญ, นางสาวอังคนา วงค์คำ, นายภูวดล สุระจินดา", teacherId: "arnon, chaiyo, nawaphat, wachira, suntree, hattayaporn, kulpriya, kodchakorn, angkana_w, phuwadol" },
-            { id: "base4", name: "สวนเศรษฐกิจพอเพียง", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "นายณัฐพงศ์ หาญพอ, นางณรฎา มธุรส, นายถนอมศักดิ์ กิตติเลิศภักดีกุล, นายปฎิภาณ ใจซื่อ, นายณรงค์ เชียงแก้ว, นายอนวัช ซอแอ, นางสาวนาฎนารี มณีแก้ว, นายปัจเจก จันทรเสนาวงค์, นายศุภลักษณ์ ไชโย, นางสาวสุพรรณี จิตเมตตาบริสุทธิ์", teacherId: "nattapong, narada, thanomsak, patiphan, narong_c, anawat, natnaree, patjek, supaluck, supannee" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103, ห้อง 1105, ห้องคหกรรม", defaultTeacher: "นางสาวพัทยา ยะมะโน, นางสาวศิวพร รุ่งเรือง, นางสาวเพชรดารินทร์ เดชชลธี, นางสาวธัญชนก พงษ์ศรี, นางสาวปาริชาติ แก้วศักดิ์, นางดวงสุดา เรืองวุฒิ, นายสัมฤทธิ์ ไชยทารินทร์, นางสาวเจนประภา เรือนคำ, นายพงศ์ภัค มงคลจรรยาภัค, นายก้องภพ มูลศรี", teacherId: "pattaya, siwaporn, phetcharin, thanchanok, parichart, duangsuda, samrit, admin, pongpak, kongphop" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "นางสาวธิดารัตน์ วงศ์ใหญ่, นายสหภูมิ ตั้งตรง, นายสว่าง มัศยวรรณ, นายสุปิยะ ศักดิ์ภิรมย์, นางสาวจันทนีย์ เฮิมนาง, นายปราบตะวัน สุรินทร์, นายชิษณุพงศ์ วงศ์เสน, นางสาวรังสิยา ชัชวงศ์, นายวรัญญู วิไลกุล, นางสาวภัทรรพินท์ พงศ์ธนะลีลา, นางสาวพัชราภรณ์ หล้าแก้ว", teacherId: "tidarat, sahaphum, sawang, supiya, jantanee, prabtawan, chitsanupong, rangsiya, waranyu, phattarapin, patcharaporn" },
             { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "นางอภิระดี เพ่งพิศ, นายณรงค์ฤทธิ์ หงษ์อารีย์, นางรจนา พุทธิ, นางธัญญรัตน์ เทศมี, นางศิริวัฒนา ยุ้งทอง, ว่าที่ร้อยตรีวีรพงศ์ แสงแฝง, นางสาวเกษศิณี จันพรมมิน, นางสาวธัญลักษณ์ เกตุ้ย, นางสาวอังคนา คำป้อ, นางสาววรนุช คีรีเลิศธรรม, นางสาวภิญญาพัชร์ บุญเป", teacherId: "apiradee, narongrit, rotjana, thanyarat, siriwattana, weerapong, katsinee, thanyaluck, angkana_k, woranuch, pinyapat" }
@@ -1426,7 +1439,7 @@ class AttendanceApp {
             { id: "base1", name: "ไฟเบอร์ ทรงพลัง", defaultRoom: "หอประชุมพุทธรักษา", defaultTeacher: "", teacherId: "" },
             { id: "base2", name: "อาณาจักรอักษร", defaultRoom: "ห้อง 2206", defaultTeacher: "", teacherId: "" },
             { id: "base3", name: "เงาในน้ำ", defaultRoom: "ห้อง 1208", defaultTeacher: "", teacherId: "" },
-            { id: "base4", name: "สวนเศรษฐกิจพอเพียง", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
+            { id: "base4", name: "ไก่ไข่อารมณ์ดี", defaultRoom: "ห้อง 2101", defaultTeacher: "", teacherId: "" },
             { id: "base5", name: "หรรษาสุธารสเห็ด", defaultRoom: "ห้อง 1103", defaultTeacher: "", teacherId: "" },
             { id: "base6", name: "ต้นกล้าประชาธิปไตย", defaultRoom: "ห้อง 2301", defaultTeacher: "", teacherId: "" },
             { id: "base7", name: "หลู่ส่างกานเครือ เกื้อบุญ", defaultRoom: "หอประชุมสุภเมธี", defaultTeacher: "", teacherId: "" }
@@ -1443,6 +1456,7 @@ class AttendanceApp {
         // Clear active session to force login again
         this.currentUser = null;
         sessionStorage.removeItem('school_current_user');
+        localStorage.removeItem('school_current_user');
         this.updateUserUI();
 
         this.showStatusModal('success', 'ล้างข้อมูลระบบสำเร็จ', 'ระบบอยู่ในสภาวะว่างสำหรับการกรอกข้อมูลจริงเรียบร้อยแล้ว<br><small style="color:var(--text-secondary);">กรุณาเข้าสู่ระบบด้วยบัญชีแอดมินเพื่อนำเข้าข้อมูลนักเรียนและตารางสอน</small>');
@@ -1502,9 +1516,13 @@ class AttendanceApp {
             }
         });
 
-        document.getElementById('btn-login-submit').addEventListener('click', () => {
-            this.login();
-        });
+        const loginForm = document.getElementById('login-form');
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.login();
+            });
+        }
 
         // Checkin Controls
         document.getElementById('btn-check-all-present').addEventListener('click', () => {
@@ -1745,17 +1763,192 @@ class AttendanceApp {
     }
 
 
+    populateLoginSuggestions() {
+        const container = document.getElementById('login-username-suggestions');
+        if (!container) return;
+
+        // Clear existing suggestions
+        container.innerHTML = '';
+
+        if (!this.db || !this.db.teachers) return;
+
+        // Group teachers
+        const admins = this.db.teachers.filter(t => t.role === 'admin');
+        const executives = this.db.teachers.filter(t => t.role === 'director');
+        const baseTeachers = [];
+        const otherTeachers = [];
+
+        // Find which teachers are assigned to bases
+        const baseTeacherUsernames = new Set();
+        if (this.db.bases) {
+            this.db.bases.forEach(b => {
+                if (b.teacherId) {
+                    b.teacherId.split(',').forEach(id => {
+                        baseTeacherUsernames.add(id.trim());
+                    });
+                }
+            });
+        }
+
+        this.db.teachers.forEach(t => {
+            if (t.role === 'admin' || t.role === 'director') return;
+            if (baseTeacherUsernames.has(t.username)) {
+                baseTeachers.push(t);
+            } else {
+                otherTeachers.push(t);
+            }
+        });
+
+        // Sort lists alphabetically by name
+        const sortByName = (a, b) => a.name.localeCompare(b.name, 'th');
+        admins.sort(sortByName);
+        executives.sort(sortByName);
+        baseTeachers.sort(sortByName);
+        otherTeachers.sort(sortByName);
+
+        const createSection = (title, list) => {
+            if (list.length === 0) return;
+            const header = document.createElement('div');
+            header.className = 'suggestion-group-title';
+            header.textContent = title;
+            container.appendChild(header);
+
+            list.forEach(u => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.dataset.username = u.username;
+                
+                // Find base name if any
+                let subtitle = '';
+                if (u.role === 'admin') subtitle = 'ผู้ดูแลระบบ';
+                else if (u.role === 'director') subtitle = 'ผู้บริหารโรงเรียน';
+                else {
+                    const base = this.db.bases ? this.db.bases.find(b => b.teacherId && b.teacherId.includes(u.username)) : null;
+                    subtitle = base ? `ครูประจำฐาน: ${base.name}` : 'คุณครู';
+                }
+
+                item.innerHTML = `
+                    <div class="suggestion-item-name">${u.name}</div>
+                    <div class="suggestion-item-sub">${u.username} | ${subtitle}</div>
+                `;
+                item.addEventListener('mousedown', (e) => {
+                    // Prevent input blur before click executes
+                    e.preventDefault();
+                });
+                item.addEventListener('click', () => {
+                    const input = document.getElementById('login-username');
+                    if (input) {
+                        input.value = u.name;
+                        input.dataset.selectedUsername = u.username;
+                    }
+                    container.style.display = 'none';
+                    
+                    // Put focus on password field for quick navigation
+                    const pwdInput = document.getElementById('login-password');
+                    if (pwdInput) pwdInput.focus();
+                });
+                container.appendChild(item);
+            });
+        };
+
+        createSection('ผู้ดูแลระบบ (Admin) & ผู้บริหาร (Executive)', [...admins, ...executives]);
+        createSection('ครูประจำฐานการเรียนรู้ (Base Teachers)', baseTeachers);
+        createSection('คุณครูอื่น ๆ (All Teachers)', otherTeachers);
+    }
+
+    setupLoginAutoComplete() {
+        const input = document.getElementById('login-username');
+        const container = document.getElementById('login-username-suggestions');
+        const triggerBtn = document.getElementById('btn-username-dropdown');
+
+        if (!input || !container) return;
+
+        const filterSuggestions = () => {
+            const query = input.value.toLowerCase().trim();
+            const items = container.querySelectorAll('.suggestion-item');
+            let hasVisible = false;
+
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                const username = item.dataset.username.toLowerCase();
+                if (text.includes(query) || username.includes(query)) {
+                    item.style.display = 'block';
+                    hasVisible = true;
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+
+            // Hide empty group headers
+            const groups = container.querySelectorAll('.suggestion-group-title');
+            groups.forEach(group => {
+                let next = group.nextElementSibling;
+                let groupHasVisible = false;
+                while (next && !next.classList.contains('suggestion-group-title')) {
+                    if (next.style.display !== 'none') {
+                        groupHasVisible = true;
+                    }
+                    next = next.nextElementSibling;
+                }
+                group.style.display = groupHasVisible ? 'block' : 'none';
+            });
+
+            container.style.display = hasVisible ? 'block' : 'none';
+        };
+
+        input.addEventListener('focus', () => {
+            this.populateLoginSuggestions();
+            container.style.display = 'block';
+            filterSuggestions();
+        });
+
+        input.addEventListener('input', () => {
+            // Clear selected data attribute if typed text doesn't match
+            input.removeAttribute('data-selected-username');
+            filterSuggestions();
+        });
+
+        // Close dropdown when blurring input or clicking outside
+        input.addEventListener('blur', () => {
+            // Delay closing slightly so click handler can fire on suggestion items
+            setTimeout(() => {
+                container.style.display = 'none';
+            }, 200);
+        });
+
+        if (triggerBtn) {
+            triggerBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (container.style.display === 'none' || container.style.display === '') {
+                    this.populateLoginSuggestions();
+                    container.style.display = 'block';
+                    filterSuggestions();
+                    input.focus();
+                } else {
+                    container.style.display = 'none';
+                }
+            });
+        }
+    }
+
     // Load auth session
     loadSession() {
-        const savedUser = sessionStorage.getItem('school_current_user');
+        let savedUser = localStorage.getItem('school_current_user');
+        if (!savedUser) {
+            savedUser = sessionStorage.getItem('school_current_user');
+        }
         if (savedUser) {
             this.currentUser = JSON.parse(savedUser);
             
             // Sync session user state with updated database values
-            const dbUser = this.db.teachers.find(t => t.username === this.currentUser.username);
-            if (dbUser && (dbUser.name !== this.currentUser.name || dbUser.role !== this.currentUser.role)) {
-                this.currentUser = dbUser;
-                sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
+            if (this.db && this.db.teachers) {
+                const dbUser = this.db.teachers.find(t => t.username === this.currentUser.username);
+                if (dbUser && (dbUser.name !== this.currentUser.name || dbUser.role !== this.currentUser.role || dbUser.password !== this.currentUser.password)) {
+                    this.currentUser = dbUser;
+                    localStorage.setItem('school_current_user', JSON.stringify(dbUser));
+                    sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
+                }
             }
             
             this.updateUserUI();
@@ -1778,6 +1971,7 @@ class AttendanceApp {
     async completeLogin(userObj) {
         this.currentUser = userObj;
         sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
+        localStorage.setItem('school_current_user', JSON.stringify(userObj));
         
         if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
             if (!userObj.isAuthCreated) {
@@ -1893,16 +2087,34 @@ class AttendanceApp {
 
     // Login logic
     async login() {
-        const userSelect = document.getElementById('login-user-select');
-        const selectedId = userSelect.value;
+        const usernameInput = document.getElementById('login-username');
+        if (!usernameInput) return;
+
+        let selectedId = usernameInput.dataset.selectedUsername;
         if (!selectedId) {
-            alert("กรุณาเลือกชื่อผู้ใช้งาน/คุณครู!");
+            // If they typed manually or browser autofilled:
+            const rawVal = usernameInput.value.trim().toLowerCase();
+            // Try to find by username first, then by name
+            const foundUser = this.db.teachers.find(t => 
+                t.username.toLowerCase() === rawVal || 
+                t.name.toLowerCase() === rawVal ||
+                t.name.replace(/^(นาย|นางสาว|นาง|ครู)/, '').toLowerCase() === rawVal.replace(/^(นาย|นางสาว|นาง|ครู)/, '').toLowerCase()
+            );
+            if (foundUser) {
+                selectedId = foundUser.username;
+            } else {
+                selectedId = rawVal; // fallback
+            }
+        }
+
+        if (!selectedId) {
+            alert("กรุณาระบุชื่อผู้ใช้งาน หรือเลือกจากรายการ!");
             return;
         }
 
-        const userObj = this.db.teachers.find(t => t.username === selectedId);
+        const userObj = this.db.teachers.find(t => t.username.toLowerCase() === selectedId.toLowerCase());
         if (!userObj) {
-            this.showStatusModal('error', 'ไม่พบโปรไฟล์ผู้ใช้', 'ไม่พบข้อมูลผู้ใช้นี้ในระบบสำรอง กรุณาลองล้างแคชระบบ');
+            this.showStatusModal('error', 'ไม่พบโปรไฟล์ผู้ใช้', 'ไม่พบข้อมูลผู้ใช้นี้ในระบบสำรอง กรุณาตรวจสอบชื่อผู้ใช้');
             return;
         }
 
@@ -1915,9 +2127,14 @@ class AttendanceApp {
 
         const hasNetwork = navigator.onLine;
         
+        // Local validation logic (for offline or fallback)
+        const validatePasswordLocally = () => {
+            return passwordInput === expectedPassword;
+        };
+
         if (!hasNetwork) {
             console.log("[Login Flow] Cache fallback used: YES (Offline login)");
-            if (passwordInput === expectedPassword) {
+            if (validatePasswordLocally()) {
                 alert("เข้าสู่ระบบสำเร็จในโหมดออฟไลน์ (ข้อมูลจะถูกจัดเก็บในเครื่องชั่วคราวและซิงค์เมื่อมีเน็ต)");
                 await this.completeLogin(userObj);
             } else {
@@ -1927,9 +2144,11 @@ class AttendanceApp {
         }
 
         const loginBtn = document.getElementById('btn-login-submit');
-        const originalText = loginBtn.innerHTML;
-        loginBtn.disabled = true;
-        loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบรหัสผ่านคลาวด์...';
+        const originalText = loginBtn ? loginBtn.innerHTML : 'ตกลงเข้าสู่ระบบ';
+        if (loginBtn) {
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังตรวจสอบรหัสผ่านคลาวด์...';
+        }
 
         // Hide and reset status elements inside modal
         const loadingStatus = document.getElementById('login-loading-status');
@@ -1938,13 +2157,30 @@ class AttendanceApp {
         if (loadingStatus) loadingStatus.style.display = 'none';
         if (retryBtn) retryBtn.style.display = 'none';
 
+        // 6-second timeout helper for promises
+        const withTimeout = (promise, ms, name) => {
+            const timeout = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error(`${name} timeout`)), ms)
+            );
+            return Promise.race([promise, timeout]);
+        };
+
         try {
-            // 1. Authenticate with Firebase Auth
-            await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
-            console.log("[Login Flow] Firebase Auth Status: SUCCESS");
+            // 1. Authenticate with Firebase Auth (with 6s timeout)
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                console.log("[Login Flow] Attempting cloud authentication...");
+                await withTimeout(
+                    firebase.auth().signInWithEmailAndPassword(email, passwordInput),
+                    6000,
+                    "Auth"
+                );
+                console.log("[Login Flow] Firebase Auth Status: SUCCESS");
+            } else {
+                throw new Error("Firebase SDK not loaded");
+            }
             
             // 2. Auth succeeded, now load or restore Firestore connection
-            loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูลโปรไฟล์...';
+            if (loginBtn) loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูลโปรไฟล์...';
             
             if (loadingStatus) loadingStatus.style.display = 'block';
             if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
@@ -1959,20 +2195,24 @@ class AttendanceApp {
 
             try {
                 this.initFirestore();
-                await this.loadDatabase(20000); // 20 seconds timeout for login flow
+                await this.loadDatabase(15000); // 15 seconds timeout for profile load
                 console.log("[Login Flow] Firestore User Profile Load: SUCCESS");
                 
                 clearTimeout(retryTimer);
                 if (loadingStatus) loadingStatus.style.display = 'none';
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = originalText;
+                if (loginBtn) {
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = originalText;
+                }
                 this.pendingLoginUser = null;
                 await this.completeLogin(userObj);
             } catch (firestoreErr) {
                 console.error("[Login Flow] Firestore User Profile Load: FAIL, Error:", firestoreErr);
                 clearTimeout(retryTimer);
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = originalText;
+                if (loginBtn) {
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = originalText;
+                }
                 this.pendingLoginUser = null;
                 
                 if (loadingStatus) loadingStatus.style.display = 'none';
@@ -1983,30 +2223,37 @@ class AttendanceApp {
             }
             
         } catch (authErr) {
-            console.log("[Login Flow] Firebase Auth Status: FAIL, Error Code:", authErr.code);
-            loginBtn.disabled = false;
-            loginBtn.innerHTML = originalText;
+            console.log("[Login Flow] Cloud Auth Failed or Timed out. Error:", authErr.message);
+            if (loginBtn) {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalText;
+            }
 
-            const isNetworkError = authErr.code === 'auth/network-request-failed' || 
+            const isTimeout = authErr.message && authErr.message.includes('timeout');
+            const isNetworkError = isTimeout || 
+                                   authErr.code === 'auth/network-request-failed' || 
                                    authErr.code === 'auth/timeout' || 
-                                   authErr.message.includes('timeout') ||
-                                   authErr.message.includes('network');
+                                   authErr.message.includes('network') ||
+                                   authErr.message.includes('failed');
 
+            // If it is a network error or timeout, try local authentication
             if (isNetworkError) {
-                if (passwordInput === expectedPassword) {
-                    alert("การเชื่อมต่อคลาวด์ขัดข้อง: เข้าสู่ระบบสำเร็จโดยใช้ฐานข้อมูลในเครื่องชั่วคราว");
+                if (validatePasswordLocally()) {
+                    alert("การเชื่อมต่อคลาวด์ขัดข้องหรือล่าช้า: เข้าสู่ระบบสำเร็จโดยใช้ฐานข้อมูลในเครื่องชั่วคราว");
                     await this.completeLogin(userObj);
                 } else {
-                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ และรหัสผ่านที่ป้อนไม่ถูกต้อง');
+                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์คลาวด์ได้ และรหัสผ่านที่ป้อนไม่ถูกต้อง');
                 }
                 return;
             }
 
-            // Handle wrong passwords / auto-provisioning
+            // Handle wrong passwords / auto-provisioning (only if online and credentials rejected)
             if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-                if (passwordInput === expectedPassword) {
-                    loginBtn.disabled = true;
-                    loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสร้างบัญชีความปลอดภัยใหม่...';
+                if (validatePasswordLocally()) {
+                    if (loginBtn) {
+                        loginBtn.disabled = true;
+                        loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสร้างบัญชีความปลอดภัยใหม่...';
+                    }
                     try {
                         await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
                         console.log("[Login Flow] Auto-provisioning Account: SUCCESS");
@@ -2024,28 +2271,34 @@ class AttendanceApp {
                         this.pendingLoginUser = userObj;
 
                         try {
-                            await this.loadDatabase(20000);
+                            await this.loadDatabase(15000);
                             clearTimeout(retryTimer);
                             
                             if (loadingStatus) loadingStatus.style.display = 'none';
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
+                            if (loginBtn) {
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                            }
                             this.pendingLoginUser = null;
                             await this.completeLogin(userObj);
                         } catch (loadErr) {
                             console.error("[Login Flow] Profile load failed after auto-provision:", loadErr);
                             clearTimeout(retryTimer);
                             if (loadingStatus) loadingStatus.style.display = 'none';
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
+                            if (loginBtn) {
+                                loginBtn.disabled = false;
+                                loginBtn.innerHTML = originalText;
+                            }
                             this.pendingLoginUser = null;
                             alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
                             await this.completeLogin(userObj);
                         }
                     } catch (createErr) {
                         console.error("[Login Flow] Auto-provisioning failed:", createErr);
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
+                        if (loginBtn) {
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                        }
                         
                         const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
                                                      createErr.code === 'auth/timeout' || 
@@ -2053,19 +2306,23 @@ class AttendanceApp {
                                                      createErr.message.includes('network');
 
                         if (isCreateNetworkError) {
-                            this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                            // If auto-provision failed due to network error, complete login locally!
+                            alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากไม่สามารถลงทะเบียนคลาวด์ได้ในขณะนี้)");
+                            await this.completeLogin(userObj);
                         } else if (createErr.code === 'auth/email-already-in-use') {
                             this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง (คุณอาจเคยเปลี่ยนรหัสผ่านแล้ว กรุณาใช้รหัสผ่านล่าสุดของคุณ)');
                         } else {
-                            this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัย: ' + createErr.message);
+                            this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัยบนระบบคลาวด์: ' + createErr.message);
                         }
                     }
                 } else {
                     this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง');
                 }
-            } else if (authErr.code === 'auth/user-not-found' && passwordInput === expectedPassword) {
-                loginBtn.disabled = true;
-                loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลงทะเบียนบัญชีความปลอดภัย...';
+            } else if (authErr.code === 'auth/user-not-found' && validatePasswordLocally()) {
+                if (loginBtn) {
+                    loginBtn.disabled = true;
+                    loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลงทะเบียนบัญชีความปลอดภัย...';
+                }
                 try {
                     await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
                     this.initFirestore();
@@ -2081,28 +2338,34 @@ class AttendanceApp {
                     this.pendingLoginUser = userObj;
 
                     try {
-                        await this.loadDatabase(20000);
+                        await this.loadDatabase(15000);
                         clearTimeout(retryTimer);
                         
                         if (loadingStatus) loadingStatus.style.display = 'none';
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
+                        if (loginBtn) {
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                        }
                         this.pendingLoginUser = null;
                         await this.completeLogin(userObj);
                     } catch (loadErr) {
                         console.error("[Login Flow] Profile load failed after registration:", loadErr);
                         clearTimeout(retryTimer);
                         if (loadingStatus) loadingStatus.style.display = 'none';
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
+                        if (loginBtn) {
+                            loginBtn.disabled = false;
+                            loginBtn.innerHTML = originalText;
+                        }
                         this.pendingLoginUser = null;
                         alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
                         await this.completeLogin(userObj);
                     }
                 } catch (createErr) {
                     console.error("[Login Flow] Auto-provisioning failed:", createErr);
-                    loginBtn.disabled = false;
-                    loginBtn.innerHTML = originalText;
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                    }
 
                     const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
                                                  createErr.code === 'auth/timeout' || 
@@ -2110,14 +2373,21 @@ class AttendanceApp {
                                                  createErr.message.includes('network');
 
                     if (isCreateNetworkError) {
-                        this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                        alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากไม่สามารถลงทะเบียนคลาวด์ได้ในขณะนี้)");
+                        await this.completeLogin(userObj);
                     } else {
                         this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถสร้างบัญชีความปลอดภัย: ' + createErr.message);
                     }
                 }
             } else {
                 console.warn("[Login Flow] Network/Firebase error during auth:", authErr);
-                this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้า กรุณารอสักครู่หรือลองใหม่');
+                // Try local check as general fallback
+                if (validatePasswordLocally()) {
+                    alert("การเชื่อมต่อคลาวด์ขัดข้อง: เข้าสู่ระบบสำเร็จโดยใช้ฐานข้อมูลในเครื่องชั่วคราว");
+                    await this.completeLogin(userObj);
+                } else {
+                    this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้าหรือไม่เสถียร กรุณารอสักครู่หรือลองใหม่');
+                }
             }
         }
     }
@@ -2126,6 +2396,7 @@ class AttendanceApp {
     async logout() {
         this.currentUser = null;
         sessionStorage.removeItem('school_current_user');
+        localStorage.removeItem('school_current_user');
         if (this.useFirestore) {
             try {
                 await firebase.auth().signOut();
@@ -2304,6 +2575,7 @@ class AttendanceApp {
             t.password = newPwd;
             this.currentUser.password = newPwd;
             sessionStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
+            localStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
             this.saveDatabase(false);
             
             if (this.useFirestore && changePwdBtn) {
@@ -6123,7 +6395,7 @@ class AttendanceApp {
             if (!isWeekB) {
                 classesList.push("ม.4/6", "ม.4/7");
                 classRooms["ม.4/6"] = "ห้อง 2101";
-                classRooms["ม.4/7"] = "สวนเศรษฐกิจพอเพียง";
+                classRooms["ม.4/7"] = "ไก่ไข่อารมณ์ดี";
             } else {
                 classesList.push("ม.4/2", "ม.4/5", "ม.4/3", "ม.4/4");
                 classRooms["ม.4/2"] = "ห้อง 2201";
@@ -6132,7 +6404,7 @@ class AttendanceApp {
                 classRooms["ม.4/4"] = "ห้อง 2102-2103";
             }
             const label = !isWeekB
-                ? "ม.4/7 (สวนเศรษฐกิจพอเพียง) | ม.4/6 (ห้อง 2101)"
+                ? "ม.4/7 (ไก่ไข่อารมณ์ดี) | ม.4/6 (ห้อง 2101)"
                 : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
             return {
                 classes: classesList,
@@ -6216,7 +6488,7 @@ class AttendanceApp {
             roomB = "ห้อง 1201";
             roomC = "ห้อง 1203-1204";
             roomD = isJunior ? (grade === 'ม.3' ? "ห้อง 1205" : "ห้อง 1205-1206") : "";
-        } else if (baseId === 'base4') { // สวนเศรษฐกิจพอเพียง
+        } else if (baseId === 'base4') { // ไก่ไข่อารมณ์ดี
             roomA = "ห้อง 2101";
             roomB = "ห้อง 2201";
             roomC = "ห้อง 2102-2103";
