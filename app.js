@@ -2119,13 +2119,6 @@ class AttendanceApp {
             if (this.currentUser && this.currentUser.role === 'teacher') {
                 this.switchView('checkin');
             }
-            
-            // Force password change check on session load
-            if (this.currentUser && (this.currentUser.password === '123456' || !this.currentUser.password)) {
-                setTimeout(() => {
-                    this.openChangePasswordModal(true);
-                }, 1000);
-            }
         } else {
             // Auto show login modal if not logged in to guide users
             setTimeout(() => {
@@ -2161,15 +2154,6 @@ class AttendanceApp {
             this.switchView('admin');
         } else {
             this.switchView('checkin');
-        }
-
-        // Check if using default password, force them to change password
-        const isDefaultPassword = userObj.password === '123456' || !userObj.password;
-        if (isDefaultPassword) {
-            setTimeout(() => {
-                alert("ระบบบังคับเปลี่ยนรหัสผ่าน: เนื่องจากรหัสผ่านของคุณยังเป็นรหัสผ่านเริ่มต้น (123456) กรุณาตั้งรหัสผ่านใหม่เพื่อความปลอดภัยของข้อมูล");
-                this.openChangePasswordModal(true);
-            }, 800);
         }
     }
 
