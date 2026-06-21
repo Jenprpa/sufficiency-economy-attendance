@@ -75,13 +75,14 @@
             </button>
             
             <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i> หน้าหลัก</a>
+                <a href="#" class="nav-item active" data-view="dashboard" id="menu-dashboard"><i class="fa-solid fa-gauge-high"></i> หน้าหลัก</a>
                 <a href="#" class="nav-item" data-view="calendar" id="menu-calendar"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
                 <a href="#" class="nav-item" data-view="bases" id="menu-bases"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
                 <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-table"></i> ตารางสอน</a>
                 <a href="#" class="nav-item" data-view="search" id="menu-search"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</a>
                 <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;"><i class="fa-solid fa-user-check"></i> เช็กชื่อ</a>
                 <a href="#" class="nav-item" data-view="reports" id="menu-reports" style="display: none;"><i class="fa-solid fa-chart-simple"></i> รายงาน</a>
+                <a href="#" class="nav-item" data-view="teacher-history" id="menu-teacher-history" style="display: none;"><i class="fa-solid fa-clock-rotate-left"></i> ประวัติเช็กชื่อ</a>
                 <a href="#" class="nav-item" data-view="admin" id="menu-admin" style="display: none;"><i class="fa-solid fa-user-tie"></i> ผู้บริหาร</a>
                 <a href="#" class="nav-item" data-view="manage" id="menu-manage" style="display: none;"><i class="fa-solid fa-sliders"></i> ตั้งค่า</a>
             </nav>
@@ -334,7 +335,7 @@
                     </div>
 
                     <!-- Section: Base Teacher checkin, evaluation, and file uploads -->
-                    <div style="margin-top: 24px; border-top: 2px solid var(--border-color); padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div id="checkin-extras-section" style="margin-top: 24px; border-top: 2px solid var(--border-color); padding-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
                         <!-- Column 1: Teacher checkin & Evaluation -->
                         <div style="display: flex; flex-direction: column; gap: 16px;">
                             <div>
@@ -550,6 +551,76 @@
                                 </tr>
                             </thead>
                             <tbody id="reports-table-body">
+                                <!-- Dynamic rows loaded via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: Teacher History -->
+            <section class="view-container" id="view-teacher-history">
+                <!-- Header with summary stats -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: white; border: none; padding: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;"><i class="fa-solid fa-clock-rotate-left"></i> ประวัติการเช็กชื่อเข้าเรียน (Attendance History)</h2>
+                            <p style="opacity: 0.9;" id="teacher-history-base-info"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้: -</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="font-size: 14px; opacity: 0.9;">จำนวนบันทึกกิจกรรมทั้งหมด</p>
+                            <h3 style="font-size: 24px; font-weight: 700;" id="teacher-history-count-label">0 บันทึก</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filters & Search -->
+                <div class="filter-bar" style="margin-bottom: 24px;">
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; flex: 1; align-items: center;">
+                        <div class="filter-group" id="teacher-history-base-select-group" style="display: none;">
+                            <label for="teacher-history-base-select">เลือกฐานเรียนรู้</label>
+                            <select id="teacher-history-base-select" class="form-control" style="max-width: 300px; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: inherit; font-size: 14px;">
+                                <!-- Loaded dynamically if teacher has multiple bases -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="teacher-history-week-select">สัปดาห์เรียนที่</label>
+                            <select id="teacher-history-week-select" class="form-control" style="max-width: 150px; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: inherit; font-size: 14px;">
+                                <option value="all">ทุกสัปดาห์</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label for="teacher-history-class-select">ระดับชั้นเรียน</label>
+                            <select id="teacher-history-class-select" class="form-control" style="max-width: 150px; padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: inherit; font-size: 14px;">
+                                <option value="all">ทุกระดับชั้น</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                    </div>
+                    <div class="search-wrapper" style="align-self: flex-end; position: relative;">
+                        <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-light);"></i>
+                        <input type="text" id="teacher-history-search" placeholder="ค้นหาประวัติเช็กชื่อ..." style="padding: 8px 12px 8px 36px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-family: inherit; font-size: 14px; width: 220px;">
+                    </div>
+                </div>
+
+                <!-- History Table -->
+                <div class="card" style="padding: 24px;">
+                    <div class="table-responsive">
+                        <table id="teacher-history-table">
+                            <thead>
+                                <tr>
+                                    <th>วันที่</th>
+                                    <th>สัปดาห์</th>
+                                    <th>ห้องเรียน / ฐาน</th>
+                                    <th>มา / ทั้งหมด</th>
+                                    <th>% การเข้าเรียน</th>
+                                    <th>ครูผู้บันทึก</th>
+                                    <th>คะแนนประเมิน</th>
+                                    <th style="text-align: center;">ดูรายละเอียด / แนบไฟล์</th>
+                                </tr>
+                            </thead>
+                            <tbody id="teacher-history-tbody">
                                 <!-- Dynamic rows loaded via JS -->
                             </tbody>
                         </table>
@@ -1643,6 +1714,45 @@
                         <i class="fa-solid fa-cloud-arrow-up"></i> อนุมัติซิงก์ขึ้นคลาวด์
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: HISTORY LOGS DETAILS -->
+    <div class="modal" id="history-details-modal">
+        <div class="modal-content" style="max-width: 650px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                <h3><i class="fa-solid fa-clock-rotate-left"></i> รายละเอียดการเช็กชื่อในประวัติการเรียน</h3>
+                <button class="modal-close" style="color: white;" onclick="app.closeModal('history-details-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 20px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; font-size: 14px; background: #F8FAFC; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                    <div><strong>วันเวลาเช็กชื่อ:</strong> <span id="history-detail-date">-</span></div>
+                    <div><strong>ระดับชั้นเรียน:</strong> <span id="history-detail-class">-</span></div>
+                    <div><strong>ฐานการเรียนรู้:</strong> <span id="history-detail-base">-</span></div>
+                    <div><strong>ครูผู้บันทึก:</strong> <span id="history-detail-teacher">-</span></div>
+                </div>
+                
+                <div class="table-responsive" style="max-height: 250px; overflow-y: auto; margin-bottom: 16px;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 60px; text-align: center;">เลขที่</th>
+                                <th>รหัสนักเรียน</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th style="text-align: center;">สถานะเข้าเรียน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-detail-student-list">
+                            <!-- Dynamic rows loaded via JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="history-detail-extras"></div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+                <button class="btn btn-outline btn-sm" onclick="app.closeModal('history-details-modal')">ปิดหน้าต่าง</button>
             </div>
         </div>
     </div>

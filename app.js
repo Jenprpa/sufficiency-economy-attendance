@@ -1619,6 +1619,33 @@ class AttendanceApp {
 
     // Change views (SPA router)
     switchView(viewId) {
+        // Navigation Guard based on user role
+        if (!this.currentUser) {
+            // Guest mode
+            const guestViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search'];
+            if (!guestViews.includes(viewId)) {
+                viewId = 'dashboard';
+            }
+        } else if (this.currentUser.role === 'teacher') {
+            // Teacher mode
+            const teacherViews = ['checkin', 'teacher-history'];
+            if (!teacherViews.includes(viewId)) {
+                viewId = 'checkin';
+            }
+        } else if (this.currentUser.role === 'director') {
+            // Director mode
+            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin'];
+            if (!directorViews.includes(viewId)) {
+                viewId = 'admin';
+            }
+        } else if (this.currentUser.role === 'admin') {
+            // Admin mode
+            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage'];
+            if (!adminViews.includes(viewId)) {
+                viewId = 'manage';
+            }
+        }
+
         this.currentView = viewId;
 
         // Close hamburger menu on view switch
@@ -1644,7 +1671,8 @@ class AttendanceApp {
                 checkin: 'เช็กชื่อนักเรียนประจำฐาน',
                 admin: 'ผู้บริหารโรงเรียน (Director Overview)',
                 reports: 'รายงานและการส่งออกข้อมูล',
-                manage: 'ระบบจัดการข้อมูล (Admin Console)'
+                manage: 'ระบบจัดการข้อมูล (Admin Console)',
+                'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)'
             };
             viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
         }
@@ -1952,6 +1980,11 @@ class AttendanceApp {
             }
             
             this.updateUserUI();
+            
+            // Redirect teachers to checkin on load
+            if (this.currentUser && this.currentUser.role === 'teacher') {
+                this.switchView('checkin');
+            }
             
             // Force password change check on session load
             if (this.currentUser && (this.currentUser.password === '123456' || !this.currentUser.password)) {
@@ -2417,7 +2450,14 @@ class AttendanceApp {
         const authIcon = document.querySelector('#auth-action-btn i');
         
         // Menu item permissions references
+        const menuDashboard = document.getElementById('menu-dashboard');
+        const menuCalendar = document.getElementById('menu-calendar');
+        const menuBases = document.getElementById('menu-bases');
+        const menuRotation = document.getElementById('menu-rotation');
+        const menuSearch = document.getElementById('menu-search');
         const menuCheckin = document.getElementById('menu-checkin');
+        const menuReports = document.getElementById('menu-reports');
+        const menuTeacherHistory = document.getElementById('menu-teacher-history');
         const menuAdmin = document.getElementById('menu-admin');
         const menuManage = document.getElementById('menu-manage');
 
@@ -2440,19 +2480,42 @@ class AttendanceApp {
             
             if (this.currentUser.role === 'admin') {
                 roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
-                menuCheckin.style.display = 'block';
-                menuAdmin.style.display = 'block';
-                menuManage.style.display = 'block';
+                if (menuDashboard) menuDashboard.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuBases) menuBases.style.display = 'block';
+                if (menuRotation) menuRotation.style.display = 'block';
+                if (menuSearch) menuSearch.style.display = 'block';
+                if (menuCheckin) menuCheckin.style.display = 'block';
+                if (menuReports) menuReports.style.display = 'block';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+                if (menuAdmin) menuAdmin.style.display = 'block';
+                if (menuManage) menuManage.style.display = 'block';
             } else if (this.currentUser.role === 'director') {
                 roleLabel.textContent = "ผู้บริหารโรงเรียน";
-                menuCheckin.style.display = 'none';
-                menuAdmin.style.display = 'block';
-                menuManage.style.display = 'none'; // Hidden for directors
+                if (menuDashboard) menuDashboard.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuBases) menuBases.style.display = 'block';
+                if (menuRotation) menuRotation.style.display = 'block';
+                if (menuSearch) menuSearch.style.display = 'block';
+                if (menuCheckin) menuCheckin.style.display = 'none';
+                if (menuReports) menuReports.style.display = 'block';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+                if (menuAdmin) menuAdmin.style.display = 'block';
+                if (menuManage) menuManage.style.display = 'none';
             } else {
+                // Teacher: ONLY Login, Attendance, and Attendance History are allowed/visible.
+                // Hide all admin/guest features from teachers.
                 roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
-                menuCheckin.style.display = 'block';
-                menuAdmin.style.display = 'none';
-                menuManage.style.display = 'none';
+                if (menuDashboard) menuDashboard.style.display = 'none';
+                if (menuCalendar) menuCalendar.style.display = 'none';
+                if (menuBases) menuBases.style.display = 'none';
+                if (menuRotation) menuRotation.style.display = 'none';
+                if (menuSearch) menuSearch.style.display = 'none';
+                if (menuCheckin) menuCheckin.style.display = 'block';
+                if (menuReports) menuReports.style.display = 'none';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'block';
+                if (menuAdmin) menuAdmin.style.display = 'none';
+                if (menuManage) menuManage.style.display = 'none';
             }
         } else {
             nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
@@ -2461,10 +2524,17 @@ class AttendanceApp {
             authBtnText.textContent = "เข้าสู่ระบบ";
             authIcon.className = "fa-solid fa-right-to-bracket";
             
-            // Guest mode
-            menuCheckin.style.display = 'none';
-            menuAdmin.style.display = 'none';
-            menuManage.style.display = 'none';
+            // Guest mode defaults
+            if (menuDashboard) menuDashboard.style.display = 'block';
+            if (menuCalendar) menuCalendar.style.display = 'block';
+            if (menuBases) menuBases.style.display = 'block';
+            if (menuRotation) menuRotation.style.display = 'block';
+            if (menuSearch) menuSearch.style.display = 'block';
+            if (menuCheckin) menuCheckin.style.display = 'none';
+            if (menuReports) menuReports.style.display = 'none';
+            if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+            if (menuAdmin) menuAdmin.style.display = 'none';
+            if (menuManage) menuManage.style.display = 'none';
         }
 
         const changePwdBtn = document.getElementById('btn-change-password');
@@ -2622,6 +2692,8 @@ class AttendanceApp {
             this.renderAdmin();
         } else if (this.currentView === 'reports') {
             this.renderReports();
+        } else if (this.currentView === 'teacher-history') {
+            this.renderTeacherHistory();
         } else if (this.currentView === 'manage') {
             this.renderManage();
         } else if (this.currentView === 'calendar') {
@@ -2948,6 +3020,27 @@ class AttendanceApp {
 
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
+
+        // Simplify view for teachers (remove teacher check-in, rating, comments, and uploads)
+        const extrasSection = document.getElementById('checkin-extras-section');
+        const saveStagingBtn = document.getElementById('btn-save-attendance-staging');
+        const saveLiveBtn = document.getElementById('btn-save-attendance');
+
+        if (this.currentUser && this.currentUser.role === 'teacher') {
+            if (extrasSection) extrasSection.style.display = 'none';
+            if (saveStagingBtn) saveStagingBtn.style.display = 'none';
+            if (saveLiveBtn) {
+                saveLiveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลการเช็กชื่อ';
+                saveLiveBtn.style.padding = '14px 48px';
+            }
+        } else {
+            if (extrasSection) extrasSection.style.display = 'grid';
+            if (saveStagingBtn) saveStagingBtn.style.display = 'inline-flex';
+            if (saveLiveBtn) {
+                saveLiveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลหลักทันที (Live)';
+                saveLiveBtn.style.padding = '14px 40px';
+            }
+        }
 
         // Admin Base Selector Logic
         const adminCard = document.getElementById('checkin-admin-base-selector-card');
@@ -3442,10 +3535,14 @@ class AttendanceApp {
         const timestamp = new Date().toISOString();
         
         const teacherCheckboxes = document.querySelectorAll('input[name="checkin-teacher-checkbox"]:checked');
-        const checkedTeachers = Array.from(teacherCheckboxes).map(cb => cb.value);
+        let checkedTeachers = Array.from(teacherCheckboxes).map(cb => cb.value);
+        if (checkedTeachers.length === 0 && this.currentUser && this.currentUser.role === 'teacher') {
+            checkedTeachers = [this.currentUser.username];
+        }
 
         const rating = this.currentCheckinRating || 5;
-        const notes = document.getElementById('checkin-evaluation-notes').value.trim();
+        const notesEl = document.getElementById('checkin-evaluation-notes');
+        const notes = notesEl ? notesEl.value.trim() : '';
 
         const studentAttendanceList = [];
         this.currentCheckinStudents.forEach(st => {
@@ -3494,7 +3591,8 @@ class AttendanceApp {
 
             this.saveDatabase(false);
             this.showStatusModal('success', 'บันทึกแบบร่างสำเร็จ', `บันทึกร่างข้อมูลเช็กชื่อห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว! ข้อมูลจะอยู่ในกล่องพักข้อมูลเพื่อรออนุมัติ`);
-            this.switchView('dashboard');
+            const redirectView = (this.currentUser && this.currentUser.role === 'teacher') ? 'checkin' : 'dashboard';
+            this.switchView(redirectView);
         } else {
             this.db.attendance_logs = this.db.attendance_logs.filter(
                 log => !(log.date === todayDate && log.baseId === scheduleRow.baseId && studentIdsToSave.includes(log.studentId) && log.semesterId === this.db.activeSemesterId)
@@ -3567,7 +3665,8 @@ class AttendanceApp {
 
             this.saveDatabase(false);
             this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ (Live)', `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
-            this.switchView('dashboard');
+            const redirectView = (this.currentUser && this.currentUser.role === 'teacher') ? 'checkin' : 'dashboard';
+            this.switchView(redirectView);
         }
     }
 
@@ -7266,6 +7365,350 @@ generateDefaultRotationSchedule(customBases = null) {
         this.showStatusModal('success', 'บันทึกสำเร็จ',
             `กำหนดห้องเรียน "${room || b?.defaultRoom}" ให้กลุ่ม "${cls}" ที่ฐาน "${b?.name}" แล้ว`);
         this.logAudit(`Admin assigned class ${cls} → ${room} at base ${baseId}`);
+    }
+
+    // =========================================================================
+    //  TEACHER HISTORY VIEW
+    // =========================================================================
+
+    renderTeacherHistory() {
+        const tbody = document.getElementById('teacher-history-tbody');
+        if (!tbody) return;
+
+        // Find bases assigned to this teacher
+        const myBases = this.db.bases.filter(b => {
+            const ids = (b.teacherId || "").split(',').map(x => x.trim());
+            return ids.includes(this.currentUser.username);
+        });
+        const myBaseIds = myBases.map(b => b.id);
+        
+        // Show base info in banner
+        const baseInfoLabel = document.getElementById('teacher-history-base-info');
+        if (baseInfoLabel) {
+            if (myBases.length > 0) {
+                baseInfoLabel.innerHTML = `<i class="fa-solid fa-leaf"></i> ฐานเรียนรู้: ${myBases.map(b => b.name).join(', ')}`;
+            } else {
+                baseInfoLabel.innerHTML = `<i class="fa-solid fa-leaf"></i> ฐานเรียนรู้: ทุกฐานเรียนรู้ (ยังไม่ได้สังกัดฐานประจำ)`;
+            }
+        }
+
+        // Setup base select dropdown if multiple bases
+        const baseSelectGroup = document.getElementById('teacher-history-base-select-group');
+        const baseSelect = document.getElementById('teacher-history-base-select');
+        if (myBases.length > 1) {
+            if (baseSelectGroup) baseSelectGroup.style.display = 'flex';
+            if (baseSelect && baseSelect.children.length === 0) {
+                baseSelect.innerHTML = '<option value="all">ทุกฐานของฉัน</option>' + myBases.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+                baseSelect.addEventListener('change', () => this.renderTeacherHistory());
+            }
+        } else {
+            if (baseSelectGroup) baseSelectGroup.style.display = 'none';
+        }
+
+        // Setup week selector filter
+        const weekSelect = document.getElementById('teacher-history-week-select');
+        if (weekSelect && weekSelect.children.length <= 1) {
+            // Populate weeks 1 to 20
+            let html = '<option value="all">ทุกสัปดาห์</option>';
+            for (let i = 1; i <= 20; i++) {
+                html += `<option value="${i}">สัปดาห์ที่ ${i}</option>`;
+            }
+            weekSelect.innerHTML = html;
+            weekSelect.addEventListener('change', () => this.renderTeacherHistory());
+        }
+
+        // Setup class selector filter
+        const classSelect = document.getElementById('teacher-history-class-select');
+        if (classSelect && classSelect.children.length <= 1) {
+            // Populate classes ม.1 to ม.6
+            let html = '<option value="all">ทุกระดับชั้น</option>';
+            for (let i = 1; i <= 6; i++) {
+                html += `<option value="ม.${i}">ม.${i}</option>`;
+            }
+            classSelect.innerHTML = html;
+            classSelect.addEventListener('change', () => this.renderTeacherHistory());
+        }
+
+        // Search event listener
+        const searchInput = document.getElementById('teacher-history-search');
+        if (searchInput && !searchInput.dataset.bound) {
+            searchInput.dataset.bound = "true";
+            searchInput.addEventListener('input', () => this.renderTeacherHistory());
+        }
+
+        // Get filters values
+        const selectedBase = baseSelect ? baseSelect.value : 'all';
+        const selectedWeek = weekSelect ? weekSelect.value : 'all';
+        const selectedClass = classSelect ? classSelect.value : 'all';
+        const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+        // Gather all session logs (both live activity logs and staging logs)
+        let liveLogs = this.db.base_activity_logs || [];
+        let draftLogs = this.db.staging_logs || [];
+
+        // Add visual identifiers
+        liveLogs = liveLogs.map(l => ({ ...l, isStaging: false }));
+        draftLogs = draftLogs.map(l => ({ ...l, isStaging: true }));
+
+        // Combine logs
+        let allLogs = [...draftLogs, ...liveLogs];
+
+        // Filter by teacher's base or checkedBy
+        allLogs = allLogs.filter(log => {
+            // Must belong to teacher's bases or checked by teacher
+            const matchesTeacher = myBaseIds.includes(log.baseId) || log.checkedBy === this.currentUser.username;
+            if (!matchesTeacher) return false;
+
+            // Filter by base dropdown
+            if (selectedBase !== 'all' && log.baseId !== selectedBase) return false;
+
+            // Filter by week select
+            if (selectedWeek !== 'all' && String(log.week) !== selectedWeek) return false;
+
+            // Filter by class select
+            if (selectedClass !== 'all') {
+                if (!log.classId.startsWith(selectedClass)) return false;
+            }
+
+            // Filter by search query
+            if (searchVal) {
+                const baseObj = this.db.bases.find(b => b.id === log.baseId);
+                const baseName = baseObj ? baseObj.name : '';
+                const teacherObj = this.db.teachers.find(t => t.username === log.checkedBy);
+                const teacherName = teacherObj ? teacherObj.name : '';
+                const fields = [
+                    log.date, `สัปดาห์ ${log.week}`, log.classId, baseName, teacherName, log.notes || ''
+                ].map(v => v.toLowerCase());
+                if (!fields.some(f => f.includes(searchVal))) return false;
+            }
+
+            return true;
+        });
+
+        // Sort by timestamp descending
+        allLogs.sort((a, b) => b.timestamp - a.timestamp);
+
+        // Update count badge
+        const countLabel = document.getElementById('teacher-history-count-label');
+        if (countLabel) {
+            countLabel.textContent = `${allLogs.length} บันทึก`;
+        }
+
+        // Render table rows
+        tbody.innerHTML = '';
+        if (allLogs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding: 24px;">ไม่พบประวัติการเช็กชื่อ</td></tr>`;
+            return;
+        }
+
+        allLogs.forEach(log => {
+            // Calculate stats
+            let total = 0, present = 0;
+            if (log.isStaging) {
+                total = log.students ? log.students.length : 0;
+                present = log.students ? log.students.filter(s => s.status === 'present' || s.status === 'late').length : 0;
+            } else {
+                const parts = log.classId.split('/');
+                const grade = parts[0];
+                const room = parseInt(parts[1]);
+                const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === log.semesterId);
+                const studentIds = new Set(classStudents.map(st => st.studentId));
+                const sessionLogs = this.db.attendance_logs.filter(al => 
+                    al.date === log.date && 
+                    al.baseId === log.baseId && 
+                    studentIds.has(al.studentId) &&
+                    al.semesterId === log.semesterId
+                );
+                total = sessionLogs.length;
+                present = sessionLogs.filter(al => al.status === 'present' || al.status === 'late').length;
+            }
+
+            const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+            const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? '#D97706' : 'var(--danger)';
+            
+            const teacherObj = this.db.teachers.find(t => t.username === log.checkedBy);
+            const teacherName = teacherObj ? teacherObj.name : log.checkedBy;
+
+            const baseObj = this.db.bases.find(b => b.id === log.baseId);
+            const baseName = baseObj ? baseObj.name : log.baseId;
+
+            const ratingVal = log.rating || 0;
+            let starsHtml = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= ratingVal) {
+                    starsHtml += '<i class="fa-solid fa-star" style="color: var(--accent); margin-right: 1px; font-size: 11px;"></i>';
+                }
+            }
+            if (ratingVal > 0) starsHtml += ` <span style="font-size: 11px; font-weight:700; color: var(--accent);">${ratingVal.toFixed(1)}</span>`;
+            else starsHtml = '<span style="color: var(--text-light); font-size:11px;">-</span>';
+
+            const statusBadge = log.isStaging 
+                ? '<span class="status-badge" style="background-color: #FFEEDB; color: #D97706; border: 1px solid #FCD34D; font-size:10px;">ร่าง (Staging)</span>'
+                : '<span class="status-badge" style="background-color: #E6F4EA; color: #137333; border: 1px solid #A8DAB5; font-size:10px;">Live</span>';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>
+                    <div style="font-weight:600;">${this.formatThaiDateShort(log.date)}</div>
+                    <div style="margin-top:2px;">${statusBadge}</div>
+                </td>
+                <td>สัปดาห์ ${log.week || '-'}</td>
+                <td>
+                    <div style="font-weight:600; color:var(--primary-dark);">${log.classId}</div>
+                    <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">${baseName}</div>
+                </td>
+                <td style="font-weight:600;">${present} / ${total} คน</td>
+                <td style="color:${pctColor}; font-weight:700;">${pct}%</td>
+                <td>${teacherName}</td>
+                <td>${starsHtml}</td>
+                <td style="text-align:center;">
+                    <button class="btn btn-outline btn-xs" onclick="app.openHistoryDetailsModal('${log.id || log.batchId}', ${log.isStaging})">
+                        <i class="fa-solid fa-circle-info"></i> ดูข้อมูล / ไฟล์แนบ
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    openHistoryDetailsModal(logId, isStaging) {
+        let log;
+        if (isStaging) {
+            log = this.db.staging_logs.find(x => x.batchId === logId);
+        } else {
+            log = this.db.base_activity_logs.find(x => x.id === logId);
+        }
+        if (!log) return;
+
+        document.getElementById('history-detail-date').textContent = `${this.formatThaiDate(log.date)} (${new Date(log.timestamp).toLocaleTimeString('th-TH')} น.)`;
+        
+        const base = this.db.bases.find(b => b.id === log.baseId);
+        const baseName = base ? base.name : log.baseId;
+        document.getElementById('history-detail-base').textContent = baseName;
+        document.getElementById('history-detail-class').textContent = log.classId;
+        
+        const teacher = this.db.teachers.find(t => t.username === log.checkedBy);
+        const teacherName = teacher ? teacher.name : log.checkedBy;
+        document.getElementById('history-detail-teacher').textContent = teacherName;
+
+        const studentListTbody = document.getElementById('history-detail-student-list');
+        if (studentListTbody) {
+            studentListTbody.innerHTML = '';
+            
+            let studentsList = [];
+            if (isStaging) {
+                studentsList = log.students || [];
+            } else {
+                // Live: fetch from attendance_logs
+                const parts = log.classId.split('/');
+                const grade = parts[0];
+                const room = parseInt(parts[1]);
+                const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === log.semesterId);
+                const studentIds = new Set(classStudents.map(st => st.studentId));
+                
+                const sessionLogs = this.db.attendance_logs.filter(al => 
+                    al.date === log.date && 
+                    al.baseId === log.baseId && 
+                    studentIds.has(al.studentId) &&
+                    al.semesterId === log.semesterId
+                );
+                
+                studentsList = sessionLogs.map(al => ({
+                    studentId: al.studentId,
+                    status: al.status
+                }));
+            }
+
+            if (studentsList.length > 0) {
+                studentsList.forEach((stItem) => {
+                    const student = this.db.students.find(s => s.studentId === stItem.studentId);
+                    const name = student ? student.name : `รหัส: ${stItem.studentId}`;
+                    const no = student ? student.no : '-';
+                    
+                    const statusLabels = {
+                        present: '<span class="status-badge" style="background-color: var(--primary-light); color: white;">มาเรียน</span>',
+                        absent: '<span class="status-badge" style="background-color: var(--danger); color: white;">ขาด</span>',
+                        leave: '<span class="status-badge" style="background-color: #D97706; color: white;">ลา</span>',
+                        late: '<span class="status-badge" style="background-color: #4B5563; color: white;">สาย</span>',
+                        activity: '<span class="status-badge" style="background-color: #8B5CF6; color: white;">กิจกรรม</span>'
+                    };
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="text-align: center;">${no}</td>
+                        <td>${stItem.studentId}</td>
+                        <td><strong>${name}</strong></td>
+                        <td style="text-align: center;">${statusLabels[stItem.status] || stItem.status}</td>
+                    `;
+                    studentListTbody.appendChild(tr);
+                });
+            } else {
+                studentListTbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ไม่มีนักเรียนที่เช็กชื่อ</td></tr>`;
+            }
+        }
+
+        const extrasContainer = document.getElementById('history-detail-extras');
+        if (extrasContainer) {
+            extrasContainer.innerHTML = '';
+            
+            let teachersListStr = '-';
+            if (log.teachers && log.teachers.length > 0) {
+                teachersListStr = log.teachers.map(tUsername => {
+                    const t = this.db.teachers.find(x => x.username === tUsername);
+                    return t ? t.name : tUsername;
+                }).join(', ');
+            }
+            
+            let starsHtml = '';
+            const ratingVal = log.rating || 0;
+            for (let i = 1; i <= 5; i++) {
+                if (i <= ratingVal) {
+                    starsHtml += '<i class="fa-solid fa-star" style="color: var(--accent); margin-right: 2px;"></i>';
+                } else {
+                    starsHtml += '<i class="fa-regular fa-star" style="color: #D1D5DB; margin-right: 2px;"></i>';
+                }
+            }
+
+            let html = `
+                <div style="background: var(--gray-light); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+                    <div><strong>ครูประจำฐานปฏิบัติหน้าที่:</strong> <span style="color: var(--text-primary);">${teachersListStr}</span></div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong>ประเมินผลกิจกรรม:</strong> 
+                        <span style="display: inline-flex;">${starsHtml}</span>
+                        <span style="font-weight: 700; color: var(--accent); margin-left: 4px;">${ratingVal.toFixed(1)}</span>
+                    </div>
+                    <div><strong>บันทึกเพิ่มเติม:</strong> <span style="font-style: italic; color: var(--text-primary);">${log.notes || 'ไม่มีบันทึกเพิ่มเติม'}</span></div>
+                </div>
+            `;
+            
+            if (log.photo) {
+                html += `
+                    <div style="margin-top: 16px;">
+                        <strong>ภาพถ่ายกิจกรรม:</strong>
+                        <div style="margin-top: 8px; max-width: 100%;">
+                            <img src="${log.photo}" alt="History Photo Preview" style="max-width: 100%; max-height: 250px; border-radius: var(--radius-md); border: 1px solid var(--border-color); box-shadow: var(--shadow-sm);">
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (log.doc) {
+                html += `
+                    <div style="margin-top: 16px; display: flex; align-items: center; gap: 8px; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px; border-radius: var(--radius-md);">
+                        <i class="fa-solid fa-file-pdf" style="font-size: 24px; color: #2563EB;"></i>
+                        <div style="flex: 1;">
+                            <div style="font-weight: bold; font-size: 13px; color: #1E40AF; word-break: break-all;">${log.docName || 'เอกสารแนบ'}</div>
+                            <div style="font-size: 11px; color: #1E3A8A;">มีข้อมูลเอกสารแนบประกอบรายการ</div>
+                        </div>
+                        <a href="${log.doc}" download="${log.docName}" class="btn btn-outline btn-xs" style="background: white; border-color: #BFDBFE; color: #2563EB;"><i class="fa-solid fa-download"></i> ดาวน์โหลด</a>
+                    </div>
+                `;
+            }
+            
+            extrasContainer.innerHTML = html;
+        }
+
+        this.openModal('history-details-modal');
     }
 }
 
