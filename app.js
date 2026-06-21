@@ -2352,6 +2352,12 @@ class AttendanceApp {
             this.renderReports();
         } else if (this.currentView === 'manage') {
             this.renderManage();
+        } else if (this.currentView === 'calendar') {
+            this.renderCalendar();
+        } else if (this.currentView === 'bases') {
+            this.renderBases();
+        } else if (this.currentView === 'search') {
+            this.renderSearch();
         }
     }
 
@@ -4296,7 +4302,7 @@ class AttendanceApp {
         this.updateTeacherSelectionUI();
 
         // Update tab buttons style
-        const tabs = ['students', 'teachers', 'bases', 'schedule', 'import', 'cloud'];
+        const tabs = ['students', 'teachers', 'bases', 'schedule', 'semesters', 'staging', 'import', 'cloud'];
         tabs.forEach(t => {
             const btn = document.getElementById(`btn-tab-${t}`);
             const div = document.getElementById(`manage-sub-${t}`);
@@ -4322,6 +4328,10 @@ class AttendanceApp {
             this.renderManageBases();
         } else if (tabId === 'schedule') {
             this.renderManageSchedule();
+        } else if (tabId === 'semesters') {
+            this.renderManageSemesters();
+        } else if (tabId === 'staging') {
+            this.loadStagingLogs();
         } else if (tabId === 'cloud') {
             this.loadCloudBackups();
             this.loadAuditLogs();
@@ -6367,6 +6377,623 @@ generateDefaultRotationSchedule(customBases = null) {
         });
 
         return rotation_schedule;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CALENDAR VIEW  (view-calendar)
+    // ═══════════════════════════════════════════════════════════════════
+
+    renderCalendar() {
+        const filterWeek  = document.getElementById('cal-filter-week');
+        const filterBase  = document.getElementById('cal-filter-base');
+        const filterGrade = document.getElementById('cal-filter-grade');
+        const filterDate  = document.getElementById('cal-filter-date');
+
+        // Populate week filter options once
+        if (filterWeek && filterWeek.options.length <= 1) {
+            const weeks = [...new Set(this.db.rotation_schedule.map(s => s.week))].sort((a,b)=>a-b);
+            weeks.forEach(w => {
+                const opt = document.createElement('option');
+                opt.value = w;
+                opt.textContent = `สัปดาห์ที่ ${w}`;
+                filterWeek.appendChild(opt);
+            });
+        }
+
+        // Populate base filter options once
+        if (filterBase && filterBase.options.length <= 1) {
+            this.db.bases.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                filterBase.appendChild(opt);
+            });
+        }
+
+        // Get filter values
+        const selWeek  = filterWeek  ? filterWeek.value  : 'all';
+        const selBase  = filterBase  ? filterBase.value  : 'all';
+        const selGrade = filterGrade ? filterGrade.value : 'all';
+        const selDate  = filterDate  ? filterDate.value  : '';
+
+        // Filter schedule
+        let items = this.db.rotation_schedule.filter(s => {
+            if (selWeek !== 'all' && s.week !== parseInt(selWeek)) return false;
+            if (selBase !== 'all' && s.baseId !== selBase) return false;
+            if (selGrade !== 'all' && !s.classes.includes(selGrade)) return false;
+            if (selDate) {
+                const d = new Date(selDate);
+                const start = s.startDate ? new Date(s.startDate) : null;
+                const end   = s.endDate   ? new Date(s.endDate)   : null;
+                if (start && end && (d < start || d > end)) return false;
+            }
+            return !s.isEmpty;
+        });
+
+        // Sort by week then base
+        items.sort((a,b) => a.week !== b.week ? a.week - b.week : a.baseName.localeCompare(b.baseName));
+
+        // Check which view mode is active
+        const gridWrapper     = document.getElementById('cal-grid-wrapper');
+        const timelineWrapper = document.getElementById('cal-timeline-wrapper');
+        const isGrid = gridWrapper && gridWrapper.style.display !== 'none';
+
+        if (isGrid) {
+            this._renderCalendarGrid(items);
+        } else {
+            this._renderCalendarTimeline(items);
+        }
+    }
+
+    _renderCalendarGrid(items) {
+        const container = document.getElementById('calendar-board-container');
+        if (!container) return;
+
+        if (items.length === 0) {
+            container.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--text-secondary);">
+                <i class="fa-solid fa-calendar-xmark" style="font-size:40px; opacity:0.3; display:block; margin-bottom:12px;"></i>
+                ไม่พบข้อมูลตารางกิจกรรมตามตัวกรองที่เลือก
+            </div>`;
+            return;
+        }
+
+        const baseColors = ['#2E7D32','#1565C0','#6A1B9A','#BF360C','#00695C','#E65100','#4E342E'];
+
+        container.innerHTML = items.map((s, i) => {
+            const color = baseColors[this.db.bases.findIndex(b => b.id === s.baseId) % baseColors.length] || '#2E7D32';
+            const logs = this.db.attendance_logs ? this.db.attendance_logs.filter(l => l.week === s.week && l.baseId === s.baseId) : [];
+            const hasLog = logs.length > 0;
+            const isSpecial = s.isSpecial;
+
+            return `<div class="card" style="border-left: 4px solid ${color}; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;"
+                onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(0,0,0,0.12)'"
+                onmouseout="this.style.transform='';this.style.boxShadow=''"
+                onclick="app.showActivityDetails(${i}, ${JSON.stringify(s).replace(/"/g,'&quot;')})">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:10px;">
+                    <span class="status-badge" style="background:${color}20; color:${color}; font-size:11px;">สัปดาห์ที่ ${s.week}</span>
+                    ${isSpecial ? `<span class="status-badge warning" style="font-size:10px;">${s.classes}</span>` :
+                      hasLog ? `<span class="status-badge success" style="font-size:10px;"><i class="fa-solid fa-check"></i> เช็กแล้ว</span>` :
+                      `<span class="status-badge" style="font-size:10px; opacity:0.6;">ยังไม่เช็ก</span>`}
+                </div>
+                <div style="font-weight:700; font-size:14px; color:${color}; margin-bottom:6px;">${s.baseName}</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;"><i class="fa-solid fa-users" style="width:14px;"></i> ${s.classes}</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;"><i class="fa-solid fa-location-dot" style="width:14px;"></i> ${s.room}</div>
+                <div style="font-size:11px; color:var(--text-secondary); margin-top:6px; opacity:0.8;"><i class="fa-regular fa-calendar" style="width:14px;"></i> ${s.dates || '-'}</div>
+            </div>`;
+        }).join('');
+    }
+
+    _renderCalendarTimeline(items) {
+        const container = document.getElementById('timeline-flow-container');
+        if (!container) return;
+
+        if (items.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:var(--text-secondary); padding:40px;">ไม่พบข้อมูลตารางกิจกรรม</p>`;
+            return;
+        }
+
+        // Group by week
+        const byWeek = {};
+        items.forEach(s => {
+            if (!byWeek[s.week]) byWeek[s.week] = { dates: s.dates, items: [] };
+            byWeek[s.week].items.push(s);
+        });
+
+        container.innerHTML = Object.entries(byWeek).map(([week, data]) => `
+            <div style="display:flex; gap:16px; margin-bottom:24px; align-items:flex-start;">
+                <div style="flex-shrink:0; width:90px; text-align:right; padding-top:6px;">
+                    <div style="font-weight:700; color:var(--primary); font-size:13px;">สัปดาห์ที่ ${week}</div>
+                    <div style="font-size:11px; color:var(--text-secondary);">${data.dates || ''}</div>
+                </div>
+                <div style="position:relative; flex-shrink:0; display:flex; flex-direction:column; align-items:center;">
+                    <div style="width:12px; height:12px; border-radius:50%; background:var(--primary); border:2px solid white; box-shadow:0 0 0 2px var(--primary); z-index:1;"></div>
+                    <div style="width:2px; flex:1; background:var(--border-color); min-height:40px;"></div>
+                </div>
+                <div style="flex:1; display:flex; flex-wrap:wrap; gap:8px; padding-bottom:8px;">
+                    ${data.items.map(s => `
+                        <div style="background:var(--bg-secondary); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:10px 14px; font-size:12px; min-width:160px; flex:1;">
+                            <div style="font-weight:700; color:var(--primary-dark); margin-bottom:4px;">${s.baseName}</div>
+                            <div style="color:var(--text-secondary);">${s.classes}</div>
+                            <div style="color:var(--text-secondary);"><i class="fa-solid fa-location-dot"></i> ${s.room}</div>
+                        </div>`).join('')}
+                </div>
+            </div>`
+        ).join('');
+    }
+
+    switchCalendarMode(mode) {
+        const grid     = document.getElementById('cal-grid-wrapper');
+        const timeline = document.getElementById('cal-timeline-wrapper');
+        const btnGrid  = document.getElementById('btn-cal-mode-grid');
+        const btnTime  = document.getElementById('btn-cal-mode-timeline');
+
+        if (mode === 'grid') {
+            if (grid)     grid.style.display     = 'block';
+            if (timeline) timeline.style.display = 'none';
+            if (btnGrid)  { btnGrid.classList.add('btn-primary'); btnGrid.classList.remove('btn-outline'); }
+            if (btnTime)  { btnTime.classList.remove('btn-primary'); btnTime.classList.add('btn-outline'); }
+        } else {
+            if (grid)     grid.style.display     = 'none';
+            if (timeline) timeline.style.display = 'block';
+            if (btnGrid)  { btnGrid.classList.remove('btn-primary'); btnGrid.classList.add('btn-outline'); }
+            if (btnTime)  { btnTime.classList.add('btn-primary'); btnTime.classList.remove('btn-outline'); }
+        }
+        this.renderCalendar();
+    }
+
+    resetCalendarFilters() {
+        const ids = ['cal-filter-week', 'cal-filter-base', 'cal-filter-grade', 'cal-filter-date'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { if (el.tagName === 'INPUT') el.value = ''; else el.value = 'all'; }
+        });
+        this.renderCalendar();
+    }
+
+    showActivityDetails(idx, scheduleItem) {
+        // Try to open the existing rotation-detail-modal or activity-details-modal
+        const modal = document.getElementById('activity-details-modal') || document.getElementById('rotation-detail-modal');
+        if (!modal) return;
+
+        const titleEl   = modal.querySelector('#activity-detail-title, #rotation-detail-title');
+        const contentEl = modal.querySelector('#activity-detail-body, #rotation-detail-body');
+
+        if (titleEl) titleEl.textContent = `${scheduleItem.baseName} — สัปดาห์ที่ ${scheduleItem.week}`;
+        if (contentEl) {
+            contentEl.innerHTML = `
+                <div style="display:flex; flex-direction:column; gap:12px; font-size:14px;">
+                    <div><strong>ช่วงวันที่:</strong> ${scheduleItem.dates || '-'}</div>
+                    <div><strong>ระดับชั้นเรียน:</strong> ${scheduleItem.classes}</div>
+                    <div><strong>ห้องเรียน/สถานที่:</strong> ${scheduleItem.room}</div>
+                    <div><strong>ครูผู้สอน:</strong> ${scheduleItem.teacherName || '-'}</div>
+                    ${scheduleItem.isSpecial ? `<div class="status-badge warning" style="align-self:flex-start;">${scheduleItem.classes}</div>` : ''}
+                </div>`;
+        }
+
+        const modalId = modal.id;
+        this.openModal(modalId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  BASES DIRECTORY VIEW  (view-bases)
+    // ═══════════════════════════════════════════════════════════════════
+
+    renderBases() {
+        this.showBasesGrid();
+    }
+
+    showBasesGrid() {
+        const gridWrapper   = document.getElementById('bases-grid-wrapper');
+        const detailWrapper = document.getElementById('base-detail-wrapper');
+        if (gridWrapper)   gridWrapper.style.display   = 'block';
+        if (detailWrapper) detailWrapper.style.display = 'none';
+
+        const container = document.getElementById('bases-cards-container');
+        if (!container) return;
+
+        const baseColors = [
+            { bg: 'linear-gradient(135deg,#1B5E20,#388E3C)', icon: 'fa-microchip',     label: 'ฐานที่ 1' },
+            { bg: 'linear-gradient(135deg,#0D47A1,#1976D2)', icon: 'fa-book-open',      label: 'ฐานที่ 2' },
+            { bg: 'linear-gradient(135deg,#4A148C,#7B1FA2)', icon: 'fa-water',          label: 'ฐานที่ 3' },
+            { bg: 'linear-gradient(135deg,#BF360C,#E64A19)', icon: 'fa-seedling',       label: 'ฐานที่ 4' },
+            { bg: 'linear-gradient(135deg,#004D40,#00796B)', icon: 'fa-mushroom',       label: 'ฐานที่ 5' },
+            { bg: 'linear-gradient(135deg,#E65100,#F57C00)', icon: 'fa-landmark',       label: 'ฐานที่ 6' },
+            { bg: 'linear-gradient(135deg,#3E2723,#6D4C41)', icon: 'fa-masks-theater',  label: 'ฐานที่ 7' },
+        ];
+
+        container.innerHTML = this.db.bases.map((b, idx) => {
+            const style = baseColors[idx] || baseColors[0];
+            const scheduleCount = this.db.rotation_schedule.filter(s => s.baseId === b.id && !s.isSpecial && !s.isEmpty).length;
+            const logCount = this.db.attendance_logs ? this.db.attendance_logs.filter(l => l.baseId === b.id).length : 0;
+            const teachers = (b.teacherId || '').split(',').length;
+
+            return `<div class="card" style="overflow:hidden; cursor:pointer; transition:transform 0.2s, box-shadow 0.2s;"
+                onmouseover="this.style.transform='translateY(-4px)';this.style.boxShadow='0 12px 32px rgba(0,0,0,0.15)'"
+                onmouseout="this.style.transform='';this.style.boxShadow=''"
+                onclick="app.showBaseDetails('${b.id}')">
+                <div style="background:${style.bg}; color:white; padding:20px 20px 16px; position:relative; overflow:hidden;">
+                    <div style="position:absolute; right:-12px; top:-12px; font-size:70px; opacity:0.12;">
+                        <i class="fa-solid ${style.icon}"></i>
+                    </div>
+                    <span style="font-size:11px; opacity:0.8; background:rgba(255,255,255,0.2); padding:3px 8px; border-radius:20px;">${style.label}</span>
+                    <h3 style="font-size:17px; font-weight:800; margin:8px 0 4px; line-height:1.3;">${b.name}</h3>
+                    <p style="font-size:12px; opacity:0.9; margin:0;"><i class="fa-solid fa-location-dot"></i> ${b.defaultRoom}</p>
+                </div>
+                <div style="padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="display:flex; gap:16px; font-size:12px; color:var(--text-secondary);">
+                        <span><i class="fa-solid fa-chalkboard-user" style="color:var(--primary);"></i> ${teachers} ท่าน</span>
+                        <span><i class="fa-solid fa-calendar-check" style="color:var(--primary);"></i> ${scheduleCount} สัปดาห์</span>
+                        <span><i class="fa-solid fa-clipboard-check" style="color:var(--primary);"></i> ${logCount} บันทึก</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right" style="color:var(--text-light); font-size:12px;"></i>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    showBaseDetails(baseId) {
+        const b = this.db.bases.find(x => x.id === baseId);
+        if (!b) return;
+
+        const gridWrapper   = document.getElementById('bases-grid-wrapper');
+        const detailWrapper = document.getElementById('base-detail-wrapper');
+        if (gridWrapper)   gridWrapper.style.display   = 'none';
+        if (detailWrapper) detailWrapper.style.display = 'block';
+
+        // Header
+        const bIdx = this.db.bases.indexOf(b);
+        const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+        const elHtml = (id, val) => { const e = document.getElementById(id); if (e) e.innerHTML = val; };
+
+        el('base-detail-badge',   `ฐานการเรียนรู้ที่ ${bIdx + 1}`);
+        el('base-detail-name',    b.name);
+        el('base-detail-room-info', `📍 สถานที่ประจำ: ${b.defaultRoom}`);
+
+        // Attendance stats
+        const logs = this.db.attendance_logs ? this.db.attendance_logs.filter(l => l.baseId === baseId) : [];
+        let totalPct = 0, pctCount = 0;
+        logs.forEach(log => {
+            if (log.totalStudents > 0) { totalPct += (log.presentCount / log.totalStudents) * 100; pctCount++; }
+        });
+        el('base-detail-avg-attendance', pctCount > 0 ? `${(totalPct/pctCount).toFixed(1)}%` : 'N/A');
+
+        // Teachers list
+        const teacherIds = (b.teacherId || '').split(',').map(x => x.trim()).filter(Boolean);
+        const teacherContainer = document.getElementById('base-detail-teachers-list');
+        if (teacherContainer) {
+            teacherContainer.innerHTML = teacherIds.length === 0
+                ? `<p style="color:var(--text-secondary); font-size:13px;">ยังไม่มีข้อมูลครู</p>`
+                : teacherIds.map(tid => {
+                    const t = this.db.teachers.find(x => x.username === tid);
+                    const name = t ? t.name : tid;
+                    const role = t ? t.role : '';
+                    return `<div style="display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border-color);">
+                        <div style="width:36px; height:36px; border-radius:50%; background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">
+                            ${name.replace('นาง','').replace('นาย','').charAt(0)}
+                        </div>
+                        <div>
+                            <div style="font-weight:600; font-size:13px;">${name}</div>
+                            <div style="font-size:11px; color:var(--text-secondary);">${role === 'admin' ? 'ผู้ดูแลระบบ' : 'ครูประจำฐาน'}</div>
+                        </div>
+                    </div>`;
+                }).join('');
+        }
+
+        // Responsible grades
+        const baseSchedules = this.db.rotation_schedule.filter(s => s.baseId === baseId && !s.isEmpty && !s.isSpecial);
+        const allClasses = [...new Set(baseSchedules.flatMap(s => s.attendingClasses || []))];
+        const grades = [...new Set(allClasses.map(c => {
+            if (typeof c === 'string') return c.split('/')[0];
+            return `${c.grade}`;
+        }))].sort();
+        el('base-detail-responsible-grades', grades.length > 0 ? grades.join(', ') : 'ทุกระดับชั้น (หมุนฐาน)');
+
+        // Class-room mapping
+        const crContainer = document.getElementById('base-detail-classrooms-list');
+        if (crContainer) {
+            const classRooms = b.classRooms || {};
+            const crEntries = Object.entries(classRooms);
+            crContainer.innerHTML = crEntries.length === 0
+                ? `<span style="font-size:12px; color:var(--text-secondary); font-style:italic;">ยังไม่ได้กำหนดห้องเรียนแยกกลุ่ม</span>`
+                : crEntries.map(([cls, room]) =>
+                    `<span class="status-badge info" style="font-size:11px;">${cls} → ${room}</span>`
+                ).join('');
+        }
+
+        // Schedule table
+        const schedTbody = document.getElementById('base-detail-schedule-table-body');
+        if (schedTbody) {
+            schedTbody.innerHTML = baseSchedules.length === 0
+                ? `<tr><td colspan="4" style="text-align:center; color:var(--text-secondary);">ไม่มีตารางสอน</td></tr>`
+                : baseSchedules.map(s => `
+                    <tr>
+                        <td>สัปดาห์ที่ ${s.week}</td>
+                        <td>${s.classes}</td>
+                        <td>${s.room}</td>
+                        <td><span class="status-badge" style="font-size:11px;">${s.dates || '-'}</span></td>
+                    </tr>`).join('');
+        }
+
+        // History table
+        const histTbody = document.getElementById('base-detail-history-table-body');
+        if (histTbody) {
+            histTbody.innerHTML = logs.length === 0
+                ? `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">ยังไม่มีประวัติการเช็กชื่อ</td></tr>`
+                : logs.slice().reverse().slice(0, 20).map(log => {
+                    const pct = log.totalStudents > 0 ? Math.round((log.presentCount / log.totalStudents) * 100) : 0;
+                    const color = pct >= 80 ? 'var(--success)' : pct >= 60 ? '#D97706' : 'var(--danger)';
+                    return `<tr>
+                        <td>${this.formatThaiDateShort(log.date)}</td>
+                        <td>สัปดาห์ ${log.week || '-'}</td>
+                        <td>${log.className || '-'}</td>
+                        <td>${log.teacherName || '-'} ${log.rating ? `⭐${log.rating}` : ''}</td>
+                        <td style="text-align:center; color:${color}; font-weight:700;">${pct}%</td>
+                    </tr>`;
+                }).join('');
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  SEARCH VIEW  (view-search)
+    // ═══════════════════════════════════════════════════════════════════
+
+    renderSearch() {
+        // Populate base filter once
+        const baseFilter = document.getElementById('search-filter-base');
+        if (baseFilter && baseFilter.options.length <= 1) {
+            this.db.bases.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                baseFilter.appendChild(opt);
+            });
+        }
+        // Trigger a search if there's an existing query
+        const q = document.getElementById('search-query-input');
+        if (q && q.value.trim()) this.searchActivities();
+    }
+
+    searchActivities() {
+        const query     = (document.getElementById('search-query-input')?.value || '').trim().toLowerCase();
+        const baseFilter= document.getElementById('search-filter-base')?.value  || 'all';
+        const gradeFilter=document.getElementById('search-filter-grade')?.value || 'all';
+
+        let items = this.db.rotation_schedule.filter(s => {
+            if (s.isEmpty) return false;
+            if (baseFilter !== 'all' && s.baseId !== baseFilter) return false;
+            if (gradeFilter !== 'all' && !s.classes.includes(gradeFilter)) return false;
+            if (!query) return true;
+
+            const fields = [
+                s.baseName, s.classes, s.room, s.teacherName, s.dates,
+                `สัปดาห์ ${s.week}`, s.baseId
+            ].map(v => (v || '').toLowerCase());
+            return fields.some(f => f.includes(query));
+        });
+
+        const countEl = document.getElementById('search-results-count');
+        if (countEl) countEl.textContent = items.length;
+
+        const container = document.getElementById('search-results-container');
+        if (!container) return;
+
+        if (items.length === 0) {
+            container.innerHTML = `<p style="text-align:center; color:var(--text-secondary); margin:30px 0;">
+                ${query ? `ไม่พบผลลัพธ์สำหรับ "<strong>${query}</strong>"` : 'ป้อนคำค้นหาเพื่อสืบค้นข้อมูลกิจกรรม'}
+            </p>`;
+            return;
+        }
+
+        const baseColors = ['#2E7D32','#1565C0','#6A1B9A','#BF360C','#00695C','#E65100','#4E342E'];
+        container.innerHTML = items.slice(0, 50).map(s => {
+            const color = baseColors[this.db.bases.findIndex(b => b.id === s.baseId) % baseColors.length] || '#2E7D32';
+            return `<div class="card" style="border-left:4px solid ${color}; display:flex; align-items:center; gap:16px; padding:14px 18px; cursor:pointer;"
+                onclick="app.switchView('calendar')">
+                <div style="flex-shrink:0; width:48px; height:48px; border-radius:var(--radius-md); background:${color}20; display:flex; align-items:center; justify-content:center;">
+                    <i class="fa-solid fa-school" style="color:${color}; font-size:20px;"></i>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:700; color:${color}; margin-bottom:2px;">${s.baseName}</div>
+                    <div style="font-size:13px; color:var(--text-secondary);">
+                        <span><i class="fa-solid fa-users"></i> ${s.classes}</span>
+                        &nbsp;·&nbsp;
+                        <span><i class="fa-solid fa-location-dot"></i> ${s.room}</span>
+                    </div>
+                </div>
+                <div style="text-align:right; flex-shrink:0;">
+                    <div style="font-weight:700; color:var(--primary);">สัปดาห์ที่ ${s.week}</div>
+                    <div style="font-size:11px; color:var(--text-secondary);">${s.dates || ''}</div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    clearSearchFilters() {
+        const q = document.getElementById('search-query-input');
+        if (q) q.value = '';
+        const bf = document.getElementById('search-filter-base');
+        if (bf) bf.value = 'all';
+        const gf = document.getElementById('search-filter-grade');
+        if (gf) gf.value = 'all';
+        const container = document.getElementById('search-results-container');
+        if (container) container.innerHTML = `<p style="text-align:center; color:var(--text-secondary); margin:20px 0;">ป้อนข้อมูลลงในช่องค้นหาเพื่อสืบค้นข้อมูลกิจกรรมการเรียนรู้แบบละเอียด</p>`;
+        const countEl = document.getElementById('search-results-count');
+        if (countEl) countEl.textContent = '0';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  SEMESTER MANAGEMENT  (manage-sub-semesters)
+    // ═══════════════════════════════════════════════════════════════════
+
+    renderManageSemesters() {
+        const tbody = document.getElementById('manage-semesters-table-body');
+        if (!tbody) return;
+
+        const semesters = this.db.semesters || [];
+        if (semesters.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-secondary); padding:20px;">ยังไม่มีข้อมูลภาคเรียน — กด "เพิ่มภาคเรียนใหม่" เพื่อเพิ่ม</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = semesters.map(sem => {
+            const isActive = sem.active === true;
+            const parts = (sem.id || '').split('-');
+            const term = parts[0] || '1';
+            const year = parts[1] || '2569';
+            return `<tr>
+                <td style="font-weight:700;">${sem.name || sem.id}</td>
+                <td>${year}</td>
+                <td>ภาคเรียนที่ ${term}</td>
+                <td style="text-align:center;">
+                    ${isActive
+                        ? `<span class="status-badge success"><i class="fa-solid fa-circle-check"></i> กำลังใช้งาน</span>`
+                        : `<button class="btn btn-outline btn-sm" onclick="app.setActiveSemester('${sem.id}')">
+                            <i class="fa-solid fa-check"></i> ตั้งเป็นภาคเรียนปัจจุบัน
+                           </button>`}
+                </td>
+                <td style="text-align:center;">
+                    ${isActive
+                        ? `<span style="font-size:12px; color:var(--text-secondary); font-style:italic;">ภาคเรียนที่ใช้งานอยู่</span>`
+                        : `<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="app.deleteSemester('${sem.id}')">
+                            <i class="fa-solid fa-trash"></i> ลบ
+                           </button>`}
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    openAddSemesterModal() {
+        const yearInput  = document.getElementById('sem-form-year');
+        const termSelect = document.getElementById('sem-form-term');
+        const labelInput = document.getElementById('sem-form-label');
+
+        // Set sensible defaults: next year
+        const nextYear = new Date().getFullYear() + 543 + 1;
+        if (yearInput)  yearInput.value  = nextYear;
+        if (termSelect) termSelect.value = '1';
+        if (labelInput) labelInput.value = `ภาคเรียนที่ 1/${nextYear}`;
+
+        // Auto-update label when inputs change
+        const updateLabel = () => {
+            const y = yearInput?.value || nextYear;
+            const t = termSelect?.value || '1';
+            if (labelInput) labelInput.value = `ภาคเรียนที่ ${t}/${y}`;
+        };
+        if (yearInput)  yearInput.oninput  = updateLabel;
+        if (termSelect) termSelect.onchange = updateLabel;
+
+        this.openModal('semester-modal');
+    }
+
+    saveSemesterFromForm() {
+        const year  = parseInt(document.getElementById('sem-form-year')?.value);
+        const term  = document.getElementById('sem-form-term')?.value || '1';
+        const label = document.getElementById('sem-form-label')?.value?.trim();
+
+        if (!year || isNaN(year) || year < 2560 || year > 2600) {
+            this.showStatusModal('error', 'ข้อมูลไม่ถูกต้อง', 'กรุณากรอกปีการศึกษา พ.ศ. ที่ถูกต้อง (เช่น 2570)');
+            return;
+        }
+
+        const newId = `${term}-${year}`;
+        if (!this.db.semesters) this.db.semesters = [];
+
+        if (this.db.semesters.find(s => s.id === newId)) {
+            this.showStatusModal('error', 'มีข้อมูลซ้ำ', `ภาคเรียนที่ ${term}/${year} มีอยู่ในระบบแล้ว`);
+            return;
+        }
+
+        this.db.semesters.push({ id: newId, name: label || `ภาคเรียนที่ ${term}/${year}`, active: false });
+        this.saveDatabase(false, ['semesters']);
+        this.closeModal('semester-modal');
+        this.renderManageSemesters();
+        this.logAudit(`Added semester: ${newId}`);
+        this.showStatusModal('success', 'เพิ่มภาคเรียนสำเร็จ', `ภาคเรียนที่ ${term}/${year} ถูกเพิ่มเข้าสู่ระบบแล้ว`);
+    }
+
+    setActiveSemester(semId) {
+        if (!this.db.semesters) return;
+        this.db.semesters.forEach(s => { s.active = (s.id === semId); });
+        this.db.activeSemesterId = semId;
+        this.saveDatabase(false, ['semesters']);
+        this.renderManageSemesters();
+        this.logAudit(`Set active semester: ${semId}`);
+        this.showStatusModal('success', 'เปลี่ยนภาคเรียนสำเร็จ', `ตั้ง ${semId} เป็นภาคเรียนที่ใช้งานอยู่แล้ว`);
+    }
+
+    deleteSemester(semId) {
+        if (!confirm(`ต้องการลบภาคเรียน ${semId} ใช่หรือไม่?`)) return;
+        if (!this.db.semesters) return;
+        this.db.semesters = this.db.semesters.filter(s => s.id !== semId);
+        this.saveDatabase(false, ['semesters']);
+        this.renderManageSemesters();
+        this.logAudit(`Deleted semester: ${semId}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ADMIN CHECKIN ROOM MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** Open modal so admin can add a class + student list to a base's checkin */
+    openCheckinAdminRoomModal() {
+        const modal = document.getElementById('checkin-admin-room-modal');
+        if (!modal) return;
+
+        // Populate base select
+        const baseSelect = document.getElementById('car-form-base');
+        if (baseSelect) {
+            baseSelect.innerHTML = '<option value="">-- เลือกฐานการเรียนรู้ --</option>';
+            this.db.bases.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                baseSelect.appendChild(opt);
+            });
+        }
+
+        // Populate class/grade select
+        const clsSelect = document.getElementById('car-form-class');
+        if (clsSelect) {
+            clsSelect.innerHTML = '<option value="">-- เลือกชั้นเรียน --</option>';
+            const classes = [...new Set(this.db.students.map(s => `${s.grade}/${s.room}`))].sort();
+            classes.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                clsSelect.appendChild(opt);
+            });
+        }
+
+        const roomInput = document.getElementById('car-form-room');
+        if (roomInput) roomInput.value = '';
+
+        this.openModal('checkin-admin-room-modal');
+    }
+
+    /** Save admin-defined class-room assignment to the selected base and update checkin */
+    saveCheckinAdminRoom() {
+        const baseId = document.getElementById('car-form-base')?.value;
+        const cls    = document.getElementById('car-form-class')?.value;
+        const room   = document.getElementById('car-form-room')?.value?.trim();
+
+        if (!baseId || !cls) {
+            this.showStatusModal('error', 'ข้อมูลไม่ครบ', 'กรุณาเลือกฐานการเรียนรู้และชั้นเรียน');
+            return;
+        }
+
+        // Save classRoom mapping to db.bases
+        const b = this.db.bases.find(x => x.id === baseId);
+        if (b) {
+            if (!b.classRooms) b.classRooms = {};
+            b.classRooms[cls] = room || b.defaultRoom;
+        }
+
+        this.saveDatabase(false, ['bases']);
+        this.closeModal('checkin-admin-room-modal');
+        this.renderManageBases();
+        this.showStatusModal('success', 'บันทึกสำเร็จ',
+            `กำหนดห้องเรียน "${room || b?.defaultRoom}" ให้กลุ่ม "${cls}" ที่ฐาน "${b?.name}" แล้ว`);
+        this.logAudit(`Admin assigned class ${cls} → ${room} at base ${baseId}`);
     }
 }
 
