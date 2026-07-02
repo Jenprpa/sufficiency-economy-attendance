@@ -2047,4 +2047,35 @@ tr:hover td {
     }
 }
 
+/* Rotation Schedule Builder Wizard Styling */
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.wizard-step-node .step-circle {
+    box-shadow: var(--shadow-sm);
+}
+
+.wizard-step-node.active .step-circle {
+    border-color: var(--primary) !important;
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+.wizard-step-node.completed .step-circle {
+    border-color: var(--primary-light) !important;
+    background: var(--primary-light) !important;
+    color: white !important;
+}
+
+.wizard-panel {
+    display: none;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.wizard-panel.active {
+    display: block;
+}
+
 

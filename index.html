@@ -221,12 +221,24 @@
                             <p style="opacity: 0.9; font-size: 14px;" id="timetable-semester-label">ภาคเรียนที่ 1/2569</p>
                         </div>
                         <!-- Admin controls -->
-                        <div id="timetable-admin-controls" style="display: none; gap: 8px; flex-wrap: wrap;">
+                        <div id="timetable-admin-controls" style="display: none; gap: 8px; flex-wrap: wrap; align-items: center;">
+                            <button class="btn btn-sm btn-primary" onclick="app.openRotationBuilder()">
+                                <i class="fa-solid fa-plus"></i> สร้างตารางหมุนเวียนใหม่
+                            </button>
+                            <button class="btn btn-sm btn-secondary" id="btn-edit-rotation-schedule" onclick="app.openRotationBuilder(true)">
+                                <i class="fa-solid fa-pen-to-square"></i> แก้ไขตาราง
+                            </button>
+                            <button class="btn btn-sm btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="alert('ฟังก์ชันนำเข้า Excel จะเปิดใช้งานในเวอร์ชันถัดไป')">
+                                <i class="fa-solid fa-file-excel"></i> นำเข้า Excel (เร็วๆ นี้)
+                            </button>
                             <button class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);" onclick="document.getElementById('timetable-image-upload').click()">
-                                <i class="fa-solid fa-upload"></i> อัปโหลดตารางสอน
+                                <i class="fa-solid fa-upload"></i> อัปโหลดรูปตาราง
                             </button>
                             <button class="btn btn-sm" id="btn-timetable-remove" style="background: rgba(255,80,80,0.3); color: white; border-color: rgba(255,100,100,0.5); display:none;" onclick="app.removeTimetableImage()">
                                 <i class="fa-solid fa-trash"></i> ลบรูปตาราง
+                            </button>
+                            <button class="btn btn-sm btn-outline" style="color: white; border-color: rgba(255,255,255,0.4);" onclick="app.exportRotationJson()">
+                                <i class="fa-solid fa-file-export"></i> ส่งออก JSON
                             </button>
                             <input type="file" id="timetable-image-upload" accept="image/*" style="display:none;" onchange="app.uploadTimetableImage(this)">
                         </div>
@@ -255,6 +267,32 @@
                         <p style="text-align:center; font-size: 12px; color: var(--text-light); margin-top: 10px;">
                             <i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่ภาพเพื่อดูขนาดเต็มจอ
                         </p>
+                    </div>
+                </div>
+
+                <!-- Rotation Schedule Table Card -->
+                <div class="card" id="rotation-schedule-table-card" style="margin-top: 20px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <h3><i class="fa-solid fa-calendar-days text-primary"></i> ตารางกิจกรรมการหมุนเวียนฐานการเรียนรู้</h3>
+                        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                            <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">แสดงผล:</span>
+                            <button class="btn btn-primary btn-sm" id="btn-rotation-mode-simple">แบบย่อ</button>
+                            <button class="btn btn-outline btn-sm" id="btn-rotation-mode-detail">แบบละเอียด</button>
+                            <button class="btn btn-outline btn-sm" id="btn-print-rotation"><i class="fa-solid fa-print"></i> พิมพ์</button>
+                            <button class="btn btn-outline btn-sm" id="btn-export-rotation-excel"><i class="fa-solid fa-file-excel"></i> Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="margin-top: 15px;">
+                        <table id="rotation-matrix-table" style="width: 100%; font-size: 13px;" class="rotation-matrix-table">
+                            <thead>
+                                <tr id="rotation-matrix-table-headers">
+                                    <!-- Populated dynamically via JS -->
+                                </tr>
+                            </thead>
+                            <tbody id="rotation-matrix-table-body">
+                                <!-- Loaded dynamically via JS -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -2269,6 +2307,158 @@
             <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
                 <button class="btn btn-outline" onclick="app.closeModal('makeup-lesson-modal')">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="app.saveMakeupLesson()"><i class="fa-solid fa-circle-check"></i> สร้างคาบชดเชย</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ROTATION SCHEDULE BUILDER (5 STEPS) -->
+    <div class="modal" id="rotation-builder-modal">
+        <div class="modal-content" style="max-width: 850px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> เครื่องมือสร้างตารางหมุนเวียนฐาน (Rotation Schedule Builder)</h3>
+                <button class="modal-close" onclick="app.closeRotationBuilder()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Progress Indicator -->
+            <div class="wizard-progress-bar" style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0; padding: 0 10px; position: relative;">
+                <div class="wizard-progress-line" style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: var(--border-color); z-index: 1;"></div>
+                <div class="wizard-progress-line-active" id="rot-wizard-active-line" style="position: absolute; top: 50%; left: 10%; width: 0%; height: 2px; background: var(--primary); z-index: 1; transition: width 0.3s ease;"></div>
+                
+                <div class="wizard-step-node active" id="rot-step-node-1" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                    <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">1</div>
+                    <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ภาคเรียน</span>
+                </div>
+                <div class="wizard-step-node" id="rot-step-node-2" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                    <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">2</div>
+                    <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ฐานเรียนรู้</span>
+                </div>
+                <div class="wizard-step-node" id="rot-step-node-3" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                    <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">3</div>
+                    <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">จัดสัปดาห์แรก</span>
+                </div>
+                <div class="wizard-step-node" id="rot-step-node-4" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                    <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">4</div>
+                    <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">หมุนอัตโนมัติ</span>
+                </div>
+                <div class="wizard-step-node" id="rot-step-node-5" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                    <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">5</div>
+                    <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">แก้ไข/ยืนยัน</span>
+                </div>
+            </div>
+            
+            <!-- Step Panels -->
+            <div class="wizard-steps-container" style="min-height: 350px; margin-bottom: 20px;">
+                
+                <!-- STEP 1: SEMESTER SETUP -->
+                <div class="wizard-panel active" id="rot-panel-1">
+                    <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 1: กำหนดรายละเอียดภาคเรียนและระยะเวลา</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="filter-group">
+                            <label for="rot-builder-year">ปีการศึกษา (พ.ศ.) <span style="color: var(--danger);">*</span></label>
+                            <input type="text" id="rot-builder-year" placeholder="เช่น 2569" style="width: 100%;" required>
+                        </div>
+                        <div class="filter-group">
+                            <label for="rot-builder-semester">ภาคเรียนที่ <span style="color: var(--danger);">*</span></label>
+                            <select id="rot-builder-semester" style="width: 100%;">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div class="filter-group">
+                            <label for="rot-builder-start-date">วันที่เริ่มต้นสัปดาห์ที่ 1 <span style="color: var(--danger);">*</span></label>
+                            <input type="date" id="rot-builder-start-date" style="width: 100%;" required>
+                        </div>
+                        <div class="filter-group">
+                            <label for="rot-builder-week-count">จำนวนสัปดาห์สอน <span style="color: var(--danger);">*</span></label>
+                            <input type="number" id="rot-builder-week-count" min="1" max="30" value="20" style="width: 100%;" required>
+                        </div>
+                    </div>
+                    <div class="filter-group" style="margin-top: 15px;">
+                        <label for="rot-builder-name">ชื่อตารางหมุนเวียน <span style="color: var(--danger);">*</span></label>
+                        <input type="text" id="rot-builder-name" placeholder="เช่น ตารางหมุนเวียนวิชาเศรษฐกิจพอเพียง ภาคเรียนที่ 1/2569" style="width: 100%;" required>
+                    </div>
+                </div>
+                
+                <!-- STEP 2: LEARNING BASES -->
+                <div class="wizard-panel" id="rot-panel-2" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="margin: 0; color: var(--primary);">ขั้นตอนที่ 2: จัดการฐานการเรียนรู้และผู้สอน</h4>
+                        <button class="btn btn-primary btn-sm" onclick="app.addBuilderBaseRow()"><i class="fa-solid fa-plus"></i> เพิ่มฐานเรียนรู้</button>
+                    </div>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                        กำหนดรหัสฐาน, ชื่อฐานเรียนรู้, และผู้สอนประจำฐาน (สามารถปรับเปลี่ยนลำดับการแสดงผลหรือลบฐานเรียนรู้ได้)
+                    </p>
+                    <div class="table-responsive" style="max-height: 250px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                        <table style="width: 100%; font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th style="width: 120px;">รหัสฐาน</th>
+                                    <th>ชื่อฐานเรียนรู้</th>
+                                    <th style="width: 120px; text-align: center;">ลำดับแสดงผล</th>
+                                    <th style="width: 90px; text-align: center;">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rot-builder-bases-list">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- STEP 3: INITIAL GRADE ASSIGNMENT -->
+                <div class="wizard-panel" id="rot-panel-3" style="display: none;">
+                    <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 3: กำหนดระดับชั้นของสัปดาห์แรก (Initial Grade Assignment)</h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 15px;">
+                        เลือกระดับชั้นเรียน (ม.1 - ม.6 หรือ ว่าง) ที่จะเข้าเรียนในแต่ละฐานเรียนรู้ใน **สัปดาห์ที่ 1**
+                    </p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 15px;" id="rot-builder-initial-grades-container">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                
+                <!-- STEP 4: AUTO ROTATION -->
+                <div class="wizard-panel" id="rot-panel-4" style="display: none;">
+                    <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 4: ระบบคำนวณการหมุนเวียนห้องเรียนอัตโนมัติ</h4>
+                    <div style="text-align: center; padding: 40px 20px; background-color: var(--gray-light); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                        <i class="fa-solid fa-arrows-spin text-primary" style="font-size: 64px; margin-bottom: 20px; animation: spin 4s linear infinite;"></i>
+                        <h5 style="font-size: 18px; font-weight: 700; margin-bottom: 10px;">พร้อมคำนวณตารางเรียนหมุนเวียน</h5>
+                        <p style="font-size: 14px; max-width: 500px; margin: 0 auto 20px; color: var(--text-secondary);">
+                            ระบบจะใช้ระดับชั้นสัปดาห์แรกที่คุณกำหนดในขั้นตอนที่ 3 มาทำการเลื่อนสับเปลี่ยนฐาน (Rotation) ไปจนครบตามจำนวนสัปดาห์ของภาคเรียน
+                        </p>
+                        <button class="btn btn-primary" onclick="app.executeAutoRotation()"><i class="fa-solid fa-bolt"></i> ประมวลผลและสร้างตารางตัวอย่าง</button>
+                    </div>
+                </div>
+                
+                <!-- STEP 5: PREVIEW & MANUAL EDIT -->
+                <div class="wizard-panel" id="rot-panel-5" style="display: none;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--primary);">ขั้นตอนที่ 5: ตรวจสอบและแก้ไขรายละเอียดตารางเรียนรายสัปดาห์</h4>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 15px;">
+                        คุณสามารถแก้ไขระดับชั้นในแต่ละสัปดาห์และฐานเรียนรู้ได้โดยตรงจากช่องตารางด้านล่างนี้ก่อนทำการบันทึกข้อมูลเข้าสู่ระบบ
+                    </p>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                        <table style="width: 100%; font-size: 12px; border-collapse: collapse;" class="rotation-matrix-table" id="rot-builder-preview-table">
+                            <thead style="position: sticky; top: 0; background: white; z-index: 10;">
+                                <tr id="rot-builder-preview-headers">
+                                    <!-- Populated dynamically -->
+                                </tr>
+                            </thead>
+                            <tbody id="rot-builder-preview-tbody">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+            </div>
+            
+            <!-- Wizard Footer Buttons -->
+            <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-outline" id="rot-btn-prev" onclick="app.prevRotationStep()" style="display: none;">ย้อนกลับ</button>
+                <button class="btn btn-outline" id="rot-btn-cancel" onclick="app.closeRotationBuilder()" style="margin-right: auto;">ยกเลิก</button>
+                <button class="btn btn-primary" id="rot-btn-next" onclick="app.nextRotationStep()">ถัดไป</button>
+                <button class="btn btn-success" id="rot-btn-save" onclick="app.saveRotationBuilderSchedule()" style="display: none;"><i class="fa-solid fa-floppy-disk"></i> บันทึกตาราง</button>
             </div>
         </div>
     </div>

@@ -1680,6 +1680,24 @@ class AttendanceApp {
         }
     }
 
+    // Clear only student data
+    async clearStudentsOnly(showConfirm = true) {
+        if (showConfirm && !confirm("คุณต้องการล้างข้อมูลนักเรียนทั้งหมดในระบบใช่หรือไม่? (ข้อมูลบัญชีผู้ใช้ ฐานการเรียนรู้ และข้อมูลอื่นๆ จะยังคงอยู่)")) {
+            return;
+        }
+
+        this.db.students = [];
+        
+        try {
+            await this.saveDatabase(false, ['students']);
+            this.showStatusModal('success', 'ล้างข้อมูลนักเรียนสำเร็จ', 'รายชื่อนักเรียนทั้งหมดถูกลบออกจากระบบแล้ว');
+            this.render();
+        } catch (e) {
+            console.error("Failed to clear students:", e);
+            alert("ไม่สามารถล้างข้อมูลนักเรียนได้: " + e.message);
+        }
+    }
+
     // Bind UI actions and navigation
     bindEvents() {
         // Top Nav Bar View Router
@@ -2235,15 +2253,15 @@ class AttendanceApp {
     }
 
     updateUserUI() {
-        const nameLabel = document.getElementById('user-name-label');
-        const roleLabel = document.getElementById('user-role-label');
-        const avatarLabel = document.getElementById('user-avatar');
-        const authBtnText = document.getElementById('btn-auth-text');
-        const authIcon = document.getElementById('btn-auth-icon');
+        const nameLabel = document.getElementById('profile-name');
+        const roleLabel = document.getElementById('profile-role');
+        const avatarLabel = document.getElementById('profile-avatar');
+        const authBtnText = document.getElementById('auth-btn-text');
+        const authIcon = document.querySelector('#auth-action-btn i');
+        const userProfileSection = document.getElementById('user-profile-section');
+        const changePwdBtn = document.getElementById('btn-change-password');
+        const dateSimulator = document.getElementById('date-simulator-widget');
 
-        if (!nameLabel || !roleLabel || !avatarLabel) return;
-
-        // Menu item permissions references
         const menuDashboard = document.getElementById('menu-dashboard');
         const menuSubjectCalendar = document.getElementById('menu-subject-calendar');
         const menuCalendar = document.getElementById('menu-calendar');
@@ -2257,9 +2275,9 @@ class AttendanceApp {
         const menuManage = document.getElementById('menu-manage');
 
         if (this.currentUser) {
-            nameLabel.textContent = this.currentUser.name;
+            if (nameLabel) nameLabel.textContent = this.currentUser.name;
+            if (userProfileSection) userProfileSection.style.display = 'flex';
             
-            // Extract a cleaner avatar character
             let avatarChar = this.currentUser.name.charAt(0);
             if (this.currentUser.name.startsWith('ครู')) {
                 avatarChar = this.currentUser.name.substring(3).charAt(0);
@@ -2268,13 +2286,21 @@ class AttendanceApp {
             } else if (this.currentUser.name.startsWith('นางสาว')) {
                 avatarChar = this.currentUser.name.substring(6).charAt(0);
             }
-            avatarLabel.textContent = avatarChar;
+            if (avatarLabel) avatarLabel.textContent = avatarChar;
 
-            authBtnText.textContent = "ออกจากระบบ";
-            authIcon.className = "fa-solid fa-right-from-bracket";
-            
+            if (authBtnText) authBtnText.textContent = "ออกจากระบบ";
+            if (authIcon) {
+                authIcon.className = "fa-solid fa-right-from-bracket";
+            }
+
+            if (this.currentUser.role !== 'admin') {
+                if (changePwdBtn) changePwdBtn.style.display = 'flex';
+            } else {
+                if (changePwdBtn) changePwdBtn.style.display = 'none';
+            }
+
             if (this.currentUser.role === 'admin') {
-                roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
+                if (roleLabel) roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
                 if (menuDashboard) menuDashboard.style.display = 'block';
                 if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
                 if (menuCalendar) menuCalendar.style.display = 'block';
@@ -2287,7 +2313,7 @@ class AttendanceApp {
                 if (menuAdmin) menuAdmin.style.display = 'block';
                 if (menuManage) menuManage.style.display = 'block';
             } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
-                roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเม้น";
+                if (roleLabel) roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเมิน";
                 if (menuDashboard) menuDashboard.style.display = 'block';
                 if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
                 if (menuCalendar) menuCalendar.style.display = 'block';
@@ -2301,7 +2327,7 @@ class AttendanceApp {
                 if (menuManage) menuManage.style.display = 'none';
             } else {
                 // Teacher:
-                roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
+                if (roleLabel) roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
                 if (menuDashboard) menuDashboard.style.display = 'none';
                 if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
                 if (menuCalendar) menuCalendar.style.display = 'none';
@@ -2315,12 +2341,16 @@ class AttendanceApp {
                 if (menuManage) menuManage.style.display = 'none';
             }
         } else {
-            nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
-            roleLabel.textContent = "กรุณาเข้าสู่ระบบ";
-            avatarLabel.textContent = "?";
-            authBtnText.textContent = "เข้าสู่ระบบ";
-            authIcon.className = "fa-solid fa-right-to-bracket";
-            
+            if (nameLabel) nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
+            if (roleLabel) roleLabel.textContent = "กรุณาเข้าสู่ระบบ";
+            if (avatarLabel) avatarLabel.textContent = "?";
+            if (userProfileSection) userProfileSection.style.display = 'none';
+            if (authBtnText) authBtnText.textContent = "เข้าสู่ระบบ";
+            if (authIcon) {
+                authIcon.className = "fa-solid fa-right-to-bracket";
+            }
+            if (changePwdBtn) changePwdBtn.style.display = 'none';
+
             // Guest mode defaults
             if (menuDashboard) menuDashboard.style.display = 'block';
             if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
@@ -2333,6 +2363,35 @@ class AttendanceApp {
             if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
             if (menuAdmin) menuAdmin.style.display = 'none';
             if (menuManage) menuManage.style.display = 'none';
+        }
+
+        // Date simulator permission lock
+        if (dateSimulator) {
+            if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'director')) {
+                dateSimulator.style.display = 'flex';
+            } else {
+                dateSimulator.style.display = 'none';
+                // Lock systemDate to real local date
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                const realDate = `${year}-${month}-${day}`;
+                if (this.systemDate !== realDate) {
+                    this.systemDate = realDate;
+                    const dateInput = document.getElementById('system-date-input');
+                    if (dateInput) {
+                        dateInput.value = realDate;
+                    }
+                    this.currentWeekInfo = this.getWeekByDate(this.systemDate);
+                }
+            }
+        }
+
+        // Toggle admin controls for timetable image and rotation schedule table
+        const timetableAdminControls = document.getElementById('timetable-admin-controls');
+        if (timetableAdminControls) {
+            timetableAdminControls.style.display = (this.currentUser && this.currentUser.role === 'admin') ? 'flex' : 'none';
         }
     }
 
@@ -2684,47 +2743,7 @@ class AttendanceApp {
         this.switchView('dashboard');
     }
 
-    // Update UI headers / profile sidebar
-    updateUserUI() {
-        const nameLabel = document.getElementById('profile-name');
-        const roleLabel = document.getElementById('profile-role');
-        const avatarLabel = document.getElementById('profile-avatar');
-        const authBtnText = document.getElementById('auth-btn-text');
-        const authIcon = document.querySelector('#auth-action-btn i');
-        
 
-
-        const changePwdBtn = document.getElementById('btn-change-password');
-        if (this.currentUser && this.currentUser.role !== 'admin') {
-            if (changePwdBtn) changePwdBtn.style.display = 'flex';
-        } else {
-            if (changePwdBtn) changePwdBtn.style.display = 'none';
-        }
-
-        // Date simulator permission lock
-        const dateSimulator = document.getElementById('date-simulator-widget');
-        if (dateSimulator) {
-            if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'director')) {
-                dateSimulator.style.display = 'flex';
-            } else {
-                dateSimulator.style.display = 'none';
-                // Lock systemDate to real local date
-                const today = new Date();
-                const year = today.getFullYear();
-                const month = String(today.getMonth() + 1).padStart(2, '0');
-                const day = String(today.getDate()).padStart(2, '0');
-                const realDate = `${year}-${month}-${day}`;
-                if (this.systemDate !== realDate) {
-                    this.systemDate = realDate;
-                    const dateInput = document.getElementById('system-date-input');
-                    if (dateInput) {
-                        dateInput.value = realDate;
-                    }
-                    this.currentWeekInfo = this.getWeekByDate(this.systemDate);
-                }
-            }
-        }
-    }
 
     openChangePasswordModal(force = false) {
         document.getElementById('change-pwd-current').value = '';
@@ -6962,13 +6981,25 @@ class AttendanceApp {
         if (!tbody) return;
         tbody.innerHTML = '';
 
+        const headersRow = document.getElementById('rotation-matrix-table-headers');
+        if (headersRow) {
+            let html = '<th style="width: 100px;">สัปดาห์</th><th style="width: 150px;">ช่วงวันที่</th>';
+            this.db.bases.forEach(b => {
+                html += `<th>${b.name}</th>`;
+            });
+            headersRow.innerHTML = html;
+        }
+
         const currentWeek = this.currentWeekInfo ? this.currentWeekInfo.week : null;
         const mode = this.rotationViewMode || 'simple';
 
-        // Loop over the 20 weeks
-        for (let wk = 1; wk <= 20; wk++) {
+        // Loop over the weeks present in the schedule
+        const weeks = [...new Set(this.db.rotation_schedule.map(s => s.week))].sort((a,b)=>a-b);
+        if (weeks.length === 0) return;
+
+        weeks.forEach(wk => {
             const weekEntries = this.db.rotation_schedule.filter(s => s.week === wk);
-            if (weekEntries.length === 0) continue;
+            if (weekEntries.length === 0) return;
 
             const tr = document.createElement('tr');
             if (wk === currentWeek) {
@@ -6985,31 +7016,30 @@ class AttendanceApp {
                 }
                 
                 tr.innerHTML = `
-                    <td style="font-weight: 700;">สัปดาห์ที่ ${wk}</td>
-                    <td style="font-size: 12px; color: var(--text-secondary);">${firstEntry.dates}</td>
-                    <td colspan="7" class="${specialClass}" style="text-align: center; padding: 14px;">
+                    <td style="font-weight: 700; text-align: center;">สัปดาห์ที่ ${wk}</td>
+                    <td style="font-size: 12px; color: var(--text-secondary); text-align: center;">${firstEntry.dates}</td>
+                    <td colspan="${this.db.bases.length}" class="${specialClass}" style="text-align: center; padding: 14px;">
                         ${firstEntry.classes}
                     </td>
                 `;
             } else {
                 let cellsHTML = `
-                    <td style="font-weight: 700;">สัปดาห์ที่ ${wk}</td>
-                    <td style="font-size: 12px; color: var(--text-secondary);">${firstEntry.dates}</td>
+                    <td style="font-weight: 700; text-align: center;">สัปดาห์ที่ ${wk}</td>
+                    <td style="font-size: 12px; color: var(--text-secondary); text-align: center;">${firstEntry.dates}</td>
                 `;
 
-                const baseIds = ['base1', 'base2', 'base3', 'base4', 'base5', 'base6', 'base7'];
-                baseIds.forEach(bId => {
-                    const entry = weekEntries.find(e => e.baseId === bId);
+                this.db.bases.forEach(b => {
+                    const entry = weekEntries.find(e => e.baseId === b.id);
                     if (!entry) {
-                        cellsHTML += `<td class="week-empty">-</td>`;
+                        cellsHTML += `<td class="week-empty" style="text-align: center;">-</td>`;
                     } else if (entry.isEmpty) {
-                        cellsHTML += `<td class="week-empty">ว่าง</td>`;
+                        cellsHTML += `<td class="week-empty" style="text-align: center;">ว่าง</td>`;
                     } else {
                         let gradeLabel = '';
                         if (entry.attendingClasses && entry.attendingClasses.length > 0) {
                             gradeLabel = entry.attendingClasses[0].split('/')[0];
                         } else {
-                            const match = entry.classes.match(/ม\.\d/);
+                            const match = entry.classes.match(/ม\.[1-6]/);
                             gradeLabel = match ? match[0] : '';
                         }
 
@@ -7031,7 +7061,11 @@ class AttendanceApp {
                             `;
                         }
 
-                        cellsHTML += `<td class="${colorClass}" style="cursor: pointer;" onclick="app.showRotationDetail(${wk}, '${bId}')" title="คลิกเพื่อดูรายละเอียดนักเรียนที่เข้าเรียน">${cellContent}</td>`;
+                        cellsHTML += `
+                            <td class="${colorClass}" style="text-align: center; cursor: pointer;" onclick="app.showRotationDetail(${wk}, '${b.id}')">
+                                ${cellContent}
+                            </td>
+                        `;
                     }
                 });
 
@@ -7039,6 +7073,12 @@ class AttendanceApp {
             }
 
             tbody.appendChild(tr);
+        });
+
+        // Toggle edit rotation schedule button visibility
+        const editBtn = document.getElementById('btn-edit-rotation-schedule');
+        if (editBtn) {
+            editBtn.style.display = (this.currentUser && this.currentUser.role === 'admin') ? 'inline-block' : 'none';
         }
     }
 
@@ -8863,11 +8903,109 @@ generateDefaultRotationSchedule(customBases = null) {
                 }
             }
 
-            this.renderSubjectCalendarsList(calendars);
+            this.rawSubjectCalendars = calendars;
+
+            // Set up teacher group filter visibility for admin
+            const teacherFilterGroup = document.getElementById('cal-list-filter-teacher-group');
+            if (teacherFilterGroup) {
+                const isAdmin = this.currentUser && this.currentUser.role === 'admin';
+                teacherFilterGroup.style.display = isAdmin ? 'block' : 'none';
+            }
+
+            this.filterSubjectCalendars();
         } catch (e) {
             console.error("Failed to load subject calendars:", e);
             tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถโหลดข้อมูลปฏิทินได้: ${e.message}</td></tr>`;
         }
+    }
+
+    // Filter subject calendars list locally based on active filters
+    filterSubjectCalendars() {
+        const yearSelect = document.getElementById('cal-list-filter-year');
+        const semesterSelect = document.getElementById('cal-list-filter-semester');
+        const subjectInput = document.getElementById('cal-list-filter-subject');
+        const classroomSelect = document.getElementById('cal-list-filter-classroom');
+        const teacherInput = document.getElementById('cal-list-filter-teacher');
+        const statusSelect = document.getElementById('cal-list-filter-status');
+
+        const year = yearSelect ? yearSelect.value : 'all';
+        const semester = semesterSelect ? semesterSelect.value : 'all';
+        const subjectQuery = subjectInput ? subjectInput.value.toLowerCase().trim() : '';
+        const classroom = classroomSelect ? classroomSelect.value : 'all';
+        const teacherQuery = teacherInput ? teacherInput.value.toLowerCase().trim() : '';
+        const status = statusSelect ? statusSelect.value : 'all';
+
+        let filtered = this.rawSubjectCalendars || [];
+
+        // 1. Academic Year
+        if (year !== 'all') {
+            filtered = filtered.filter(c => c.academicYear === year);
+        }
+
+        // 2. Semester
+        if (semester !== 'all') {
+            filtered = filtered.filter(c => c.semester === semester);
+        }
+
+        // 3. Subject Query (code or name)
+        if (subjectQuery) {
+            filtered = filtered.filter(c => 
+                (c.subjectCode && c.subjectCode.toLowerCase().includes(subjectQuery)) || 
+                (c.subjectName && c.subjectName.toLowerCase().includes(subjectQuery))
+            );
+        }
+
+        // 4. Classroom
+        if (classroom !== 'all') {
+            filtered = filtered.filter(c => c.classrooms && c.classrooms.includes(classroom));
+        }
+
+        // 5. Teacher (Admin Only)
+        if (teacherQuery && this.currentUser && this.currentUser.role === 'admin') {
+            filtered = filtered.filter(c => 
+                (c.teacherName && c.teacherName.toLowerCase().includes(teacherQuery)) || 
+                (c.teacherUid && c.teacherUid.toLowerCase().includes(teacherQuery))
+            );
+        }
+
+        // 6. Status
+        if (status !== 'all') {
+            filtered = filtered.filter(c => {
+                const lessons = (this.db.subjectCalendarLessons || []).filter(l => l.calendarId === c.calendarId);
+                if (lessons.length === 0) return status === 'planned';
+
+                const allPlanned = lessons.every(l => l.status === 'planned');
+                const allCompleted = lessons.every(l => l.status === 'taught' || l.status === 'cancelled');
+                const hasMakeup = lessons.some(l => l.isMakeup);
+
+                if (status === 'planned') return allPlanned;
+                if (status === 'completed') return allCompleted;
+                if (status === 'in_progress') return !allPlanned && !allCompleted;
+                if (status === 'has_makeup') return hasMakeup;
+                return true;
+            });
+        }
+
+        this.renderSubjectCalendarsList(filtered);
+    }
+
+    // Reset all filters to default and refresh list
+    resetSubjectCalendarFilters() {
+        const year = document.getElementById('cal-list-filter-year');
+        const semester = document.getElementById('cal-list-filter-semester');
+        const subject = document.getElementById('cal-list-filter-subject');
+        const classroom = document.getElementById('cal-list-filter-classroom');
+        const teacher = document.getElementById('cal-list-filter-teacher');
+        const status = document.getElementById('cal-list-filter-status');
+
+        if (year) year.value = 'all';
+        if (semester) semester.value = 'all';
+        if (subject) subject.value = '';
+        if (classroom) classroom.value = 'all';
+        if (teacher) teacher.value = '';
+        if (status) status.value = 'all';
+
+        this.filterSubjectCalendars();
     }
 
     // Render calendars list table
@@ -9919,6 +10057,562 @@ generateDefaultRotationSchedule(customBases = null) {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.currentLessonsCache, null, 2));
         
         // Trigger download
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", filename);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    // ===================================================================
+    //  ROTATION SCHEDULE BUILDER (V1.2)
+    // ===================================================================
+
+    // Open the Rotation Builder Wizard
+    openRotationBuilder(isEdit = false) {
+        // Only allow admin
+        if (!this.currentUser || this.currentUser.role !== 'admin') {
+            alert("สิทธิ์การเข้าใช้งานเฉพาะผู้ดูแลระบบ (Admin) เท่านั้น!");
+            return;
+        }
+
+        this.rotationBuilderStep = 1;
+        this.rotationBuilderBases = JSON.parse(JSON.stringify(this.db.bases || []));
+        this.rotationBuilderIsEdit = isEdit;
+        
+        // Populate inputs in Step 1
+        const yearInput = document.getElementById('rot-builder-year');
+        const semesterInput = document.getElementById('rot-builder-semester');
+        const dateInput = document.getElementById('rot-builder-start-date');
+        const weekCountInput = document.getElementById('rot-builder-week-count');
+        const nameInput = document.getElementById('rot-builder-name');
+
+        if (isEdit && this.db.rotation_schedule && this.db.rotation_schedule.length > 0) {
+            // Edit existing schedule
+            const first = this.db.rotation_schedule[0];
+            const activeSemester = this.db.activeSemesterId || "1-2569";
+            const parts = activeSemester.split('-');
+            if (yearInput) yearInput.value = parts[1] || '2569';
+            if (semesterInput) semesterInput.value = parts[0] || '1';
+            if (dateInput) dateInput.value = first.startDate || '';
+            
+            const uniqueWeeks = [...new Set(this.db.rotation_schedule.map(s => s.week))];
+            if (weekCountInput) weekCountInput.value = uniqueWeeks.length;
+            if (nameInput) nameInput.value = "ตารางแก้ไขหมุนเวียนฐานการเรียนรู้";
+            
+            // Go straight to Step 5 (Preview & Manual Edit)
+            this.rotationBuilderStep = 5;
+            this.rotationBuilderTempSchedule = JSON.parse(JSON.stringify(this.db.rotation_schedule));
+        } else {
+            // New schedule setup
+            const activeSemester = this.db.activeSemesterId || "1-2569";
+            const parts = activeSemester.split('-');
+            if (yearInput) yearInput.value = parts[1] || '2569';
+            if (semesterInput) semesterInput.value = parts[0] || '1';
+            if (dateInput) dateInput.value = '2026-05-16'; // Default template start date
+            if (weekCountInput) weekCountInput.value = 20;
+            if (nameInput) nameInput.value = `ตารางหมุนเวียนฐานการเรียนรู้ ภาคเรียนที่ ${activeSemester}`;
+            this.rotationBuilderTempSchedule = null;
+        }
+
+        this.renderRotationBuilderStep();
+        this.openModal('rotation-builder-modal');
+    }
+
+    // Close the Rotation Builder Wizard
+    closeRotationBuilder() {
+        this.closeModal('rotation-builder-modal');
+    }
+
+    // Render Wizard step UI
+    renderRotationBuilderStep() {
+        const step = this.rotationBuilderStep;
+        
+        // Update panel visibility
+        for (let i = 1; i <= 5; i++) {
+            const panel = document.getElementById(`rot-panel-${i}`);
+            if (panel) panel.style.display = (i === step) ? 'block' : 'none';
+            
+            const node = document.getElementById(`rot-step-node-${i}`);
+            if (node) {
+                node.className = 'wizard-step-node' + (i === step ? ' active' : '') + (i < step ? ' completed' : '');
+            }
+        }
+        
+        // Update progress line width
+        const progressLine = document.getElementById('rot-wizard-active-line');
+        if (progressLine) {
+            progressLine.style.width = `${(step - 1) * 25}%`;
+        }
+
+        // Show/hide buttons
+        const prevBtn = document.getElementById('rot-btn-prev');
+        const nextBtn = document.getElementById('rot-btn-next');
+        const saveBtn = document.getElementById('rot-btn-save');
+
+        if (prevBtn) prevBtn.style.display = (step > 1) ? 'inline-block' : 'none';
+        if (nextBtn) nextBtn.style.display = (step < 5) ? 'inline-block' : 'none';
+        if (saveBtn) saveBtn.style.display = (step === 5) ? 'inline-block' : 'none';
+
+        // Custom step preps
+        if (step === 2) {
+            this.renderBuilderBasesList();
+        } else if (step === 3) {
+            this.renderBuilderInitialGrades();
+        } else if (step === 5) {
+            this.renderBuilderPreviewTable();
+        }
+    }
+
+    // Previous step
+    prevRotationStep() {
+        if (this.rotationBuilderStep > 1) {
+            this.rotationBuilderStep--;
+            this.renderRotationBuilderStep();
+        }
+    }
+
+    // Next step validation and transition
+    nextRotationStep() {
+        const step = this.rotationBuilderStep;
+
+        if (step === 1) {
+            const year = document.getElementById('rot-builder-year').value;
+            const semester = document.getElementById('rot-builder-semester').value;
+            const startDate = document.getElementById('rot-builder-start-date').value;
+            const weekCount = parseInt(document.getElementById('rot-builder-week-count').value);
+            const name = document.getElementById('rot-builder-name').value;
+
+            if (!year || !semester || !startDate || !weekCount || !name) {
+                alert("กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วน");
+                return;
+            }
+            if (weekCount < 1 || weekCount > 30) {
+                alert("จำนวนสัปดาห์ต้องอยู่ระหว่าง 1 ถึง 30 สัปดาห์");
+                return;
+            }
+        } else if (step === 2) {
+            // Validate bases in Step 2
+            const ids = this.rotationBuilderBases.map(b => b.id.trim());
+            const hasDuplicate = ids.some((val, i) => ids.indexOf(val) !== i);
+            if (hasDuplicate) {
+                alert("รหัสฐานการเรียนรู้ต้องไม่ซ้ำกัน!");
+                return;
+            }
+            const hasEmpty = this.rotationBuilderBases.some(b => !b.id.trim() || !b.name.trim());
+            if (hasEmpty) {
+                alert("กรุณากรอกรหัสฐานและชื่อฐานเรียนรู้ให้ครบทุกช่อง");
+                return;
+            }
+        }
+
+        this.rotationBuilderStep++;
+        this.renderRotationBuilderStep();
+    }
+
+    // Render bases list in Step 2
+    renderBuilderBasesList() {
+        const tbody = document.getElementById('rot-builder-bases-list');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        this.rotationBuilderBases.forEach((b, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" value="${b.id}" class="form-control" style="padding: 4px 8px; font-family: inherit; font-size: 13px;" onchange="app.updateBuilderBaseField(${idx}, 'id', this.value)"></td>
+                <td><input type="text" value="${b.name}" class="form-control" style="padding: 4px 8px; font-family: inherit; font-size: 13px;" onchange="app.updateBuilderBaseField(${idx}, 'name', this.value)"></td>
+                <td style="text-align: center;">
+                    <button class="btn btn-outline btn-sm" style="padding: 2px 6px;" onclick="app.moveBuilderBaseRow(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}><i class="fa-solid fa-arrow-up"></i></button>
+                    <button class="btn btn-outline btn-sm" style="padding: 2px 6px;" onclick="app.moveBuilderBaseRow(${idx}, 1)" ${idx === this.rotationBuilderBases.length - 1 ? 'disabled' : ''}><i class="fa-solid fa-arrow-down"></i></button>
+                </td>
+                <td style="text-align: center;">
+                    <button class="btn btn-sm" style="background: var(--danger-bg); color: var(--danger); padding: 4px 8px;" onclick="app.removeBuilderBaseRow(${idx})"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Add base row
+    addBuilderBaseRow() {
+        const newId = `base${this.rotationBuilderBases.length + 1}`;
+        this.rotationBuilderBases.push({
+            id: newId,
+            name: `ฐานการเรียนรู้ใหม่ที่ ${this.rotationBuilderBases.length + 1}`,
+            defaultRoom: "-",
+            defaultTeacher: "",
+            teacherId: ""
+        });
+        this.renderBuilderBasesList();
+    }
+
+    // Remove base row
+    removeBuilderBaseRow(idx) {
+        if (this.rotationBuilderBases.length <= 1) {
+            alert("ต้องมีฐานการเรียนรู้อย่างน้อย 1 ฐาน!");
+            return;
+        }
+        this.rotationBuilderBases.splice(idx, 1);
+        this.renderBuilderBasesList();
+    }
+
+    // Move base row for displayOrder reordering
+    moveBuilderBaseRow(idx, direction) {
+        const targetIdx = idx + direction;
+        if (targetIdx < 0 || targetIdx >= this.rotationBuilderBases.length) return;
+        
+        // Swap elements
+        const temp = this.rotationBuilderBases[idx];
+        this.rotationBuilderBases[idx] = this.rotationBuilderBases[targetIdx];
+        this.rotationBuilderBases[targetIdx] = temp;
+        this.renderBuilderBasesList();
+    }
+
+    // Update specific field of builder base
+    updateBuilderBaseField(idx, field, value) {
+        if (this.rotationBuilderBases[idx]) {
+            this.rotationBuilderBases[idx][field] = value.trim();
+        }
+    }
+
+    // Render initial grades dropdown list in Step 3
+    renderBuilderInitialGrades() {
+        const container = document.getElementById('rot-builder-initial-grades-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const grades = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6", "ว่าง"];
+
+        this.rotationBuilderBases.forEach((b) => {
+            const div = document.createElement('div');
+            div.className = 'filter-group';
+            div.style.background = 'white';
+            div.style.padding = '12px';
+            div.style.borderRadius = 'var(--radius-sm)';
+            div.style.border = '1px solid var(--border-color)';
+            
+            // Try to pre-guess a default grade based on standard index:
+            const idx = this.rotationBuilderBases.indexOf(b);
+            const defaultGrade = grades[idx % grades.length];
+
+            let optionsHtml = '';
+            grades.forEach(g => {
+                optionsHtml += `<option value="${g}" ${g === defaultGrade ? 'selected' : ''}>${g}</option>`;
+            });
+
+            div.innerHTML = `
+                <label style="font-weight: 600; color: var(--primary);"><i class="fa-solid fa-leaf"></i> ${b.name} (${b.id})</label>
+                <select id="rot-initial-grade-${b.id}" class="form-control" style="width:100%; margin-top:5px;">
+                    ${optionsHtml}
+                </select>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // Execute Auto Rotation to Step 5
+    executeAutoRotation() {
+        const startDate = document.getElementById('rot-builder-start-date').value;
+        const weekCount = parseInt(document.getElementById('rot-builder-week-count').value);
+
+        // Gather initial grades
+        const initialGrades = {};
+        this.rotationBuilderBases.forEach(b => {
+            const sel = document.getElementById(`rot-initial-grade-${b.id}`);
+            initialGrades[b.id] = sel ? sel.value : "ว่าง";
+        });
+
+        // Run rotation computation
+        this.rotationBuilderTempSchedule = this.calculateRotation(initialGrades, weekCount, startDate, this.rotationBuilderBases);
+
+        // Auto transition to preview table step
+        this.rotationBuilderStep = 5;
+        this.renderRotationBuilderStep();
+    }
+
+    // Dynamic week date computation helper
+    getWeekDates(startDateVal, weekNum) {
+        const start = new Date(startDateVal);
+        start.setDate(start.getDate() + (weekNum - 1) * 7);
+        
+        const end = new Date(start);
+        end.setDate(end.getDate() + 6);
+        
+        const startStr = start.toISOString().split('T')[0];
+        const endStr = end.toISOString().split('T')[0];
+        
+        // Tuesday of that week is the target activity display date (start + 3 days)
+        const tue = new Date(start);
+        tue.setDate(tue.getDate() + 3);
+        
+        const thaiMonths = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+        const day = tue.getDate();
+        const month = thaiMonths[tue.getMonth()];
+        const year = tue.getFullYear() + 543;
+        const label = `${day} ${month} ${year}`;
+        
+        return {
+            dates: label,
+            start: startStr,
+            end: endStr
+        };
+    }
+
+    // Generate rotated weekly base grades
+    calculateRotation(initialGrades, weekCount, startDate, bases) {
+        const schedule = [];
+        
+        // Gather bases with active non-ว่าง grades
+        const activeBases = [];
+        const activeGrades = [];
+        bases.forEach(b => {
+            const grade = initialGrades[b.id] || "ว่าง";
+            if (grade !== "ว่าง") {
+                activeBases.push(b.id);
+                activeGrades.push(grade);
+            }
+        });
+
+        for (let wk = 1; wk <= weekCount; wk++) {
+            const wInfo = this.getWeekDates(startDate, wk);
+            // Alternate weeks: week 1 is A (isB = false), week 2 is B (isB = true)
+            const isB = (wk % 2 === 0);
+
+            bases.forEach(b => {
+                const isActive = activeBases.includes(b.id);
+                if (!isActive) {
+                    schedule.push({
+                        week: wk,
+                        dates: wInfo.dates,
+                        startDate: wInfo.start,
+                        endDate: wInfo.end,
+                        baseId: b.id,
+                        baseName: b.name,
+                        classes: "ว่าง (ไม่มีการจัดเรียน)",
+                        attendingClasses: [],
+                        classRooms: {},
+                        room: "-",
+                        teacherName: b.defaultTeacher || "-",
+                        teacherId: b.teacherId || "",
+                        isEmpty: true
+                    });
+                } else {
+                    const k = activeBases.indexOf(b.id);
+                    // Rotate index by shifting backward by 1 position every week
+                    const shift = wk - 1;
+                    const gIdx = (k - shift + activeGrades.length * 100) % activeGrades.length;
+                    const grade = activeGrades[gIdx];
+
+                    const classData = this.getClassesForBaseAndGrade(b.id, grade, isB);
+                    const mainRoom = Object.values(classData.classRooms)[0] || b.defaultRoom || "-";
+
+                    schedule.push({
+                        week: wk,
+                        dates: wInfo.dates,
+                        startDate: wInfo.start,
+                        endDate: wInfo.end,
+                        baseId: b.id,
+                        baseName: b.name,
+                        classes: classData.classesLabel,
+                        attendingClasses: classData.classes,
+                        classRooms: classData.classRooms,
+                        room: mainRoom,
+                        teacherName: b.defaultTeacher || "-",
+                        teacherId: b.teacherId || ""
+                    });
+                }
+            });
+        }
+        return schedule;
+    }
+
+    // Render Preview & Manual edit grid table in Step 5
+    renderBuilderPreviewTable() {
+        const headersRow = document.getElementById('rot-builder-preview-headers');
+        const tbody = document.getElementById('rot-builder-preview-tbody');
+        if (!headersRow || !tbody) return;
+
+        // Render headers
+        let headersHtml = '<th style="width: 80px;">สัปดาห์</th><th style="width: 140px;">ช่วงวันที่</th>';
+        this.rotationBuilderBases.forEach(b => {
+            headersHtml += `<th>${b.name}</th>`;
+        });
+        headersRow.innerHTML = headersHtml;
+
+        // Render rows
+        tbody.innerHTML = '';
+        if (!this.rotationBuilderTempSchedule || this.rotationBuilderTempSchedule.length === 0) return;
+
+        const uniqueWeeks = [...new Set(this.rotationBuilderTempSchedule.map(s => s.week))].sort((a,b)=>a-b);
+        const grades = ["ว่าง", "ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"];
+
+        uniqueWeeks.forEach(wk => {
+            const tr = document.createElement('tr');
+            const weekEntries = this.rotationBuilderTempSchedule.filter(s => s.week === wk);
+            const first = weekEntries[0] || {};
+            
+            let html = `
+                <td style="font-weight: 700; text-align: center;">W${wk}</td>
+                <td style="font-size: 11px; color: var(--text-secondary);">${first.dates}</td>
+            `;
+
+            this.rotationBuilderBases.forEach(b => {
+                const entry = weekEntries.find(e => e.baseId === b.id);
+                let currentVal = "ว่าง";
+                if (entry && !entry.isEmpty) {
+                    if (entry.attendingClasses && entry.attendingClasses.length > 0) {
+                        currentVal = entry.attendingClasses[0].split('/')[0];
+                    } else {
+                        const match = entry.classes.match(/ม\.[1-6]/);
+                        currentVal = match ? match[0] : "ว่าง";
+                    }
+                }
+
+                let optionsHtml = '';
+                grades.forEach(g => {
+                    optionsHtml += `<option value="${g}" ${g === currentVal ? 'selected' : ''}>${g}</option>`;
+                });
+
+                html += `
+                    <td>
+                        <select style="width: 100%; font-size: 12px; padding: 4px;" data-week="${wk}" data-base="${b.id}" onchange="app.updateBuilderPreviewCell(${wk}, '${b.id}', this.value)">
+                            ${optionsHtml}
+                        </select>
+                    </td>
+                `;
+            });
+
+            tr.innerHTML = html;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // Update individual preview cells inside Step 5 table
+    updateBuilderPreviewCell(week, baseId, value) {
+        if (!this.rotationBuilderTempSchedule) return;
+
+        const entryIndex = this.rotationBuilderTempSchedule.findIndex(s => s.week === week && s.baseId === baseId);
+        if (entryIndex === -1) return;
+
+        const entry = this.rotationBuilderTempSchedule[entryIndex];
+        const isB = (week % 2 === 0);
+
+        if (value === "ว่าง") {
+            this.rotationBuilderTempSchedule[entryIndex] = {
+                week: week,
+                dates: entry.dates,
+                startDate: entry.startDate,
+                endDate: entry.endDate,
+                baseId: baseId,
+                baseName: entry.baseName,
+                classes: "ว่าง (ไม่มีการจัดเรียน)",
+                attendingClasses: [],
+                classRooms: {},
+                room: "-",
+                teacherName: entry.teacherName,
+                teacherId: entry.teacherId,
+                isEmpty: true
+            };
+        } else {
+            const classData = this.getClassesForBaseAndGrade(baseId, value, isB);
+            const mainRoom = Object.values(classData.classRooms)[0] || "-";
+
+            this.rotationBuilderTempSchedule[entryIndex] = {
+                week: week,
+                dates: entry.dates,
+                startDate: entry.startDate,
+                endDate: entry.endDate,
+                baseId: baseId,
+                baseName: entry.baseName,
+                classes: classData.classesLabel,
+                attendingClasses: classData.classes,
+                classRooms: classData.classRooms,
+                room: mainRoom,
+                teacherName: entry.teacherName,
+                teacherId: entry.teacherId
+            };
+        }
+    }
+
+    // Save final compiled schedule and sync to Firestore
+    async saveRotationBuilderSchedule() {
+        if (!this.rotationBuilderTempSchedule || this.rotationBuilderTempSchedule.length === 0) {
+            alert("ไม่มีตารางกิจกรรมที่คำนวณเพื่อใช้บันทึก!");
+            return;
+        }
+
+        // Final validations
+        const academicYear = document.getElementById('rot-builder-year').value;
+        const semester = document.getElementById('rot-builder-semester').value;
+
+        if (!academicYear || !semester) {
+            alert("ข้อมูลปีการศึกษาหรือภาคเรียนไม่ถูกต้อง");
+            return;
+        }
+
+        if (!confirm("การแก้ไขตารางหมุนเวียนจะมีผลต่อการสร้างรายการเช็กชื่อ ยืนยันที่จะบันทึกตารางหมุนเวียนใหม่ใช่หรือไม่?")) {
+            return;
+        }
+
+        // Apply new bases array
+        this.db.bases = JSON.parse(JSON.stringify(this.rotationBuilderBases));
+
+        // Assign default teacher details back to the schedule entries based on the updated bases list
+        this.rotationBuilderTempSchedule.forEach(entry => {
+            const baseRef = this.db.bases.find(b => b.id === entry.baseId);
+            if (baseRef) {
+                entry.baseName = baseRef.name;
+                entry.teacherName = baseRef.defaultTeacher || "-";
+                entry.teacherId = baseRef.teacherId || "";
+                if (!entry.isEmpty) {
+                    // Update rooms inside classRooms
+                    const parts = entry.classes.split('(');
+                    if (parts.length > 1) {
+                        const roomLabel = parts[1].replace(')', '').trim();
+                        entry.room = roomLabel || baseRef.defaultRoom || "-";
+                    } else {
+                        entry.room = baseRef.defaultRoom || "-";
+                    }
+                }
+            }
+        });
+
+        this.db.rotation_schedule = this.rotationBuilderTempSchedule;
+        this.db.activeSemesterId = `${semester}-${academicYear}`;
+
+        try {
+            this.showStatusModal('info', 'กำลังบันทึกข้อมูล...', 'กำลังซิงค์ตารางเรียนหมุนฐานอันใหม่และฐานการเรียนรู้ขึ้นระบบคลาวด์');
+            await this.saveDatabase(false, ['bases', 'rotation_schedule', 'activeSemesterId']);
+            this.closeModal('status-modal');
+
+            // Trigger re-rendering of views
+            this.renderRotation();
+            this.updateUserUI();
+
+            this.showStatusModal('success', 'บันทึกตารางสำเร็จ', 'ระบบได้ทำการอัปเดตตารางปฏิทินหมุนฐานเรียนรู้เรียบร้อยแล้ว');
+            this.closeRotationBuilder();
+        } catch (e) {
+            console.error("Failed to save rotation schedule:", e);
+            this.showStatusModal('error', 'บันทึกข้อมูลล้มเหลว', 'เกิดข้อผิดพลาดในการเชื่อมต่อคลาวด์: ' + e.message);
+        }
+    }
+
+    // Export current rotation schedule to JSON
+    exportRotationJson() {
+        if (!this.db.rotation_schedule || this.db.rotation_schedule.length === 0) {
+            alert("ไม่มีข้อมูลตารางหมุนฐานเพื่อส่งออก!");
+            return;
+        }
+
+        const activeSemester = this.db.activeSemesterId || "1-2569";
+        const filename = `Rotation_Schedule_${activeSemester}_${new Date().toISOString().split('T')[0]}.json`;
+        
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.db.rotation_schedule, null, 2));
+        
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
         downloadAnchor.setAttribute("download", filename);
