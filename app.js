@@ -3165,11 +3165,14 @@ class AttendanceApp {
     }
 
     renderExecutiveCards(containerId) {
+        const report = this.userIntegrityReport || { readinessIssues: [] };
         const container = document.getElementById(containerId);
         if (!container) return;
 
+        
+
         // Filter and sort executives to match director, deputy1, deputy2 sequence
-        const directorsList = this.db.teachers.filter(t => t.role === 'director');
+        const directorsList = (this.db.teachers || []).filter(t => t.role === 'director');
         const sortedDirectors = [];
         
         const dir = directorsList.find(t => t.username === 'director');
