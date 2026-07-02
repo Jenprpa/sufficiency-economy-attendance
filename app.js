@@ -2317,7 +2317,7 @@ class AttendanceApp {
             if (this.currentUser.role === 'admin') {
                 if (roleLabel) roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
                 if (menuDashboard) menuDashboard.style.display = 'block';
-                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
                 if (menuCalendar) menuCalendar.style.display = 'block';
                 if (menuBases) menuBases.style.display = 'block';
                 if (menuRotation) menuRotation.style.display = 'block';
@@ -2330,7 +2330,7 @@ class AttendanceApp {
             } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
                 if (roleLabel) roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเมิน";
                 if (menuDashboard) menuDashboard.style.display = 'block';
-                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
                 if (menuCalendar) menuCalendar.style.display = 'block';
                 if (menuBases) menuBases.style.display = 'block';
                 if (menuRotation) menuRotation.style.display = 'block';
@@ -2344,7 +2344,7 @@ class AttendanceApp {
                 // Teacher:
                 if (roleLabel) roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
                 if (menuDashboard) menuDashboard.style.display = 'none';
-                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
                 if (menuCalendar) menuCalendar.style.display = 'none';
                 if (menuBases) menuBases.style.display = 'none';
                 if (menuRotation) menuRotation.style.display = 'none';
