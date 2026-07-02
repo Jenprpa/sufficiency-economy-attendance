@@ -1930,3 +1930,121 @@ tr:hover td {
     }
 }
 
+/* ==========================================
+   Subject Calendar Wizard Styles
+   ========================================== */
+.wizard-step-node.active .step-circle {
+    background-color: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.15);
+}
+
+.wizard-step-node.completed .step-circle {
+    background-color: var(--success) !important;
+    color: white !important;
+    border-color: var(--success) !important;
+}
+
+.wizard-step-node.active .step-label {
+    color: var(--primary) !important;
+    font-weight: 700 !important;
+}
+
+.wizard-step-node.completed .step-label {
+    color: var(--success) !important;
+}
+
+.weekly-schedule-table {
+    border-collapse: collapse;
+}
+
+.weekly-schedule-table th {
+    background-color: var(--gray-medium);
+    color: var(--text-primary);
+    padding: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.weekly-schedule-table td {
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+}
+
+.wizard-panel {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.classroom-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.classroom-checkbox-label:hover {
+    border-color: var(--primary);
+    background-color: var(--primary-bg);
+}
+
+.classroom-checkbox-label input:checked + span {
+    color: var(--primary);
+}
+
+.classroom-checkbox-label:has(input:checked) {
+    border-color: var(--primary);
+    background-color: var(--primary-bg);
+    box-shadow: 0 2px 4px rgba(46, 125, 50, 0.1);
+}
+
+/* Print/PDF layout optimizations */
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    /* Make sure the active container is visible but elements inside it with no-print are hidden */
+    #view-subject-calendar {
+        display: block !important;
+    }
+    
+    /* When viewing lessons, we want to print only the lessons list card */
+    #view-subject-calendar > *:not(#subject-lessons-list-card) {
+        display: none !important;
+    }
+    
+    /* Ensure the card has no limit heights, wraps nicely, and isn't scrollable */
+    #subject-lessons-list-card {
+        display: block !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    
+    .table-responsive {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    
+    table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+    
+    th, td {
+        page-break-inside: avoid !important;
+    }
+}
+
+

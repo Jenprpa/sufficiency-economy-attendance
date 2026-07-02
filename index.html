@@ -76,7 +76,8 @@
             
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-view="dashboard" id="menu-dashboard"><i class="fa-solid fa-gauge-high"></i> หน้าหลัก</a>
-                <a href="#" class="nav-item" data-view="calendar" id="menu-calendar" style="display:none;"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
+                <a href="#" class="nav-item" data-view="subject-calendar" id="menu-subject-calendar" style="display:none;"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
+                <a href="#" class="nav-item" data-view="calendar" id="menu-calendar" style="display:none;"><i class="fa-solid fa-calendar-days"></i> ปฏิทินฐานการเรียนรู้</a>
                 <a href="#" class="nav-item" data-view="bases" id="menu-bases" style="display:none;"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
                 <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-calendar-image"></i> ตารางสอน</a>
                 <a href="#" class="nav-item" data-view="search" id="menu-search"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</a>
@@ -1107,6 +1108,278 @@
                 </div>
             </section>
 
+            <!-- VIEW: Subject Calendar Wizard & Lessons -->
+            <section class="view-container" id="view-subject-calendar">
+                <div class="card-header" style="padding-left: 0; margin-bottom: 20px; border-bottom: none; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div>
+                        <h2><i class="fa-solid fa-calendar-days text-primary"></i> ระบบปฏิทินรายวิชา (Subject Calendar)</h2>
+                        <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">สร้าง วางแผน และบันทึกคาบเรียนของรายวิชาที่คุณสอน</p>
+                    </div>
+                    <div id="subject-calendar-header-actions">
+                        <!-- Populated dynamically via JS based on role -->
+                    </div>
+                </div>
+
+                <!-- Main Grid Layout -->
+                <div class="subject-calendar-layout-grid" style="display: grid; grid-template-columns: 1fr; gap: 20px;">
+                    
+                    <!-- CALENDARS LIST CARD -->
+                    <div class="card" id="subject-calendars-list-card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                            <h3><i class="fa-solid fa-folder-open text-primary"></i> รายชื่อปฏิทินรายวิชาที่สร้าง</h3>
+                        </div>
+                        <div class="table-responsive" style="margin-top: 10px;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>รหัส/ชื่อวิชา</th>
+                                        <th>ระดับชั้น</th>
+                                        <th>ผู้สอน</th>
+                                        <th>ภาคเรียน</th>
+                                        <th>ช่วงเวลา</th>
+                                        <th style="text-align: center;">จำนวนคาบ/สัปดาห์</th>
+                                        <th style="text-align: center;">การจัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="subject-calendars-table-body">
+                                    <!-- Loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- LESSONS LIST CARD (shown when a calendar is selected) -->
+                    <div class="card" id="subject-lessons-list-card" style="display: none;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                            <div>
+                                <h3 id="selected-calendar-title"><i class="fa-solid fa-list-check text-primary"></i> ตารางคาบเรียน</h3>
+                                <p style="color: var(--text-secondary); font-size: 12px; margin-top: 2px;" id="selected-calendar-subtitle"></p>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <div class="filter-group no-print" style="margin-bottom: 0;">
+                                    <label for="lesson-classroom-filter" style="margin-bottom: 2px; font-size: 11px;">กรองห้องเรียน</label>
+                                    <select id="lesson-classroom-filter" onchange="app.filterLessons()">
+                                        <option value="all">ทุกห้องเรียน</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group no-print" style="margin-bottom: 0;">
+                                    <label for="lesson-status-filter" style="margin-bottom: 2px; font-size: 11px;">กรองสถานะ</label>
+                                    <select id="lesson-status-filter" onchange="app.filterLessons()">
+                                        <option value="all">ทุกสถานะ</option>
+                                        <option value="planned">ตามแผน</option>
+                                        <option value="taught">สอนแล้ว</option>
+                                        <option value="cancelled">ยกเลิก</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary btn-sm no-print" id="btn-add-makeup-lesson" style="display: none;" onclick="app.openMakeupLessonModal()"><i class="fa-solid fa-plus"></i> เพิ่มคาบเรียนชดเชย</button>
+                                <button class="btn btn-outline btn-sm no-print" onclick="app.exportCalendarLessons()"><i class="fa-solid fa-file-export"></i> ส่งออกปฏิทิน</button>
+                                <button class="btn btn-outline btn-sm no-print" onclick="window.print()"><i class="fa-solid fa-print"></i> พิมพ์รายงาน / PDF</button>
+                                <button class="btn btn-outline btn-sm no-print" onclick="app.closeLessonsView()"><i class="fa-solid fa-xmark"></i> ปิด</button>
+                            </div>
+                        </div>
+                        <div class="table-responsive" style="margin-top: 15px; max-height: 500px; overflow-y: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 80px; text-align: center;">สัปดาห์ที่</th>
+                                        <th style="width: 110px;">วันที่เรียน</th>
+                                        <th style="width: 80px;">วัน/คาบ</th>
+                                        <th style="width: 120px;">เวลา</th>
+                                        <th style="width: 80px; text-align: center;">ห้องเรียน</th>
+                                        <th>สถานที่/หัวข้อสอน</th>
+                                        <th style="width: 100px; text-align: center;">สถานะ</th>
+                                        <th style="width: 120px; text-align: center;">จัดการสถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="subject-lessons-table-body">
+                                    <!-- Loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MODAL: SUBJECT CALENDAR WIZARD (5 STEPS) -->
+                <div class="modal" id="subject-calendar-wizard-modal">
+                    <div class="modal-content" style="max-width: 650px; width: 95%;">
+                        <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary);"><i class="fa-solid fa-wand-magic-sparkles text-primary"></i> สร้างปฏิทินรายวิชาใหม่</h3>
+                            <button class="modal-close" onclick="app.closeCalendarWizard()"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        
+                        <!-- Progress Indicator -->
+                        <div class="wizard-progress-bar" style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0; padding: 0 10px; position: relative;">
+                            <div class="wizard-progress-line" style="position: absolute; top: 50%; left: 10%; right: 10%; height: 2px; background: var(--border-color); z-index: 1;"></div>
+                            <div class="wizard-progress-line-active" id="wizard-active-line" style="position: absolute; top: 50%; left: 10%; width: 0%; height: 2px; background: var(--primary); z-index: 1; transition: width 0.3s ease;"></div>
+                            
+                            <div class="wizard-step-node active" data-step="1" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                                <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">1</div>
+                                <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ภาคเรียน</span>
+                            </div>
+                            <div class="wizard-step-node" data-step="2" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                                <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">2</div>
+                                <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">รายวิชา</span>
+                            </div>
+                            <div class="wizard-step-node" data-step="3" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                                <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">3</div>
+                                <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ห้องเรียน</span>
+                            </div>
+                            <div class="wizard-step-node" data-step="4" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                                <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">4</div>
+                                <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ตารางสอน</span>
+                            </div>
+                            <div class="wizard-step-node" data-step="5" style="z-index: 2; display: flex; flex-direction: column; align-items: center;">
+                                <div class="step-circle" style="width: 32px; height: 32px; border-radius: 50%; background: var(--card-color); border: 2px solid var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: bold; color: var(--text-secondary); transition: all 0.3s ease;">5</div>
+                                <span class="step-label" style="font-size: 11px; margin-top: 4px; font-weight: 500; color: var(--text-secondary);">ยืนยัน</span>
+                            </div>
+                        </div>
+
+                        <!-- Step Panels -->
+                        <div class="wizard-steps-container" style="min-height: 250px; margin-bottom: 20px;">
+                            
+                            <!-- STEP 1: SEMESTER -->
+                            <div class="wizard-panel active" id="wizard-panel-1">
+                                <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 1: กำหนดภาคเรียนและระยะเวลา</h4>
+                                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="filter-group">
+                                        <label for="wizard-academic-year">ปีการศึกษา (พ.ศ.)</label>
+                                        <input type="number" id="wizard-academic-year" value="2569" min="2560" max="2600" required>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-semester">ภาคเรียนที่</label>
+                                        <select id="wizard-semester">
+                                            <option value="1">ภาคเรียนที่ 1</option>
+                                            <option value="2">ภาคเรียนที่ 2</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-start-date">วันที่เริ่มต้นภาคเรียน</label>
+                                        <input type="date" id="wizard-start-date" required>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-end-date">วันที่สิ้นสุดภาคเรียน</label>
+                                        <input type="date" id="wizard-end-date" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 2: SUBJECT -->
+                            <div class="wizard-panel" id="wizard-panel-2" style="display: none;">
+                                <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 2: กรอกข้อมูลวิชา</h4>
+                                <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div class="filter-group" style="grid-column: span 2;">
+                                        <label for="wizard-subject-name">ชื่อรายวิชา</label>
+                                        <input type="text" id="wizard-subject-name" placeholder="ตัวอย่าง: วิทยาศาสตร์พื้นฐาน" required>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-subject-code">รหัสวิชา</label>
+                                        <input type="text" id="wizard-subject-code" placeholder="ตัวอย่าง: ว21101" required>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-grade-level">ระดับชั้น</label>
+                                        <select id="wizard-grade-level" onchange="app.onWizardGradeChange()">
+                                            <option value="ม.1">มัธยมศึกษาปีที่ 1 (ม.1)</option>
+                                            <option value="ม.2">มัธยมศึกษาปีที่ 2 (ม.2)</option>
+                                            <option value="ม.3">มัธยมศึกษาปีที่ 3 (ม.3)</option>
+                                            <option value="ม.4">มัธยมศึกษาปีที่ 4 (ม.4)</option>
+                                            <option value="ม.5">มัธยมศึกษาปีที่ 5 (ม.5)</option>
+                                            <option value="ม.6">มัธยมศึกษาปีที่ 6 (ม.6)</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="wizard-periods-week">จำนวนคาบต่อสัปดาห์</label>
+                                        <input type="number" id="wizard-periods-week" value="1" min="1" max="10" required>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 3: CLASSROOMS -->
+                            <div class="wizard-panel" id="wizard-panel-3" style="display: none;">
+                                <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 3: เลือกห้องเรียน</h4>
+                                <div class="filter-group">
+                                    <label>รูปแบบห้องเรียนที่รับผิดชอบ</label>
+                                    <div style="display: flex; gap: 15px; margin-top: 6px;">
+                                        <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                                            <input type="radio" name="classroom-select-type" value="single" checked onchange="app.onWizardClassroomTypeChange()"> ห้องเรียนเดียว
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                                            <input type="radio" name="classroom-select-type" value="multiple" onchange="app.onWizardClassroomTypeChange()"> หลายห้องเรียน
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                                            <input type="radio" name="classroom-select-type" value="whole" onchange="app.onWizardClassroomTypeChange()"> ทั้งระดับชั้น
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="classroom-selection-area" style="margin-top: 15px; border: 1px solid var(--border-color); padding: 12px; border-radius: var(--radius-sm); background: var(--gray-light); max-height: 180px; overflow-y: auto;">
+                                    <div id="classroom-checkboxes-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px;">
+                                        <!-- Populated dynamically via JS -->
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- STEP 4: WEEKLY SCHEDULE -->
+                            <div class="wizard-panel" id="wizard-panel-4" style="display: none;">
+                                <h4 style="margin: 0 0 10px 0; color: var(--primary);">ขั้นตอนที่ 4: เพิ่มคาบเรียนสัปดาห์ละกี่คาบ</h4>
+                                <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
+                                    <button class="btn btn-primary btn-sm" onclick="app.addWizardScheduleRow()"><i class="fa-solid fa-plus"></i> เพิ่มเวลาเรียน</button>
+                                </div>
+                                <div class="table-responsive" style="max-height: 180px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
+                                    <table style="width: 100%; font-size: 12px;" class="weekly-schedule-table">
+                                        <thead>
+                                            <tr>
+                                                <th>วัน</th>
+                                                <th style="width: 70px;">คาบที่</th>
+                                                <th>เริ่มเรียน</th>
+                                                <th>เลิกเรียน</th>
+                                                <th>ห้องเรียน/สถานที่</th>
+                                                <th style="width: 50px; text-align: center;">ลบ</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="wizard-schedule-rows-container">
+                                            <!-- Dynamically appended rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- STEP 5: REVIEW & GENERATE -->
+                            <div class="wizard-panel" id="wizard-panel-5" style="display: none;">
+                                <h4 style="margin: 0 0 15px 0; color: var(--primary);">ขั้นตอนที่ 5: ตรวจสอบและบันทึก</h4>
+                                <div class="review-details" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+                                    <div style="border-right: 1px solid var(--border-color); padding-right: 10px;">
+                                        <p style="margin: 4px 0;"><strong>รายวิชา:</strong> <span id="rev-subject-code-name"></span></p>
+                                        <p style="margin: 4px 0;"><strong>ระดับชั้น:</strong> <span id="rev-grade-level"></span></p>
+                                        <p style="margin: 4px 0;"><strong>ห้องเรียน:</strong> <span id="rev-classrooms"></span></p>
+                                        <p style="margin: 4px 0;"><strong>จำนวนห้อง:</strong> <span id="rev-classroom-count">0 ห้อง</span></p>
+                                    </div>
+                                    <div>
+                                        <p style="margin: 4px 0;"><strong>ปีการศึกษา:</strong> <span id="rev-semester-year"></span></p>
+                                        <p style="margin: 4px 0;"><strong>ระยะเวลา:</strong> <span id="rev-dates"></span></p>
+                                        <p style="margin: 4px 0; color: var(--primary); font-weight: bold;"><strong>จำนวนคาบเรียนที่จะสร้าง:</strong> <span id="rev-total-lessons">0 คาบ</span></p>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top: 15px;">
+                                    <h5 style="margin: 0 0 6px 0; font-size: 12px; color: var(--text-secondary);">ตัวอย่างวันที่เรียนครั้งแรก (5 ครั้งแรก):</h5>
+                                    <ul id="rev-preview-dates-list" style="margin: 0; padding-left: 20px; font-size: 12px; color: var(--text-secondary); max-height: 90px; overflow-y: auto;">
+                                        <!-- Loaded dynamically -->
+                                    </ul>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <!-- Modal Footer -->
+                        <div class="modal-footer" style="border-top: 1px solid var(--border-color); padding-top: 12px; display: flex; justify-content: space-between;">
+                            <button class="btn btn-outline" id="wizard-btn-prev" onclick="app.prevWizardStep()" style="display: none;">ย้อนกลับ</button>
+                            <div></div> <!-- Spacer -->
+                            <button class="btn btn-primary" id="wizard-btn-next" onclick="app.nextWizardStep()">ถัดไป</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- VIEW: Learning Bases Directory -->
             <section class="view-container" id="view-bases">
                 <div id="bases-grid-wrapper">
@@ -1901,6 +2174,101 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="app.closeModal('activity-details-modal')">ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: EDIT LESSON DETAILS -->
+    <div class="modal" id="edit-lesson-modal">
+        <div class="modal-content" style="max-width: 550px; width: 90%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen-to-square text-primary"></i> บันทึกรายละเอียดการเรียนสอน</h3>
+                <button class="modal-close" onclick="app.closeModal('edit-lesson-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <input type="hidden" id="edit-lesson-id">
+                
+                <div class="filter-group">
+                    <label for="edit-lesson-topic" style="font-weight: 600;">หัวข้อการเรียนการสอน (Topic) <span style="color: var(--danger);">*</span></label>
+                    <input type="text" id="edit-lesson-topic" placeholder="ระบุหัวข้อหลักที่สอน เช่น การวิเคราะห์รายรับ-รายจ่าย..." style="width: 100%;" required>
+                </div>
+                
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="edit-lesson-plan" style="font-weight: 600;">แผนการจัดการเรียนรู้/เป้าหมาย (Lesson Plan)</label>
+                    <textarea id="edit-lesson-plan" placeholder="ระบุแผนการเรียนการสอนสั้นๆ หรือผลการเรียนรู้ที่คาดหวัง..." rows="3" style="width: 100%; font-family: inherit; font-size: 13px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+                </div>
+                
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="edit-lesson-note" style="font-weight: 600;">บันทึกหลังการสอน (Teaching Note)</label>
+                    <textarea id="edit-lesson-note" placeholder="บันทึกผลการสอน ปัญหา หรือข้อเสนอแนะต่างๆ หลังสิ้นสุดคาบ..." rows="3" style="width: 100%; font-family: inherit; font-size: 13px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-outline" onclick="app.closeModal('edit-lesson-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveLessonDetails()"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD MAKE-UP LESSON -->
+    <div class="modal" id="makeup-lesson-modal">
+        <div class="modal-content" style="max-width: 600px; width: 90%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-calendar-plus text-primary"></i> เพิ่มคาบเรียนชดเชย</h3>
+                <button class="modal-close" onclick="app.closeModal('makeup-lesson-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <input type="hidden" id="makeup-calendar-id">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="filter-group">
+                        <label for="makeup-classroom" style="font-weight: 600;">ห้องเรียน <span style="color: var(--danger);">*</span></label>
+                        <select id="makeup-classroom" style="width: 100%;"></select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="makeup-date" style="font-weight: 600;">วันที่เรียนชดเชย <span style="color: var(--danger);">*</span></label>
+                        <input type="date" id="makeup-date" style="width: 100%;" required>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 12px;">
+                    <div class="filter-group">
+                        <label for="makeup-period" style="font-weight: 600;">คาบเรียนที่ <span style="color: var(--danger);">*</span></label>
+                        <input type="number" id="makeup-period" min="1" max="10" value="1" style="width: 100%;" required>
+                    </div>
+                    <div class="filter-group">
+                        <label for="makeup-start-time" style="font-weight: 600;">เวลาเริ่ม <span style="color: var(--danger);">*</span></label>
+                        <input type="time" id="makeup-start-time" style="width: 100%;" required>
+                    </div>
+                    <div class="filter-group">
+                        <label for="makeup-end-time" style="font-weight: 600;">เวลาสิ้นสุด <span style="color: var(--danger);">*</span></label>
+                        <input type="time" id="makeup-end-time" style="width: 100%;" required>
+                    </div>
+                </div>
+
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="makeup-location" style="font-weight: 600;">สถานที่สอน <span style="color: var(--danger);">*</span></label>
+                    <input type="text" id="makeup-location" placeholder="เช่น ห้องปฏิบัติการ, ห้อง 2206" style="width: 100%;" required>
+                </div>
+
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="makeup-topic" style="font-weight: 600;">หัวข้อการเรียนการสอน (Topic) <span style="color: var(--danger);">*</span></label>
+                    <input type="text" id="makeup-topic" placeholder="ระบุหัวข้อหลักที่สอน..." style="width: 100%;" required>
+                </div>
+                
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="makeup-plan" style="font-weight: 600;">แผนการจัดการเรียนรู้/เป้าหมาย (Lesson Plan)</label>
+                    <textarea id="makeup-plan" placeholder="ระบุแผนการเรียนการสอนสั้นๆ หรือผลการเรียนรู้ที่คาดหวัง..." rows="2" style="width: 100%; font-family: inherit; font-size: 13px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+                </div>
+                
+                <div class="filter-group" style="margin-top: 12px;">
+                    <label for="makeup-note" style="font-weight: 600;">บันทึกหลังการสอน (Teaching Note)</label>
+                    <textarea id="makeup-note" placeholder="บันทึกผลการสอน ปัญหา หรือข้อเสนอแนะต่างๆ..." rows="2" style="width: 100%; font-family: inherit; font-size: 13px; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); resize: vertical;"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-outline" onclick="app.closeModal('makeup-lesson-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveMakeupLesson()"><i class="fa-solid fa-circle-check"></i> สร้างคาบชดเชย</button>
             </div>
         </div>
     </div>

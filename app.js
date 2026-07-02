@@ -627,6 +627,12 @@ class AttendanceApp {
             this.db.activeSemesterId = activeSemesterId || "1-2569";
             this.db.base_activity_logs = baseActivityLogs ? JSON.parse(baseActivityLogs) : [];
             this.db.staging_logs = stagingLogs ? JSON.parse(stagingLogs) : [];
+            
+            const subjectCalendars = localStorage.getItem('school_subject_calendars');
+            const subjectCalendarLessons = localStorage.getItem('school_subject_calendar_lessons');
+            this.db.subjectCalendars = subjectCalendars ? JSON.parse(subjectCalendars) : [];
+            this.db.subjectCalendarLessons = subjectCalendarLessons ? JSON.parse(subjectCalendarLessons) : [];
+            
             this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
         }
@@ -662,7 +668,9 @@ class AttendanceApp {
             semesters: [{ id: "1-2569", name: "ภาคเรียนที่ 1/2569", active: true }],
             activeSemesterId: "1-2569",
             base_activity_logs: [],
-            staging_logs: []
+            staging_logs: [],
+            subjectCalendars: [],
+            subjectCalendarLessons: []
         };
         this.isDemoData = false;
         console.log("[DB Init] Empty database initialized. Students: 0. Awaiting real data import.");
@@ -1831,19 +1839,19 @@ class AttendanceApp {
             }
         } else if (this.currentUser.role === 'teacher') {
             // Teacher mode
-            const teacherViews = ['checkin'];
+            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar'];
             if (!teacherViews.includes(viewId)) {
                 viewId = 'checkin';
             }
-        } else if (this.currentUser.role === 'director') {
-            // Director mode
-            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin'];
+        } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
+            // Director/Supervisor mode
+            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar'];
             if (!directorViews.includes(viewId)) {
                 viewId = 'admin';
             }
         } else if (this.currentUser.role === 'admin') {
             // Admin mode
-            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage'];
+            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar'];
             if (!adminViews.includes(viewId)) {
                 viewId = 'manage';
             }
@@ -1865,6 +1873,11 @@ class AttendanceApp {
             }
         });
 
+        // Trigger loading and rendering functions for the view
+        if (viewId === 'subject-calendar') {
+            this.renderSubjectCalendarTab();
+        }
+
         // Update top title if element exists
         const viewTitleEl = document.getElementById('current-view-title');
         if (viewTitleEl) {
@@ -1875,7 +1888,8 @@ class AttendanceApp {
                 admin: 'ผู้บริหารโรงเรียน (Director Overview)',
                 reports: 'รายงานและการส่งออกข้อมูล',
                 manage: 'ระบบจัดการข้อมูล (Admin Console)',
-                'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)'
+                'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)',
+                'subject-calendar': 'ระบบปฏิทินรายวิชา (Subject Calendar)'
             };
             viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
         }
@@ -2217,9 +2231,110 @@ class AttendanceApp {
             this.switchView('admin');
         } else {
             this.switchView('checkin');
+        }
     }
 
+    updateUserUI() {
+        const nameLabel = document.getElementById('user-name-label');
+        const roleLabel = document.getElementById('user-role-label');
+        const avatarLabel = document.getElementById('user-avatar');
+        const authBtnText = document.getElementById('btn-auth-text');
+        const authIcon = document.getElementById('btn-auth-icon');
 
+        if (!nameLabel || !roleLabel || !avatarLabel) return;
+
+        // Menu item permissions references
+        const menuDashboard = document.getElementById('menu-dashboard');
+        const menuSubjectCalendar = document.getElementById('menu-subject-calendar');
+        const menuCalendar = document.getElementById('menu-calendar');
+        const menuBases = document.getElementById('menu-bases');
+        const menuRotation = document.getElementById('menu-rotation');
+        const menuSearch = document.getElementById('menu-search');
+        const menuCheckin = document.getElementById('menu-checkin');
+        const menuReports = document.getElementById('menu-reports');
+        const menuTeacherHistory = document.getElementById('menu-teacher-history');
+        const menuAdmin = document.getElementById('menu-admin');
+        const menuManage = document.getElementById('menu-manage');
+
+        if (this.currentUser) {
+            nameLabel.textContent = this.currentUser.name;
+            
+            // Extract a cleaner avatar character
+            let avatarChar = this.currentUser.name.charAt(0);
+            if (this.currentUser.name.startsWith('ครู')) {
+                avatarChar = this.currentUser.name.substring(3).charAt(0);
+            } else if (this.currentUser.name.startsWith('นาย')) {
+                avatarChar = this.currentUser.name.substring(3).charAt(0);
+            } else if (this.currentUser.name.startsWith('นางสาว')) {
+                avatarChar = this.currentUser.name.substring(6).charAt(0);
+            }
+            avatarLabel.textContent = avatarChar;
+
+            authBtnText.textContent = "ออกจากระบบ";
+            authIcon.className = "fa-solid fa-right-from-bracket";
+            
+            if (this.currentUser.role === 'admin') {
+                roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
+                if (menuDashboard) menuDashboard.style.display = 'block';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuBases) menuBases.style.display = 'block';
+                if (menuRotation) menuRotation.style.display = 'block';
+                if (menuSearch) menuSearch.style.display = 'block';
+                if (menuCheckin) menuCheckin.style.display = 'block';
+                if (menuReports) menuReports.style.display = 'block';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+                if (menuAdmin) menuAdmin.style.display = 'block';
+                if (menuManage) menuManage.style.display = 'block';
+            } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
+                roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเม้น";
+                if (menuDashboard) menuDashboard.style.display = 'block';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuBases) menuBases.style.display = 'block';
+                if (menuRotation) menuRotation.style.display = 'block';
+                if (menuSearch) menuSearch.style.display = 'block';
+                if (menuCheckin) menuCheckin.style.display = 'none';
+                if (menuReports) menuReports.style.display = 'block';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+                if (menuAdmin) menuAdmin.style.display = 'block';
+                if (menuManage) menuManage.style.display = 'none';
+            } else {
+                // Teacher:
+                roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
+                if (menuDashboard) menuDashboard.style.display = 'none';
+                if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'none';
+                if (menuBases) menuBases.style.display = 'none';
+                if (menuRotation) menuRotation.style.display = 'none';
+                if (menuSearch) menuSearch.style.display = 'none';
+                if (menuCheckin) menuCheckin.style.display = 'block';
+                if (menuReports) menuReports.style.display = 'none';
+                if (menuTeacherHistory) menuTeacherHistory.style.display = 'block';
+                if (menuAdmin) menuAdmin.style.display = 'none';
+                if (menuManage) menuManage.style.display = 'none';
+            }
+        } else {
+            nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
+            roleLabel.textContent = "กรุณาเข้าสู่ระบบ";
+            avatarLabel.textContent = "?";
+            authBtnText.textContent = "เข้าสู่ระบบ";
+            authIcon.className = "fa-solid fa-right-to-bracket";
+            
+            // Guest mode defaults
+            if (menuDashboard) menuDashboard.style.display = 'block';
+            if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
+            if (menuCalendar) menuCalendar.style.display = 'block';
+            if (menuBases) menuBases.style.display = 'block';
+            if (menuRotation) menuRotation.style.display = 'block';
+            if (menuSearch) menuSearch.style.display = 'block';
+            if (menuCheckin) menuCheckin.style.display = 'none';
+            if (menuReports) menuReports.style.display = 'none';
+            if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
+            if (menuAdmin) menuAdmin.style.display = 'none';
+            if (menuManage) menuManage.style.display = 'none';
+        }
+    }
 
     // Retry profile load when login auth succeeded but database load was slow/failed
     async retryLoginProfileLoad(event) {
@@ -2577,93 +2692,7 @@ class AttendanceApp {
         const authBtnText = document.getElementById('auth-btn-text');
         const authIcon = document.querySelector('#auth-action-btn i');
         
-        // Menu item permissions references
-        const menuDashboard = document.getElementById('menu-dashboard');
-        const menuCalendar = document.getElementById('menu-calendar');
-        const menuBases = document.getElementById('menu-bases');
-        const menuRotation = document.getElementById('menu-rotation');
-        const menuSearch = document.getElementById('menu-search');
-        const menuCheckin = document.getElementById('menu-checkin');
-        const menuReports = document.getElementById('menu-reports');
-        const menuTeacherHistory = document.getElementById('menu-teacher-history');
-        const menuAdmin = document.getElementById('menu-admin');
-        const menuManage = document.getElementById('menu-manage');
 
-        if (this.currentUser) {
-            nameLabel.textContent = this.currentUser.name;
-            
-            // Extract a cleaner avatar character
-            let avatarChar = this.currentUser.name.charAt(0);
-            if (this.currentUser.name.startsWith('ครู')) {
-                avatarChar = this.currentUser.name.substring(3).charAt(0);
-            } else if (this.currentUser.name.startsWith('นาย')) {
-                avatarChar = this.currentUser.name.substring(3).charAt(0);
-            } else if (this.currentUser.name.startsWith('นางสาว')) {
-                avatarChar = this.currentUser.name.substring(6).charAt(0);
-            }
-            avatarLabel.textContent = avatarChar;
-
-            authBtnText.textContent = "ออกจากระบบ";
-            authIcon.className = "fa-solid fa-right-from-bracket";
-            
-            if (this.currentUser.role === 'admin') {
-                roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
-                if (menuDashboard) menuDashboard.style.display = 'block';
-                if (menuCalendar) menuCalendar.style.display = 'block';
-                if (menuBases) menuBases.style.display = 'block';
-                if (menuRotation) menuRotation.style.display = 'block';
-                if (menuSearch) menuSearch.style.display = 'block';
-                if (menuCheckin) menuCheckin.style.display = 'block';
-                if (menuReports) menuReports.style.display = 'block';
-                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
-                if (menuAdmin) menuAdmin.style.display = 'block';
-                if (menuManage) menuManage.style.display = 'block';
-            } else if (this.currentUser.role === 'director') {
-                roleLabel.textContent = "ผู้บริหารโรงเรียน";
-                if (menuDashboard) menuDashboard.style.display = 'block';
-                if (menuCalendar) menuCalendar.style.display = 'block';
-                if (menuBases) menuBases.style.display = 'block';
-                if (menuRotation) menuRotation.style.display = 'block';
-                if (menuSearch) menuSearch.style.display = 'block';
-                if (menuCheckin) menuCheckin.style.display = 'none';
-                if (menuReports) menuReports.style.display = 'block';
-                if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
-                if (menuAdmin) menuAdmin.style.display = 'block';
-                if (menuManage) menuManage.style.display = 'none';
-            } else {
-                // Teacher: ONLY Login, Attendance, and Attendance History are allowed/visible.
-                // Hide all admin/guest features from teachers.
-                roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
-                if (menuDashboard) menuDashboard.style.display = 'none';
-                if (menuCalendar) menuCalendar.style.display = 'none';
-                if (menuBases) menuBases.style.display = 'none';
-                if (menuRotation) menuRotation.style.display = 'none';
-                if (menuSearch) menuSearch.style.display = 'none';
-                if (menuCheckin) menuCheckin.style.display = 'block';
-                if (menuReports) menuReports.style.display = 'none';
-                if (menuTeacherHistory) menuTeacherHistory.style.display = 'block';
-                if (menuAdmin) menuAdmin.style.display = 'none';
-                if (menuManage) menuManage.style.display = 'none';
-            }
-        } else {
-            nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
-            roleLabel.textContent = "กรุณาเข้าสู่ระบบ";
-            avatarLabel.textContent = "?";
-            authBtnText.textContent = "เข้าสู่ระบบ";
-            authIcon.className = "fa-solid fa-right-to-bracket";
-            
-            // Guest mode defaults
-            if (menuDashboard) menuDashboard.style.display = 'block';
-            if (menuCalendar) menuCalendar.style.display = 'block';
-            if (menuBases) menuBases.style.display = 'block';
-            if (menuRotation) menuRotation.style.display = 'block';
-            if (menuSearch) menuSearch.style.display = 'block';
-            if (menuCheckin) menuCheckin.style.display = 'none';
-            if (menuReports) menuReports.style.display = 'none';
-            if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
-            if (menuAdmin) menuAdmin.style.display = 'none';
-            if (menuManage) menuManage.style.display = 'none';
-        }
 
         const changePwdBtn = document.getElementById('btn-change-password');
         if (this.currentUser && this.currentUser.role !== 'admin') {
@@ -8773,6 +8802,1129 @@ generateDefaultRotationSchedule(customBases = null) {
         }
 
         this.openModal('history-details-modal');
+    }
+
+    // =========================================================================
+    // SUBJECT CALENDAR WIZARD & LESSON MANAGEMENT (V1.1 CORE)
+    // =========================================================================
+
+    // Tab entry point
+    async renderSubjectCalendarTab() {
+        // Render header actions based on role
+        const headerActions = document.getElementById('subject-calendar-header-actions');
+        if (headerActions) {
+            if (this.currentUser && (this.currentUser.role === 'teacher' || this.currentUser.role === 'admin')) {
+                headerActions.innerHTML = `<button class="btn btn-primary" onclick="app.openCalendarWizard()"><i class="fa-solid fa-plus"></i> สร้างปฏิทินรายวิชาใหม่</button>`;
+            } else {
+                headerActions.innerHTML = '';
+            }
+        }
+
+        // Hide lessons panel initially on entering tab
+        this.closeLessonsView();
+
+        // Load calendars from Firestore/Local
+        await this.loadSubjectCalendars();
+    }
+
+    // Load subject calendars
+    async loadSubjectCalendars() {
+        const tbody = document.getElementById('subject-calendars-table-body');
+        if (!tbody) return;
+
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลปฏิทิน...</td></tr>`;
+
+        try {
+            let calendars = [];
+            
+            if (this.useFirestore && this.firestore) {
+                let query = this.firestore.collection('subjectCalendars');
+                
+                // Scoping queries: teacher can read own own, admins/directors/supervisors read all
+                if (this.currentUser && this.currentUser.role === 'teacher') {
+                    query = query.where('teacherUid', '==', this.currentUser.uid || this.currentUser.username);
+                }
+                
+                const snapshot = await query.orderBy('createdAt', 'desc').get();
+                calendars = snapshot.docs.map(doc => ({ calendarId: doc.id, ...doc.data() }));
+                
+                // Sync with local memory cache
+                this.db.subjectCalendars = calendars;
+                localStorage.setItem('school_subject_calendars', JSON.stringify(calendars));
+            } else {
+                // Read from local db fallback
+                calendars = this.db.subjectCalendars || [];
+                // Sort by createdAt descending
+                calendars.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                
+                if (this.currentUser && this.currentUser.role === 'teacher') {
+                    const teacherId = this.currentUser.uid || this.currentUser.username;
+                    calendars = calendars.filter(c => c.teacherUid === teacherId);
+                }
+            }
+
+            this.renderSubjectCalendarsList(calendars);
+        } catch (e) {
+            console.error("Failed to load subject calendars:", e);
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถโหลดข้อมูลปฏิทินได้: ${e.message}</td></tr>`;
+        }
+    }
+
+    // Render calendars list table
+    renderSubjectCalendarsList(calendars) {
+        const tbody = document.getElementById('subject-calendars-table-body');
+        if (!tbody) return;
+
+        if (calendars.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <i class="fa-solid fa-calendar-xmark" style="font-size: 36px; opacity: 0.3; display: block; margin-bottom: 10px;"></i>
+                ยังไม่มีการสร้างปฏิทินรายวิชาในระบบ
+            </td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = calendars.map(cal => {
+            const dateRange = `${this.formatThaiDateShort(cal.startDate)} - ${this.formatThaiDateShort(cal.endDate)}`;
+            
+            // Delete action for admin, view action for all
+            const deleteBtn = (this.currentUser && this.currentUser.role === 'admin') 
+                ? `<button class="btn btn-outline btn-xs" style="color: var(--danger); border-color: var(--danger); margin-left: 6px;" onclick="app.deleteCalendar('${cal.calendarId}')"><i class="fa-solid fa-trash"></i> ลบ</button>`
+                : '';
+                
+            return `
+                <tr>
+                    <td style="font-weight: 700; color: var(--primary);">${cal.subjectCode} <span style="font-weight: 500; color: var(--text-primary); font-size: 13px;">${cal.subjectName}</span></td>
+                    <td><strong>${cal.gradeLevel}</strong> <small style="color: var(--text-secondary); display: block;">${cal.classrooms.join(', ')}</small></td>
+                    <td>${cal.teacherName || 'ไม่ระบุผู้สอน'}</td>
+                    <td style="text-align: center;">ภาคเรียน ${cal.semester}/${cal.academicYear}</td>
+                    <td>${dateRange}</td>
+                    <td style="text-align: center;"><strong>${cal.weeklySchedule.length}</strong> คาบ/สัปดาห์</td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        <button class="btn btn-primary btn-xs" onclick="app.viewLessons('${cal.calendarId}')"><i class="fa-solid fa-list-check"></i> ดูคาบเรียน</button>
+                        ${deleteBtn}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // Open wizard modal
+    openCalendarWizard() {
+        this.wizardStep = 1;
+        
+        // Reset forms
+        const yearInput = document.getElementById('wizard-academic-year');
+        const semSelect = document.getElementById('wizard-semester');
+        const startInput = document.getElementById('wizard-start-date');
+        const endInput = document.getElementById('wizard-end-date');
+        
+        const subName = document.getElementById('wizard-subject-name');
+        const subCode = document.getElementById('wizard-subject-code');
+        const periods = document.getElementById('wizard-periods-week');
+        
+        if (yearInput) yearInput.value = "2569";
+        if (semSelect) semSelect.value = "1";
+        
+        // Default dates: based on default semester starts if available
+        if (startInput) startInput.value = "2026-05-16";
+        if (endInput) endInput.value = "2026-10-02";
+        
+        if (subName) subName.value = "";
+        if (subCode) subCode.value = "";
+        if (periods) periods.value = "1";
+        
+        // Clear weekly schedule rows
+        const schedContainer = document.getElementById('wizard-schedule-rows-container');
+        if (schedContainer) schedContainer.innerHTML = '';
+        
+        // Add 1 default row
+        this.addWizardScheduleRow();
+
+        // Populate classrooms selection
+        this.onWizardGradeChange();
+
+        this.showWizardStep(this.wizardStep);
+        this.openModal('subject-calendar-wizard-modal');
+    }
+
+    closeCalendarWizard() {
+        this.closeModal('subject-calendar-wizard-modal');
+    }
+
+    prevWizardStep() {
+        if (this.wizardStep > 1) {
+            this.wizardStep--;
+            this.showWizardStep(this.wizardStep);
+        }
+    }
+
+    nextWizardStep() {
+        if (this.validateWizardStep(this.wizardStep)) {
+            if (this.wizardStep < 5) {
+                this.wizardStep++;
+                this.showWizardStep(this.wizardStep);
+            } else {
+                // Step 5 Submit
+                this.confirmAndGenerateCalendar();
+            }
+        }
+    }
+
+    // Step panels toggler & nodes styling
+    showWizardStep(step) {
+        // Toggle step panels
+        for (let i = 1; i <= 5; i++) {
+            const panel = document.getElementById(`wizard-panel-${i}`);
+            if (panel) {
+                panel.style.display = (i === step) ? 'block' : 'none';
+            }
+            
+            const node = document.querySelector(`.wizard-step-node[data-step="${i}"]`);
+            if (node) {
+                if (i === step) {
+                    node.className = "wizard-step-node active";
+                } else if (i < step) {
+                    node.className = "wizard-step-node completed";
+                } else {
+                    node.className = "wizard-step-node";
+                }
+            }
+        }
+
+        // Active line width
+        const line = document.getElementById('wizard-active-line');
+        if (line) {
+            line.style.width = `${(step - 1) * 25}%`;
+        }
+
+        // Footer buttons
+        const prevBtn = document.getElementById('wizard-btn-prev');
+        const nextBtn = document.getElementById('wizard-btn-next');
+        
+        if (prevBtn) {
+            prevBtn.style.display = (step > 1) ? 'block' : 'none';
+        }
+        
+        if (nextBtn) {
+            if (step === 5) {
+                nextBtn.textContent = "ยืนยันและสร้างปฏิทิน";
+                nextBtn.className = "btn btn-success";
+            } else {
+                nextBtn.textContent = "ถัดไป";
+                nextBtn.className = "btn btn-primary";
+            }
+        }
+
+        // Run preview generation on entering Step 5
+        if (step === 5) {
+            const info = this.generatePreviewLessons();
+            
+            // Set text elements
+            document.getElementById('rev-subject-code-name').textContent = `${document.getElementById('wizard-subject-code').value.trim()} - ${document.getElementById('wizard-subject-name').value.trim()}`;
+            document.getElementById('rev-grade-level').textContent = document.getElementById('wizard-grade-level').value;
+            document.getElementById('rev-classrooms').textContent = info.selectedClassrooms.join(', ');
+            document.getElementById('rev-classroom-count').textContent = `${info.selectedClassrooms.length} ห้อง`;
+            
+            document.getElementById('rev-semester-year').textContent = `ภาคเรียนที่ ${document.getElementById('wizard-semester').value}/${document.getElementById('wizard-academic-year').value}`;
+            
+            const startStr = this.formatThaiDate(document.getElementById('wizard-start-date').value);
+            const endStr = this.formatThaiDate(document.getElementById('wizard-end-date').value);
+            document.getElementById('rev-dates').textContent = `${startStr} ถึง ${endStr}`;
+            document.getElementById('rev-total-lessons').textContent = `${info.totalLessonsCount} คาบเรียน`;
+            
+            // Render first 5 generated dates
+            const previewList = document.getElementById('rev-preview-dates-list');
+            if (previewList) {
+                if (info.preview.length === 0) {
+                    previewList.innerHTML = `<li style="color: var(--danger);">ไม่พบคาบเรียนตามตารางสอนในช่วงระยะเวลาที่เลือก กรุณาตรวจสอบวันเริ่มต้น/สิ้นสุด หรือตารางสอน!</li>`;
+                } else {
+                    previewList.innerHTML = info.preview.map((p, idx) => {
+                        const dateStr = this.formatThaiDate(p.lessonDate);
+                        return `<li>ครั้งที่ ${idx + 1}: ${dateStr} (${p.dayOfWeek}) คาบที่ ${p.periodNumber} [เวลา ${p.startTime}-${p.endTime}] - ห้อง ${p.classId} (${p.location})</li>`;
+                    }).join('');
+                    if (info.totalLessonsCount > 5) {
+                        previewList.innerHTML += `<li style="font-style: italic; list-style: none;">... และอีก ${info.totalLessonsCount - 5} คาบเรียน</li>`;
+                    }
+                }
+            }
+        }
+    }
+
+    // Classroom fields updates
+    onWizardGradeChange() {
+        const gradeSelect = document.getElementById('wizard-grade-level');
+        const container = document.getElementById('classroom-checkboxes-container');
+        if (!gradeSelect || !container) return;
+
+        const grade = gradeSelect.value;
+        let html = '';
+        for (let room = 1; room <= 10; room++) {
+            const classVal = `${grade}/${room}`;
+            html += `
+                <label class="classroom-checkbox-label">
+                    <input type="checkbox" name="wizard-classrooms" value="${classVal}" onchange="app.onWizardClassroomSelectionChange(event)">
+                    <span>${classVal}</span>
+                </label>
+            `;
+        }
+        container.innerHTML = html;
+        this.onWizardClassroomTypeChange();
+    }
+
+    onWizardClassroomTypeChange() {
+        const typeEl = document.querySelector('input[name="classroom-select-type"]:checked');
+        if (!typeEl) return;
+        const type = typeEl.value;
+        const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]');
+        
+        if (type === 'whole') {
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+                cb.disabled = true;
+            });
+        } else {
+            checkboxes.forEach(cb => {
+                cb.disabled = false;
+                if (type === 'single') {
+                    cb.checked = false;
+                }
+            });
+        }
+    }
+
+    onWizardClassroomSelectionChange(event) {
+        const typeEl = document.querySelector('input[name="classroom-select-type"]:checked');
+        if (!typeEl || typeEl.value !== 'single') return;
+        
+        const activeCheckbox = event.target;
+        if (activeCheckbox.checked) {
+            const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]');
+            checkboxes.forEach(cb => {
+                if (cb !== activeCheckbox) cb.checked = false;
+            });
+        }
+    }
+
+    // Schedule rows operations
+    addWizardScheduleRow() {
+        const container = document.getElementById('wizard-schedule-rows-container');
+        if (!container) return;
+
+        const rowId = 'sched-row-' + Math.random().toString(36).substring(2, 9);
+
+        const tr = document.createElement('tr');
+        tr.id = rowId;
+        tr.className = "schedule-row-item";
+        tr.innerHTML = `
+            <td>
+                <select class="wizard-row-day" style="width: 100%; font-size: 11px;">
+                    <option value="วันจันทร์">วันจันทร์</option>
+                    <option value="วันอังคาร">วันอังคาร</option>
+                    <option value="วันพุธ">วันพุธ</option>
+                    <option value="วันพฤหัสบดี">วันพฤหัสบดี</option>
+                    <option value="วันศุกร์">วันศุกร์</option>
+                    <option value="วันเสาร์">วันเสาร์</option>
+                    <option value="วันอาทิตย์">วันอาทิตย์</option>
+                </select>
+            </td>
+            <td>
+                <input type="number" class="wizard-row-period" value="1" min="1" max="10" style="width: 100%; text-align: center;">
+            </td>
+            <td>
+                <input type="time" class="wizard-row-start" value="08:30" style="width: 100%;">
+            </td>
+            <td>
+                <input type="time" class="wizard-row-end" value="09:20" style="width: 100%;">
+            </td>
+            <td>
+                <input type="text" class="wizard-row-loc" placeholder="สถานที่/ฐานเรียน" style="width: 100%;">
+            </td>
+            <td style="text-align: center;">
+                <button class="btn btn-outline btn-xs" style="color: var(--danger); border-color: var(--danger);" onclick="app.removeWizardScheduleRow('${rowId}')">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        `;
+        container.appendChild(tr);
+    }
+
+    removeWizardScheduleRow(rowId) {
+        const row = document.getElementById(rowId);
+        if (row) row.remove();
+    }
+
+    // Step validation rules
+    validateWizardStep(step) {
+        if (step === 1) {
+            const yearInput = document.getElementById('wizard-academic-year');
+            const startInput = document.getElementById('wizard-start-date');
+            const endInput = document.getElementById('wizard-end-date');
+            
+            if (!yearInput || !yearInput.value) {
+                alert("กรุณากรอกปีการศึกษา!");
+                return false;
+            }
+            if (!startInput || !startInput.value) {
+                alert("กรุณาระบุวันที่เริ่มต้นภาคเรียน!");
+                return false;
+            }
+            if (!endInput || !endInput.value) {
+                alert("กรุณาระบุวันที่สิ้นสุดภาคเรียน!");
+                return false;
+            }
+            
+            const start = new Date(startInput.value);
+            const end = new Date(endInput.value);
+            if (start > end) {
+                alert("วันที่เริ่มต้นต้องไม่สายกว่าวันที่สิ้นสุดภาคเรียน!");
+                return false;
+            }
+            return true;
+        }
+        
+        if (step === 2) {
+            const nameInput = document.getElementById('wizard-subject-name');
+            const codeInput = document.getElementById('wizard-subject-code');
+            const periodsInput = document.getElementById('wizard-periods-week');
+            
+            if (!nameInput || !nameInput.value.trim()) {
+                alert("กรุณากรอกชื่อวิชา!");
+                return false;
+            }
+            if (!codeInput || !codeInput.value.trim()) {
+                alert("กรุณากรอกรหัสวิชา!");
+                return false;
+            }
+            if (!periodsInput || !periodsInput.value || parseInt(periodsInput.value) <= 0) {
+                alert("กรุณากรอกจำนวนคาบต่อสัปดาห์ให้ถูกต้อง!");
+                return false;
+            }
+            return true;
+        }
+        
+        if (step === 3) {
+            const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]:checked');
+            if (checkboxes.length === 0) {
+                alert("กรุณาเลือกห้องเรียนอย่างน้อย 1 ห้องเรียน!");
+                return false;
+            }
+            return true;
+        }
+        
+        if (step === 4) {
+            const container = document.getElementById('wizard-schedule-rows-container');
+            const rows = container.querySelectorAll('.schedule-row-item');
+            if (rows.length === 0) {
+                alert("กรุณาเพิ่มตารางเรียนรายสัปดาห์อย่างน้อย 1 แถว!");
+                return false;
+            }
+            
+            let valid = true;
+            rows.forEach((row, idx) => {
+                const period = row.querySelector('.wizard-row-period').value;
+                const start = row.querySelector('.wizard-row-start').value;
+                const end = row.querySelector('.wizard-row-end').value;
+                
+                if (!period || parseInt(period) <= 0) {
+                    alert(`แถวที่ ${idx + 1}: กรุณากรอกคาบเรียนให้ถูกต้อง!`);
+                    valid = false;
+                    return;
+                }
+                if (!start) {
+                    alert(`แถวที่ ${idx + 1}: กรุณาระบุเวลาเริ่มเรียน!`);
+                    valid = false;
+                    return;
+                }
+                if (!end) {
+                    alert(`แถวที่ ${idx + 1}: กรุณาระบุเวลาเลิกเรียน!`);
+                    valid = false;
+                    return;
+                }
+                if (start >= end) {
+                    alert(`แถวที่ ${idx + 1}: เวลาเริ่มเรียนต้องเกิดก่อนเวลาเลิกเรียน!`);
+                    valid = false;
+                    return;
+                }
+            });
+            return valid;
+        }
+        return true;
+    }
+
+    // In-memory preview generator
+    generatePreviewLessons() {
+        const year = document.getElementById('wizard-academic-year').value;
+        const sem = document.getElementById('wizard-semester').value;
+        const startDate = document.getElementById('wizard-start-date').value;
+        const endDate = document.getElementById('wizard-end-date').value;
+        const subjectName = document.getElementById('wizard-subject-name').value.trim();
+        const subjectCode = document.getElementById('wizard-subject-code').value.trim();
+        const gradeLevel = document.getElementById('wizard-grade-level').value;
+        
+        const selectedClassrooms = Array.from(document.querySelectorAll('input[name="wizard-classrooms"]:checked')).map(cb => cb.value);
+        
+        const scheduleRows = document.querySelectorAll('#wizard-schedule-rows-container .schedule-row-item');
+        const weeklySchedule = Array.from(scheduleRows).map(row => {
+            return {
+                dayOfWeek: row.querySelector('.wizard-row-day').value,
+                periodNumber: parseInt(row.querySelector('.wizard-row-period').value),
+                startTime: row.querySelector('.wizard-row-start').value,
+                endTime: row.querySelector('.wizard-row-end').value,
+                location: row.querySelector('.wizard-row-loc').value.trim()
+            };
+        });
+
+        let start = new Date(startDate + "T00:00:00");
+        let end = new Date(endDate + "T00:00:00");
+        const thaiDays = ["วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"];
+        
+        const lessons = [];
+        
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const currentDayThai = thaiDays[d.getDay()];
+            const matchingSlots = weeklySchedule.filter(slot => slot.dayOfWeek === currentDayThai);
+            
+            if (matchingSlots.length > 0) {
+                let diffTime = d.getTime() - start.getTime();
+                let diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+                let weekNum = Math.floor(diffDays / 7) + 1;
+                
+                let lessonDateStr = d.toISOString().split('T')[0];
+                
+                matchingSlots.forEach(slot => {
+                    selectedClassrooms.forEach(room => {
+                        lessons.push({
+                            weekNumber: weekNum,
+                            lessonDate: lessonDateStr,
+                            dayOfWeek: currentDayThai,
+                            periodNumber: slot.periodNumber,
+                            startTime: slot.startTime,
+                            endTime: slot.endTime,
+                            location: slot.location || "ไม่ได้ระบุ",
+                            classId: room
+                        });
+                    });
+                });
+            }
+        }
+        return {
+            lessons: lessons,
+            totalLessonsCount: lessons.length,
+            preview: lessons.slice(0, 5),
+            weeklySchedule: weeklySchedule,
+            selectedClassrooms: selectedClassrooms
+        };
+    }
+
+    // Save and commit Subject Calendar & Lessons
+    async confirmAndGenerateCalendar() {
+        const info = this.generatePreviewLessons();
+        if (info.totalLessonsCount === 0) {
+            alert("ไม่สามารถบันทึกได้: จำนวนคาบเรียนที่คำนวณได้มีค่าเป็น 0 กรุณาแก้ไขตารางสอนหรือระยะเวลาให้ถูกต้อง");
+            return;
+        }
+
+        const nextBtn = document.getElementById('wizard-btn-next');
+        const originalText = nextBtn ? nextBtn.innerHTML : 'ตกลง';
+        if (nextBtn) {
+            nextBtn.disabled = true;
+            nextBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกข้อมูลและสร้างตารางคาบเรียน...';
+        }
+
+        try {
+            const teacherUid = this.currentUser ? (this.currentUser.uid || this.currentUser.username) : "unknown_uid";
+            const teacherName = this.currentUser ? this.currentUser.name : "ไม่ระบุ";
+            const academicYear = document.getElementById('wizard-academic-year').value;
+            const semester = document.getElementById('wizard-semester').value;
+            const startDate = document.getElementById('wizard-start-date').value;
+            const endDate = document.getElementById('wizard-end-date').value;
+            const subjectName = document.getElementById('wizard-subject-name').value.trim();
+            const subjectCode = document.getElementById('wizard-subject-code').value.trim();
+            const gradeLevel = document.getElementById('wizard-grade-level').value;
+            
+            const calendarId = 'cal-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now();
+            const nowIso = new Date().toISOString();
+
+            const calendarObj = {
+                calendarId: calendarId,
+                teacherUid: teacherUid,
+                teacherName: teacherName,
+                academicYear: academicYear,
+                semester: semester,
+                startDate: startDate,
+                endDate: endDate,
+                subjectName: subjectName,
+                subjectCode: subjectCode,
+                gradeLevel: gradeLevel,
+                classrooms: info.selectedClassrooms,
+                weeklySchedule: info.weeklySchedule,
+                createdAt: nowIso,
+                updatedAt: nowIso
+            };
+
+            const lessonsToCommit = info.lessons.map(p => {
+                const lessonId = 'les-' + Math.random().toString(36).substring(2, 15) + '-' + Math.random().toString(36).substring(2, 7);
+                return {
+                    lessonId: lessonId,
+                    calendarId: calendarId,
+                    teacherUid: teacherUid,
+                    teacherName: teacherName,
+                    academicYear: academicYear,
+                    semester: semester,
+                    subjectName: subjectName,
+                    subjectCode: subjectCode,
+                    gradeLevel: gradeLevel,
+                    classId: p.classId,
+                    className: p.classId,
+                    weekNumber: p.weekNumber,
+                    lessonDate: p.lessonDate,
+                    dayOfWeek: p.dayOfWeek,
+                    periodNumber: p.periodNumber,
+                    startTime: p.startTime,
+                    endTime: p.endTime,
+                    location: p.location,
+                    status: 'planned',
+                    topic: '',
+                    lessonPlan: '',
+                    teachingNote: '',
+                    createdAt: nowIso,
+                    updatedAt: nowIso
+                };
+            });
+
+            if (this.useFirestore && this.firestore) {
+                // 1. Set Calendar
+                await this.firestore.collection('subjectCalendars').doc(calendarId).set(calendarObj);
+                
+                // 2. Commit Lessons in batches of 400
+                const BATCH_LIMIT = 400;
+                for (let i = 0; i < lessonsToCommit.length; i += BATCH_LIMIT) {
+                    const chunk = lessonsToCommit.slice(i, i + BATCH_LIMIT);
+                    const batch = this.firestore.batch();
+                    chunk.forEach(lesson => {
+                        const docRef = this.firestore.collection('subjectCalendarLessons').doc(lesson.lessonId);
+                        batch.set(docRef, lesson);
+                    });
+                    await batch.commit();
+                }
+                
+                // Update local memory cache with new data
+                this.db.subjectCalendars = this.db.subjectCalendars || [];
+                this.db.subjectCalendars.push(calendarObj);
+                
+                this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
+                this.db.subjectCalendarLessons.push(...lessonsToCommit);
+                
+                localStorage.setItem('school_subject_calendars', JSON.stringify(this.db.subjectCalendars));
+                localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+            } else {
+                // Offline fallback
+                this.db.subjectCalendars = this.db.subjectCalendars || [];
+                this.db.subjectCalendars.push(calendarObj);
+                
+                this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
+                this.db.subjectCalendarLessons.push(...lessonsToCommit);
+
+                localStorage.setItem('school_subject_calendars', JSON.stringify(this.db.subjectCalendars));
+                localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+            }
+
+            this.closeCalendarWizard();
+            this.showStatusModal('success', 'บันทึกตารางเรียบร้อย', `สร้างปฏิทินรายวิชา ${subjectCode} และคาบเรียนจำนวน ${info.totalLessonsCount} คาบสำเร็จแล้ว!`);
+            
+            // Reload table
+            await this.loadSubjectCalendars();
+        } catch (e) {
+            console.error("Failed to confirm/create subject calendar:", e);
+            alert("เกิดข้อผิดพลาดในการบันทึกปฏิทิน: " + e.message);
+        } finally {
+            if (nextBtn) {
+                nextBtn.disabled = false;
+                nextBtn.innerHTML = originalText;
+            }
+        }
+    }
+
+    // View lessons timeline
+    async viewLessons(calendarId) {
+        const cal = (this.db.subjectCalendars || []).find(c => c.calendarId === calendarId);
+        if (!cal) return;
+
+        this.selectedCalendarId = calendarId;
+
+        // Show/hide makeup button based on ownership/admin role
+        const isAuthorized = this.currentUser && (
+            cal.teacherUid === (this.currentUser.uid || this.currentUser.username) || 
+            this.currentUser.role === 'admin'
+        );
+        const makeupBtn = document.getElementById('btn-add-makeup-lesson');
+        if (makeupBtn) {
+            makeupBtn.style.display = isAuthorized ? 'inline-block' : 'none';
+        }
+
+        const detailCard = document.getElementById('subject-lessons-list-card');
+        const tbody = document.getElementById('subject-lessons-table-body');
+        const filterSelect = document.getElementById('lesson-classroom-filter');
+        
+        if (!detailCard || !tbody) return;
+
+        document.getElementById('selected-calendar-title').innerHTML = `<i class="fa-solid fa-list-check text-primary"></i> คาบเรียนวิชา: ${cal.subjectCode} - ${cal.subjectName}`;
+        document.getElementById('selected-calendar-subtitle').textContent = `ระดับชั้น ${cal.gradeLevel} | ภาคเรียน ${cal.semester}/${cal.academicYear} | ช่วงเวลา ${this.formatThaiDate(cal.startDate)} - ${this.formatThaiDate(cal.endDate)}`;
+
+        // Open card
+        detailCard.style.display = 'block';
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--text-secondary);"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดคาบเรียน...</td></tr>`;
+
+        // Populate classroom filter dropdown
+        if (filterSelect) {
+            let html = '<option value="all">ทุกห้องเรียน</option>';
+            cal.classrooms.forEach(room => {
+                html += `<option value="${room}">${room}</option>`;
+            });
+            filterSelect.innerHTML = html;
+            filterSelect.value = "all";
+        }
+        const statusFilter = document.getElementById('lesson-status-filter');
+        if (statusFilter) {
+            statusFilter.value = "all";
+        }
+
+        try {
+            let lessons = [];
+            if (this.useFirestore && this.firestore) {
+                const snapshot = await this.firestore.collection('subjectCalendarLessons')
+                    .where('calendarId', '==', calendarId)
+                    .orderBy('lessonDate', 'asc')
+                    .orderBy('periodNumber', 'asc')
+                    .get();
+                lessons = snapshot.docs.map(doc => ({ ...doc.data() }));
+                
+                // Merge/Sync to cache local lessons for this calendar
+                this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
+                // Remove existing cached lessons of this calendar
+                this.db.subjectCalendarLessons = this.db.subjectCalendarLessons.filter(l => l.calendarId !== calendarId);
+                this.db.subjectCalendarLessons.push(...lessons);
+                localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+            } else {
+                lessons = (this.db.subjectCalendarLessons || []).filter(l => l.calendarId === calendarId);
+                lessons.sort((a, b) => a.lessonDate.localeCompare(b.lessonDate) || a.periodNumber - b.periodNumber);
+            }
+
+            // Save lessons locally in transient memory for quick filtering
+            this.currentLessonsCache = lessons;
+            this.renderLessonsList(lessons);
+        } catch (e) {
+            console.error("Failed to load lessons:", e);
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--danger);"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถโหลดคาบเรียนได้: ${e.message}</td></tr>`;
+        }
+    }
+
+    renderLessonsList(lessons) {
+        const tbody = document.getElementById('subject-lessons-table-body');
+        if (!tbody) return;
+
+        if (lessons.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--text-secondary);">ไม่มีรายการคาบเรียนในระบบ</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = lessons.map(les => {
+            const dateStr = this.formatThaiDateShort(les.lessonDate);
+            
+            let statusBadge = '';
+            if (les.status === 'taught') {
+                statusBadge = '<span class="status-badge success"><i class="fa-solid fa-circle-check"></i> สอนแล้ว</span>';
+            } else if (les.status === 'cancelled') {
+                statusBadge = '<span class="status-badge danger"><i class="fa-solid fa-circle-xmark"></i> ยกเลิก</span>';
+            } else {
+                statusBadge = '<span class="status-badge warning"><i class="fa-solid fa-circle-minus"></i> ตามแผน</span>';
+            }
+
+            if (les.isMakeup) {
+                statusBadge += ' <span class="status-badge info" style="background-color: var(--primary-bg); color: var(--primary); border: 1px solid var(--primary); margin-left: 4px;"><i class="fa-solid fa-clock-rotate-left"></i> ชดเชย</span>';
+            }
+
+            // Status toggling controls (allowed for owner teacher or admin)
+            const isAuthorized = this.currentUser && (
+                les.teacherUid === (this.currentUser.uid || this.currentUser.username) || 
+                this.currentUser.role === 'admin'
+            );
+
+            let actionButtons = '';
+            if (isAuthorized) {
+                actionButtons = `
+                    <button class="btn btn-outline btn-xs" style="color: var(--success); border-color: var(--success); padding: 2px 6px;" onclick="app.toggleLessonStatus('${les.lessonId}', 'taught')"><i class="fa-solid fa-check"></i> สอนแล้ว</button>
+                    <button class="btn btn-outline btn-xs" style="color: var(--danger); border-color: var(--danger); padding: 2px 6px; margin-left: 4px;" onclick="app.toggleLessonStatus('${les.lessonId}', 'cancelled')"><i class="fa-solid fa-x"></i> ยกเลิก</button>
+                    <button class="btn btn-outline btn-xs" style="color: var(--primary); border-color: var(--primary); padding: 2px 6px; margin-left: 4px;" onclick="app.openEditLessonModal('${les.lessonId}')"><i class="fa-solid fa-pen-to-square"></i> บันทึกรายละเอียด</button>
+                `;
+            } else {
+                actionButtons = '<span style="font-size:11px; color:var(--text-secondary); font-style:italic;">อ่านอย่างเดียว</span>';
+            }
+
+            let topicHtml = `<strong>${les.location}</strong>`;
+            if (les.topic) {
+                topicHtml += `<div style="font-weight: 600; font-size: 13px; color: var(--primary-dark); margin-top: 4px;"><i class="fa-solid fa-book-open"></i> หัวข้อ: ${les.topic}</div>`;
+            }
+            if (les.lessonPlan) {
+                topicHtml += `<div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;"><i class="fa-regular fa-paper-plane"></i> แผน: ${les.lessonPlan}</div>`;
+            }
+            if (les.teachingNote) {
+                topicHtml += `<div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;"><i class="fa-regular fa-comment-dots"></i> บันทึกหลังสอน: ${les.teachingNote}</div>`;
+            }
+
+            return `
+                <tr>
+                    <td style="text-align: center;"><strong>สัปดาห์ที่ ${les.weekNumber}</strong></td>
+                    <td>${dateStr}</td>
+                    <td>${les.dayOfWeek} / คาบที่ ${les.periodNumber}</td>
+                    <td>${les.startTime} - ${les.endTime}</td>
+                    <td style="text-align: center;"><strong>${les.classId}</strong></td>
+                    <td>${topicHtml}</td>
+                    <td style="text-align: center;">${statusBadge}</td>
+                    <td style="text-align: center; white-space: nowrap;">
+                        ${actionButtons}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    filterLessons() {
+        const classFilter = document.getElementById('lesson-classroom-filter');
+        const statusFilter = document.getElementById('lesson-status-filter');
+        if (!this.currentLessonsCache) return;
+
+        const classVal = classFilter ? classFilter.value : 'all';
+        const statusVal = statusFilter ? statusFilter.value : 'all';
+
+        let filtered = this.currentLessonsCache;
+
+        if (classVal !== 'all') {
+            filtered = filtered.filter(l => l.classId === classVal);
+        }
+        if (statusVal !== 'all') {
+            filtered = filtered.filter(l => l.status === statusVal);
+        }
+
+        this.renderLessonsList(filtered);
+    }
+
+    closeLessonsView() {
+        const detailCard = document.getElementById('subject-lessons-list-card');
+        if (detailCard) detailCard.style.display = 'none';
+        this.currentLessonsCache = null;
+    }
+
+    // Toggle planned/taught/cancelled status
+    async toggleLessonStatus(lessonId, newStatus) {
+        // Find lesson in db memory cache
+        const lesson = (this.db.subjectCalendarLessons || []).find(l => l.lessonId === lessonId);
+        if (!lesson) return;
+
+        const oldStatus = lesson.status;
+        lesson.status = newStatus;
+        lesson.updatedAt = new Date().toISOString();
+
+        try {
+            if (this.useFirestore && this.firestore) {
+                await this.firestore.collection('subjectCalendarLessons').doc(lessonId).update({
+                    status: newStatus,
+                    updatedAt: lesson.updatedAt
+                });
+            }
+            
+            // Sync with local memory and save local cache
+            localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+
+            // Refresh UI in filter list cache
+            if (this.currentLessonsCache) {
+                const cacheItem = this.currentLessonsCache.find(l => l.lessonId === lessonId);
+                if (cacheItem) {
+                    cacheItem.status = newStatus;
+                    cacheItem.updatedAt = lesson.updatedAt;
+                }
+                this.filterLessons();
+            }
+        } catch (e) {
+            console.error("Failed to toggle lesson status:", e);
+            lesson.status = oldStatus; // revert
+            alert("ไม่สามารถบันทึกสถานะได้: " + e.message);
+        }
+    }
+
+    // Delete calendar (Admin only)
+    async deleteCalendar(calendarId) {
+        if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบปฏิทินวิชานี้และคาบเรียนทั้งหมด? การดำเนินการนี้ไม่สามารถย้อนกลับได้")) {
+            return;
+        }
+
+        try {
+            if (this.useFirestore && this.firestore) {
+                // Delete calendars doc
+                await this.firestore.collection('subjectCalendars').doc(calendarId).delete();
+                
+                // Query and delete all lessons of this calendar
+                const snapshot = await this.firestore.collection('subjectCalendarLessons')
+                    .where('calendarId', '==', calendarId).get();
+                
+                const BATCH_LIMIT = 400;
+                let currentBatch = this.firestore.batch();
+                let count = 0;
+                
+                for (const doc of snapshot.docs) {
+                    currentBatch.delete(doc.ref);
+                    count++;
+                    if (count >= BATCH_LIMIT) {
+                        await currentBatch.commit();
+                        currentBatch = this.firestore.batch();
+                        count = 0;
+                    }
+                }
+                if (count > 0) {
+                    await currentBatch.commit();
+                }
+            }
+
+            // Sync local storage
+            this.db.subjectCalendars = (this.db.subjectCalendars || []).filter(c => c.calendarId !== calendarId);
+            this.db.subjectCalendarLessons = (this.db.subjectCalendarLessons || []).filter(l => l.calendarId !== calendarId);
+            
+            localStorage.setItem('school_subject_calendars', JSON.stringify(this.db.subjectCalendars));
+            localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+
+            this.closeLessonsView();
+            await this.loadSubjectCalendars();
+            
+            this.showStatusModal('success', 'ลบปฏิทินรายวิชาสำเร็จ', 'ได้ลบปฏิทินรายวิชาและคาบเรียนทั้งหมดเรียบร้อยแล้ว');
+        } catch (e) {
+            console.error("Failed to delete subject calendar:", e);
+            alert("เกิดข้อผิดพลาดในการลบปฏิทิน: " + e.message);
+        }
+    }
+
+    // Open Edit Lesson Modal & populate values
+    openEditLessonModal(lessonId) {
+        const lesson = (this.db.subjectCalendarLessons || []).find(l => l.lessonId === lessonId);
+        if (!lesson) return;
+
+        document.getElementById('edit-lesson-id').value = lessonId;
+        document.getElementById('edit-lesson-topic').value = lesson.topic || '';
+        document.getElementById('edit-lesson-plan').value = lesson.lessonPlan || '';
+        document.getElementById('edit-lesson-note').value = lesson.teachingNote || '';
+
+        this.openModal('edit-lesson-modal');
+    }
+
+    // Save edited lesson topic, plan, and teaching notes
+    async saveLessonDetails() {
+        const lessonId = document.getElementById('edit-lesson-id').value;
+        const topic = document.getElementById('edit-lesson-topic').value.trim();
+        const lessonPlan = document.getElementById('edit-lesson-plan').value.trim();
+        const teachingNote = document.getElementById('edit-lesson-note').value.trim();
+
+        if (!topic) {
+            alert("กรุณากรอกหัวข้อการเรียนการสอน!");
+            return;
+        }
+
+        const lesson = (this.db.subjectCalendarLessons || []).find(l => l.lessonId === lessonId);
+        if (!lesson) return;
+
+        const oldTopic = lesson.topic;
+        const oldPlan = lesson.lessonPlan;
+        const oldNote = lesson.teachingNote;
+
+        lesson.topic = topic;
+        lesson.lessonPlan = lessonPlan;
+        lesson.teachingNote = teachingNote;
+        lesson.updatedAt = new Date().toISOString();
+
+        try {
+            if (this.useFirestore && this.firestore) {
+                await this.firestore.collection('subjectCalendarLessons').doc(lessonId).update({
+                    topic: topic,
+                    lessonPlan: lessonPlan,
+                    teachingNote: teachingNote,
+                    updatedAt: lesson.updatedAt
+                });
+            }
+
+            // Save to localStorage
+            localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+
+            // Refresh UI in current timeline caches
+            if (this.currentLessonsCache) {
+                const cacheItem = this.currentLessonsCache.find(l => l.lessonId === lessonId);
+                if (cacheItem) {
+                    cacheItem.topic = topic;
+                    cacheItem.lessonPlan = lessonPlan;
+                    cacheItem.teachingNote = teachingNote;
+                    cacheItem.updatedAt = lesson.updatedAt;
+                }
+                this.filterLessons();
+            }
+
+            this.closeModal('edit-lesson-modal');
+            this.showStatusModal('success', 'บันทึกรายละเอียดเรียบร้อย', 'ได้บันทึกรายละเอียดหัวข้อและผลการเรียนการสอนของคาบนี้แล้ว');
+        } catch (e) {
+            console.error("Failed to save lesson details:", e);
+            // Revert memory cache
+            lesson.topic = oldTopic;
+            lesson.lessonPlan = oldPlan;
+            lesson.teachingNote = oldNote;
+            alert("ไม่สามารถบันทึกรายละเอียดได้: " + e.message);
+        }
+    }
+
+    // Open Add Make-up Lesson Modal
+    openMakeupLessonModal() {
+        const cal = (this.db.subjectCalendars || []).find(c => c.calendarId === this.selectedCalendarId);
+        if (!cal) return;
+
+        // Clear values
+        document.getElementById('makeup-calendar-id').value = cal.calendarId;
+        document.getElementById('makeup-date').value = '';
+        document.getElementById('makeup-period').value = '1';
+        document.getElementById('makeup-start-time').value = '';
+        document.getElementById('makeup-end-time').value = '';
+        document.getElementById('makeup-location').value = '';
+        document.getElementById('makeup-topic').value = '';
+        document.getElementById('makeup-plan').value = '';
+        document.getElementById('makeup-note').value = '';
+
+        // Populate classroom options
+        const select = document.getElementById('makeup-classroom');
+        if (select) {
+            select.innerHTML = cal.classrooms.map(room => `<option value="${room}">${room}</option>`).join('');
+        }
+
+        this.openModal('makeup-lesson-modal');
+    }
+
+    // Save newly created Make-up Lesson
+    async saveMakeupLesson() {
+        const calendarId = document.getElementById('makeup-calendar-id').value;
+        const cal = (this.db.subjectCalendars || []).find(c => c.calendarId === calendarId);
+        if (!cal) {
+            alert("ไม่พบปฏิทินที่เกี่ยวข้อง!");
+            return;
+        }
+
+        const classId = document.getElementById('makeup-classroom').value;
+        const dateVal = document.getElementById('makeup-date').value;
+        const periodVal = document.getElementById('makeup-period').value;
+        const startTimeVal = document.getElementById('makeup-start-time').value;
+        const endTimeVal = document.getElementById('makeup-end-time').value;
+        const locationVal = document.getElementById('makeup-location').value.trim();
+        const topicVal = document.getElementById('makeup-topic').value.trim();
+        const planVal = document.getElementById('makeup-plan').value.trim();
+        const noteVal = document.getElementById('makeup-note').value.trim();
+
+        if (!dateVal || !periodVal || !startTimeVal || !endTimeVal || !locationVal || !topicVal) {
+            alert("กรุณากรอกข้อมูลในช่องที่จำเป็น (*) ให้ครบถ้วน!");
+            return;
+        }
+
+        // Validate time
+        if (startTimeVal >= endTimeVal) {
+            alert("เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่มต้น!");
+            return;
+        }
+
+        // Calculate weekNumber based on cal.startDate
+        const start = new Date(cal.startDate);
+        const current = new Date(dateVal);
+        let weekNumber = 1;
+        if (current >= start) {
+            const diffTime = Math.abs(current - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            weekNumber = Math.floor(diffDays / 7) + 1;
+        }
+
+        // Day of week Thai
+        const days = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+        const dayOfWeekVal = days[current.getDay()];
+
+        // Generate unique lessonId
+        const lessonId = 'makeup_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+        const newLesson = {
+            lessonId: lessonId,
+            calendarId: calendarId,
+            teacherUid: cal.teacherUid,
+            teacherName: cal.teacherName || (this.currentUser ? (this.currentUser.displayName || this.currentUser.username) : ''),
+            academicYear: cal.academicYear,
+            semester: cal.semester,
+            subjectName: cal.subjectName,
+            subjectCode: cal.subjectCode,
+            gradeLevel: cal.gradeLevel,
+            classId: classId,
+            className: classId,
+            weekNumber: weekNumber,
+            lessonDate: dateVal,
+            dayOfWeek: dayOfWeekVal,
+            periodNumber: parseInt(periodVal),
+            startTime: startTimeVal,
+            endTime: endTimeVal,
+            location: locationVal,
+            status: "planned",
+            isMakeup: true,
+            topic: topicVal,
+            lessonPlan: planVal,
+            teachingNote: noteVal,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+
+        try {
+            if (this.useFirestore && this.firestore) {
+                await this.firestore.collection('subjectCalendarLessons').doc(lessonId).set(newLesson);
+            }
+
+            // Sync with local memory cache
+            this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
+            this.db.subjectCalendarLessons.push(newLesson);
+            localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
+
+            // Sync timeline caches if active
+            if (this.currentLessonsCache) {
+                this.currentLessonsCache.push(newLesson);
+                // Re-sort lessons
+                this.currentLessonsCache.sort((a, b) => a.lessonDate.localeCompare(b.lessonDate) || a.periodNumber - b.periodNumber);
+                this.filterLessons();
+            }
+
+            this.closeModal('makeup-lesson-modal');
+            this.showStatusModal('success', 'สร้างคาบเรียนชดเชยสำเร็จ', 'เพิ่มคาบชดเชยสำหรับห้อง ' + classId + ' ในตารางเรียนเรียบร้อยแล้ว');
+        } catch (e) {
+            console.error("Failed to save make-up lesson:", e);
+            alert("ไม่สามารถบันทึกคาบชดเชยได้: " + e.message);
+        }
+    }
+
+    // Export current calendar lessons as a JSON file
+    exportCalendarLessons() {
+        if (!this.currentLessonsCache || this.currentLessonsCache.length === 0) {
+            alert("ไม่มีข้อมูลคาบเรียนสำหรับส่งออก!");
+            return;
+        }
+
+        const cal = (this.db.subjectCalendars || []).find(c => c.calendarId === this.selectedCalendarId);
+        const subjectCode = cal ? cal.subjectCode : 'subject';
+        
+        // Prepare file name
+        const filename = `lessons_report_${subjectCode}_${new Date().toISOString().split('T')[0]}.json`;
+
+        // Format content
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.currentLessonsCache, null, 2));
+        
+        // Trigger download
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", filename);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
     }
 }
 
