@@ -76,9 +76,9 @@
             
             <nav class="nav-menu">
                 <a href="#" class="nav-item active" data-view="dashboard" id="menu-dashboard"><i class="fa-solid fa-gauge-high"></i> หน้าหลัก</a>
-                <a href="#" class="nav-item" data-view="calendar" id="menu-calendar"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
-                <a href="#" class="nav-item" data-view="bases" id="menu-bases"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
-                <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-table"></i> ตารางสอน</a>
+                <a href="#" class="nav-item" data-view="calendar" id="menu-calendar" style="display:none;"><i class="fa-solid fa-calendar-days"></i> ปฏิทินรายวิชา</a>
+                <a href="#" class="nav-item" data-view="bases" id="menu-bases" style="display:none;"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
+                <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-calendar-image"></i> ตารางสอน</a>
                 <a href="#" class="nav-item" data-view="search" id="menu-search"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</a>
                 <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;"><i class="fa-solid fa-user-check"></i> เช็กชื่อ</a>
                 <a href="#" class="nav-item" data-view="reports" id="menu-reports" style="display: none;"><i class="fa-solid fa-chart-simple"></i> รายงาน</a>
@@ -208,59 +208,56 @@
                 </div>
             </section>
 
-            <!-- VIEW: Rotation Schedule -->
+            <!-- VIEW: Timetable / Schedule Image Display -->
             <section class="view-container" id="view-rotation">
-                <!-- Rotation operations control bar -->
-                <div class="filter-bar no-print">
-                    <div style="flex: 1; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                        <span style="font-weight: 600; color: var(--text-primary);"><i class="fa-solid fa-sliders text-primary"></i> แสดงผลตาราง:</span>
-                        <button class="btn btn-primary btn-sm" id="btn-rotation-mode-simple">
-                            <i class="fa-solid fa-table"></i> เฉพาะระดับชั้น
-                        </button>
-                        <button class="btn btn-outline btn-sm" id="btn-rotation-mode-detail">
-                            <i class="fa-solid fa-list-ul"></i> แสดงห้องเรียนและสถานที่
-                        </button>
-                    </div>
-                    
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-outline" id="btn-print-rotation" title="พิมพ์ตารางหมุนฐานเป็น PDF">
-                            <i class="fa-solid fa-print"></i> พิมพ์ / PDF
-                        </button>
-                        <button class="btn btn-success" id="btn-export-rotation-excel" title="ส่งออกตารางหมุนฐานเป็น Excel">
-                            <i class="fa-solid fa-file-excel"></i> Export Excel
-                        </button>
+                <!-- Header bar -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h2 style="font-size: 22px; font-weight: 700; margin-bottom: 4px;">
+                                <i class="fa-solid fa-table-cells text-white"></i> ตารางสอนวิชาเศรษฐกิจพอเพียง
+                            </h2>
+                            <p style="opacity: 0.9; font-size: 14px;" id="timetable-semester-label">ภาคเรียนที่ 1/2569</p>
+                        </div>
+                        <!-- Admin controls -->
+                        <div id="timetable-admin-controls" style="display: none; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-sm" style="background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);" onclick="document.getElementById('timetable-image-upload').click()">
+                                <i class="fa-solid fa-upload"></i> อัปโหลดตารางสอน
+                            </button>
+                            <button class="btn btn-sm" id="btn-timetable-remove" style="background: rgba(255,80,80,0.3); color: white; border-color: rgba(255,100,100,0.5); display:none;" onclick="app.removeTimetableImage()">
+                                <i class="fa-solid fa-trash"></i> ลบรูปตาราง
+                            </button>
+                            <input type="file" id="timetable-image-upload" accept="image/*" style="display:none;" onchange="app.uploadTimetableImage(this)">
+                        </div>
                     </div>
                 </div>
 
-                <!-- Printable Matrix Card -->
-                <div class="card" id="rotation-matrix-card">
-                    <div class="card-header" style="flex-direction: column; align-items: center; border-bottom: 2px solid var(--border-color); text-align: center; padding-bottom: 20px;">
-                        <h2 style="font-size: 20px; font-weight: 700; color: var(--text-primary);"><i class="fa-solid fa-arrows-spin text-primary"></i> ปฏิทินการจัดกิจกรรมเรียนรู้แบบหมุนฐาน</h2>
-                        <h4 style="font-size: 16px; font-weight: 600; color: var(--text-secondary); margin-top: 4px;">รายวิชาเศรษฐกิจพอเพียง โรงเรียนปายวิทยาคาร ภาคเรียนที่ 1/2569</h4>
+                <!-- Image display area -->
+                <div class="card" id="timetable-image-card">
+                    <!-- Placeholder when no image -->
+                    <div id="timetable-no-image" style="text-align: center; padding: 80px 24px; color: var(--text-light);">
+                        <i class="fa-solid fa-image" style="font-size: 64px; opacity: 0.25; display: block; margin-bottom: 16px;"></i>
+                        <h3 style="font-weight: 600; color: var(--text-secondary); margin-bottom: 8px;">ยังไม่มีไฟล์ภาพตารางสอนสำหรับภาคเรียนนี้</h3>
+                        <p style="font-size: 14px; max-width: 400px; margin: 0 auto 24px;">ผู้ดูแลระบบสามารถอัปโหลดภาพตารางสอนได้จากปุ่มด้านบน เพื่อให้ครูและนักเรียนเข้าดูตารางสอนในภาคเรียนนี้</p>
+                        <div id="timetable-no-image-upload-hint" style="display:none;">
+                            <button class="btn btn-primary" onclick="document.getElementById('timetable-image-upload').click()">
+                                <i class="fa-solid fa-cloud-arrow-up"></i> อัปโหลดตารางสอนตอนนี้
+                            </button>
+                        </div>
                     </div>
-                    
-                    <div class="table-responsive" style="margin-top: 20px;">
-                        <table class="rotation-matrix-table" id="rotation-matrix-table">
-                            <thead>
-                                <tr>
-                                    <th>สัปดาห์</th>
-                                    <th>ช่วงวันที่</th>
-                                    <th>ไฟเบอร์ ทรงพลัง (ฐาน 1)</th>
-                                    <th>อาณาจักรอักษร (ฐาน 2)</th>
-                                    <th>เงาในน้ำ (ฐาน 3)</th>
-                                    <th>ไก่ไข่อารมณ์ดี (ฐาน 4)</th>
-                                    <th>หรรษาสุธารสเห็ด (ฐาน 5)</th>
-                                    <th>ต้นกล้าประชาธิปไตย (ฐาน 6)</th>
-                                    <th>หลู่ส่างกานเครือ เกื้อบุญ (ฐาน 7)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="rotation-matrix-table-body">
-                                <!-- Dynamic rows loaded via JS -->
-                            </tbody>
-                        </table>
+                    <!-- The actual timetable image -->
+                    <div id="timetable-image-wrapper" style="display: none;">
+                        <img id="timetable-image-display" src="" alt="ตารางสอนวิชาเศรษฐกิจพอเพียง" 
+                            style="width: 100%; height: auto; border-radius: var(--radius-md); display: block; cursor: zoom-in;"
+                            onclick="app.openTimetableFullscreen()"
+                            title="คลิกเพื่อดูภาพขนาดเต็ม">
+                        <p style="text-align:center; font-size: 12px; color: var(--text-light); margin-top: 10px;">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่ภาพเพื่อดูขนาดเต็มจอ
+                        </p>
                     </div>
                 </div>
             </section>
+
 
             <!-- VIEW: Attendance Check-in -->
             <section class="view-container" id="view-checkin">
@@ -644,6 +641,7 @@
                             <span id="staging-logs-count-badge" style="display: none; position: absolute; top: -8px; right: -8px; background-color: var(--accent); color: white; border-radius: 50%; padding: 2px 6px; font-size: 10px; font-weight: bold; line-height: 1; box-shadow: var(--shadow-sm);">0</span>
                         </button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-cloud" onclick="app.switchManageTab('cloud')">ระบบคลาวด์ & Backup</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-integrity" onclick="app.switchManageTab('integrity')">ตรวจสอบข้อมูลผู้ใช้งาน</button>
                     </div>
 
                     <!-- Sub-view: Students -->
@@ -840,6 +838,25 @@
                             <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
                                 คุณสามารถดาวน์โหลดแบ็กอัปฐานข้อมูลระบบทั้งหมดเก็บไว้เป็นไฟล์ JSON หรือทำการรีเซ็ตข้อมูลเริ่มต้น (Demo Data) ใหม่ทั้งหมดเพื่อจุดประสงค์ในการสาธิตทดลองใช้งาน
                             </p>
+
+                            <!-- ล้างข้อมูลนักเรียนเท่านั้น (เฉพาะ Admin) -->
+                            <div style="background: linear-gradient(135deg, #FFF3E0, #FBE9E7); border: 1px solid #FF9800; border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <i class="fa-solid fa-user-slash" style="color: #E65100; font-size: 20px;"></i>
+                                    <div>
+                                        <strong style="color: #BF360C; font-size: 15px;">ล้างข้อมูลนักเรียน (เฉพาะ Admin)</strong>
+                                        <p style="font-size: 12px; color: #6D4C41; margin: 2px 0 0 0;">ลบเฉพาะรายชื่อนักเรียน ข้อมูลอื่นทั้งหมดยังคงอยู่ครบถ้วน</p>
+                                    </div>
+                                </div>
+                                <div style="font-size: 12px; color: #5D4037; margin-bottom: 12px; line-height: 1.6;">
+                                    <strong>คงไว้:</strong> ครูและผู้บริหาร &bull; ฐานการเรียนรู้ &bull; ตารางหมุนฐาน &bull; ประวัติเช็กชื่อ &bull; การตั้งค่า<br>
+                                    <strong>ลบออก:</strong> รายชื่อนักเรียนทั้งหมด
+                                </div>
+                                <button class="btn btn-sm" style="background: #E65100; color: white; border-color: #E65100;" onclick="app.clearStudentsOnly(true)">
+                                    <i class="fa-solid fa-user-slash"></i> ล้างข้อมูลเฉพาะนักเรียน
+                                </button>
+                            </div>
+
                             <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                                 <button class="btn btn-outline" onclick="app.backupDatabase()">
                                     <i class="fa-solid fa-download"></i> สำรองข้อมูลเบส (JSON)
@@ -857,6 +874,7 @@
                             </div>
                         </div>
                     </div>
+
 
                     <!-- Sub-view: Semesters & Academic Years -->
                     <div class="manage-sub-view" id="manage-sub-semesters" style="display: none;">
@@ -995,6 +1013,11 @@
                                 </table>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Sub-view: Integrity Check -->
+                    <div class="manage-sub-view" id="manage-sub-integrity" style="display: none;">
+                        <!-- Will be populated dynamically via JS -->
                     </div>
                 </div>
 
@@ -1272,6 +1295,7 @@
                     </div>
                     <div style="display: flex; gap: 10px; justify-content: space-between; margin-top: 18px; padding-top: 12px; border-top: 1px dashed var(--border-color); font-size: 13px;">
                         <a href="#" onclick="app.tryReconnectCloudFromLogin(event)" style="color: #FF6F00; text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-rotate"></i> ลองเชื่อมต่อใหม่</a>
+                        <a href="#" onclick="app.handleForgotPassword(event)" style="color: var(--primary); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-key"></i> ลืมรหัสผ่าน?</a>
                         <a href="#" onclick="app.clearSystemCache(event)" style="color: var(--danger); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 4px;"><i class="fa-solid fa-trash-can"></i> ล้างแคชระบบ</a>
                     </div>
                 </div>
@@ -1396,15 +1420,6 @@
                         <option value="director">ผู้บริหารโรงเรียน</option>
                         <option value="admin">ผู้ดูแลระบบ (Admin)</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="teacher-form-password" id="teacher-form-password-label">รหัสผ่านเริ่มต้น</label>
-                    <div class="password-wrapper">
-                        <input type="password" id="teacher-form-password" placeholder="ปล่อยว่างไว้หากใช้รหัสผ่านเริ่มต้น...">
-                        <button type="button" class="password-toggle-btn" onclick="app.togglePasswordVisibility('teacher-form-password', this)">
-                            <i class="fa-solid fa-eye"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1765,7 +1780,9 @@
             </div>
             <h3 id="status-modal-title" style="font-size: 22px; font-weight: 700; margin-bottom: 12px; color: var(--text-primary);"></h3>
             <p id="status-modal-message" style="color: var(--text-secondary); font-size: 15px; line-height: 1.6; margin-bottom: 24px;"></p>
-            <button class="btn btn-primary" style="min-width: 140px; padding: 10px 28px; font-size: 15px; font-weight: 600; border-radius: 8px;" onclick="app.closeModal('status-modal')">ตกลง</button>
+            <div id="status-modal-action-container">
+                <button class="btn btn-primary" style="min-width: 140px; padding: 10px 28px; font-size: 15px; font-weight: 600; border-radius: 8px;" onclick="app.closeModal('status-modal')">ตกลง</button>
+            </div>
         </div>
     </div>
 

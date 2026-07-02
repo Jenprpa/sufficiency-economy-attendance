@@ -1,0 +1,169 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // DEFAULT DENY RULE
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // HELPER FUNCTIONS
+    // ==========================================
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fetch userAccount document for the authenticated user
+    function getUserAccount() {
+      return get(/databases/$(database)/documents/userAccounts/$(request.auth.uid)).data;
+    }
+
+    // Retrieve username from userAccount email (e.g. teacher1@paiwittyakarn.local -> teacher1)
+    function getUsername() {
+      return getUserAccount().email.replace('@paiwittyakarn.local', '');
+    }
+
+    // Check if the user has a specific role
+    function hasRole(role) {
+      return isAuthenticated() && getUserAccount().role == role;
+    }
+
+    // Check if the user has any of the specified roles
+    function hasAnyRole(roles) {
+      return isAuthenticated() && getUserAccount().role in roles;
+    }
+
+    // ==========================================
+    // COLLECTION: userAccounts
+    // ==========================================
+    match /userAccounts/{uid} {
+      // Authenticated users can read their own account info. Admin can read all.
+      allow read: if isAuthenticated() && (request.auth.uid == uid || hasRole('admin'));
+      
+      // Admin can create/delete accounts.
+      allow create, delete: if hasRole('admin');
+      
+      // Users can only update their own status/login timestamps to prevent role escalation.
+      // Admin can update everything.
+      allow update: if hasRole('admin') || (
+        request.auth.uid == uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'activatedAt', 'status'])
+      );
+    }
+
+    // ==========================================
+    // COLLECTION: userProfiles
+    // ==========================================
+    match /userProfiles/{uid} {
+      // Authenticated users can read their own profile. Admin can read all.
+      allow read: if isAuthenticated() && (request.auth.uid == uid || hasRole('admin'));
+      
+      // Admin can create/delete profiles.
+      allow create, delete: if hasRole('admin');
+      
+      // Users can only update their own status/login timestamps. Admin can update everything.
+      allow update: if hasRole('admin') || (
+        request.auth.uid == uid && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt', 'activatedAt', 'status'])
+      );
+    }
+
+    // ==========================================
+    // COLLECTION: users (auth references)
+    // ==========================================
+    match /users/{uid} {
+      // Only admin can access users metadata collection
+      allow read, write: if hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: system_data
+    // ==========================================
+    match /system_data/{docId} {
+      // All authenticated staff members can read general system parameters (bases, schedules, semesters, classes)
+      allow read: if isAuthenticated();
+      // Only administrators can edit/define system configurations
+      allow write: if hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: attendance_logs
+    // ==========================================
+    match /attendance_logs/{logId} {
+      // Admin/Director/Supervisor can read all logs.
+      // Teachers can only read their own logs (via teacherUid or checkedBy for backward compatibility).
+      allow read: if isAuthenticated() && (
+        hasAnyRole(['admin', 'director', 'supervisor']) || (
+          hasRole('teacher') && (
+            resource.data.teacherUid == request.auth.uid ||
+            resource.data.checkedBy == getUsername()
+          )
+        )
+      );
+      
+      // Teachers and admins can create or update check-in logs.
+      // Teachers are restricted to creating/updating only their own logs (matching checkedBy/teacherUid).
+      allow create, update: if isAuthenticated() && (
+        hasRole('admin') || (
+          hasRole('teacher') &&
+          request.resource.data.baseId != null &&
+          request.resource.data.studentId != null &&
+          request.resource.data.status != null &&
+          request.resource.data.checkedBy == getUsername() &&
+          (request.resource.data.teacherUid == null || request.resource.data.teacherUid == request.auth.uid)
+        )
+      );
+      
+      // Admin can delete any log. Teachers cannot delete final logs.
+      allow delete: if isAuthenticated() && hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: base_activity_logs
+    // ==========================================
+    match /base_activity_logs/{logId} {
+      // Shared access for staff to see base activities
+      allow read: if isAuthenticated();
+      // Admins and teachers can create/update activity notes and photos
+      allow create, update: if hasAnyRole(['admin', 'teacher']);
+      // Only administrators can remove log entries
+      allow delete: if hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: staging_logs
+    // ==========================================
+    match /staging_logs/{logId} {
+      // All staff can view staged check-ins pending approval
+      allow read: if isAuthenticated();
+      // Admins and teachers can write draft staged logs
+      allow create, update: if hasAnyRole(['admin', 'teacher']);
+      // Admins, directors, and supervisors can approve and delete logs from the staging queue
+      allow delete: if hasAnyRole(['admin', 'director', 'supervisor']);
+    }
+
+    // ==========================================
+    // COLLECTION: backups
+    // ==========================================
+    match /backups/{backupId} {
+      allow read, write: if hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: audit_logs
+    // ==========================================
+    match /audit_logs/{logId} {
+      // Admins can inspect administrative audit trails
+      allow read: if hasRole('admin');
+      // All authenticated actions can write audit logs
+      allow create: if isAuthenticated();
+      // Audit logs are immutable (no updates or deletes allowed)
+      allow update, delete: if false;
+    }
+  }
+}

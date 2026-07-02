@@ -503,7 +503,16 @@ class AttendanceApp {
                     logsResolve = resolve;
                 });
 
-                this.logsUnsubscribe = this.firestore.collection('attendance_logs').onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+                const activeUser = this.pendingLoginUser || this.currentUser;
+                let logsQuery = this.firestore.collection('attendance_logs');
+                if (activeUser && activeUser.role === 'teacher') {
+                    console.log(`[Load Database] Scoped query for teacher: checkedBy == ${activeUser.username}`);
+                    logsQuery = logsQuery.where('checkedBy', '==', activeUser.username);
+                } else {
+                    console.log("[Load Database] Broad query for admin/director/supervisor");
+                }
+
+                this.logsUnsubscribe = logsQuery.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
                     const updatedLogs = snapshot.docs.map(doc => doc.data());
                     if (this.db) {
                         this.db.attendance_logs = updatedLogs;
@@ -630,10 +639,10 @@ class AttendanceApp {
         const existingTeachers = this.db && this.db.teachers && this.db.teachers.length > 0 
             ? this.db.teachers 
             : [
-                { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "123456" },
-                { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "123456" },
-                { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "123456" },
-                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin", password: "123456" }
+                { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
+                { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
+                { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
+                { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
             ];
 
         this.db = {
@@ -716,7 +725,14 @@ class AttendanceApp {
                     this.logsUnsubscribe();
                 }
 
-                this.logsUnsubscribe = this.firestore.collection('attendance_logs').onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+                const activeUserLogs = this.pendingLoginUser || this.currentUser;
+                let logsQuery2 = this.firestore.collection('attendance_logs');
+                if (activeUserLogs && activeUserLogs.role === 'teacher') {
+                    console.log(`[Load Database] Scoped query 2 for teacher: checkedBy == ${activeUserLogs.username}`);
+                    logsQuery2 = logsQuery2.where('checkedBy', '==', activeUserLogs.username);
+                }
+
+                this.logsUnsubscribe = logsQuery2.onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
                     const updatedLogs = snapshot.docs.map(doc => doc.data());
                     if (this.db) {
                         this.db.attendance_logs = updatedLogs;
@@ -1075,9 +1091,9 @@ class AttendanceApp {
     runMigrationChecks() {
         // Auto-update teachers with new school executives/admin if missing or incorrect
         const requiredExecutives = [
-            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "123456" },
-            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "123456" },
-            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "123456" },
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director" },
             { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
@@ -1105,10 +1121,9 @@ class AttendanceApp {
                     found.name = exec.name;
                     dbChanged = true;
                 }
-                // Overwrite password ONLY if it is missing, or matches old default (phone/username/June), and is not 123456
-                const isOldDefault = !found.password || found.password === exec.phone || found.password === exec.username || found.password === '20June2026';
-                if (isOldDefault && found.password !== "123456") {
-                    found.password = "123456";
+                // Delete plaintext password field if exists to satisfy security rules
+                if (found.hasOwnProperty('password')) {
+                    delete found.password;
                     dbChanged = true;
                 }
                 if (exec.phone && found.phone !== exec.phone) {
@@ -1215,7 +1230,7 @@ class AttendanceApp {
         requiredTeachers.forEach(tInfo => {
             const found = this.db.teachers.find(t => t.username === tInfo.username);
             if (!found) {
-                tInfo.password = "123456";
+                // Do not assign any password field to tInfo
                 this.db.teachers.push(tInfo);
                 dbChanged = true;
             } else {
@@ -1228,10 +1243,9 @@ class AttendanceApp {
                     found.role = tInfo.role;
                     changed = true;
                 }
-                // Overwrite password ONLY if it is missing, or matches old default (phone/username), and is not 123456
-                const isOldDefault = !found.password || found.password === tInfo.phone || found.password === tInfo.username;
-                if (isOldDefault && found.password !== "123456") {
-                    found.password = "123456";
+                // Purge plaintext password field if exists to satisfy security rules
+                if (found.hasOwnProperty('password')) {
+                    delete found.password;
                     changed = true;
                 }
                 if (tInfo.phone && found.phone !== tInfo.phone) {
@@ -1468,22 +1482,19 @@ class AttendanceApp {
             { username: "michael", name: "Mr.Michael Gibbs", role: "teacher" },
         ];
 
-        // Reset all passwords to "123456" as default
-        teachers.forEach(t => {
-            t.password = "123456";
-        });
+        // Passwords are managed securely via Firebase Auth, not stored locally in db
 
         // 3. Students Generator (realistic Thai names and classrooms)
         const firstNames = ["สมชาย", "วิชัย", "กิตติ", "พงศ์ธร", "ธีรพงษ์", "อภิสิทธิ์", "ณัฐพล", "เกียรติศักดิ์", "สิทธิพล", "จิรายุ", "วรรณนา", "นงนุช", "วิไล", "สุภาภรณ์", "นภา", "สิริพร", "รัตนา", "จิราภรณ์", "พัชรา", "ยลดา", "มาลี", "กัญญารัตน์", "ธัญญารัตน์", "เปรมิกา", "สุจิตรา", "วรัญญา", "ชลลดา", "ศิริวรรณ", "นันทนา", "ลัดดา"];
         const lastNames = ["ใจดี", "รักชาติ", "มั่งคั่ง", "รุ่งเรือง", "ดีเลิศ", "แก้วมณี", "ยิ้มแย้ม", "สุขใจ", "เกื้อกูล", "เงาดี", "ประเสริฐ", "ชูใจ", "แสนดี", "โชคดี", "วงศ์วิริยะ", "ศรีสุข", "เลิศอนันต์", "ดวงแก้ว", "สุขแสน", "ทองคำ", "เจริญศรี", "พัฒนา", "ภักดี", "สิงห์โต", "พิทักษ์", "บำรุง", "จิตรดี", "มั่นเหมาะ", "ชื่นบาน", "ธรรมรักษา"];
         
         const studentClasses = [
-            { grade: "ม.1", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-            { grade: "ม.2", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
-            { grade: "ม.3", rooms: [1, 2, 3, 4, 5, 6, 7, 8] },
-            { grade: "ม.4", rooms: [1, 2, 3, 4, 5, 6, 7] },
-            { grade: "ม.5", rooms: [1, 2, 3, 4, 5, 6] },
-            { grade: "ม.6", rooms: [1, 2, 3, 4, 5, 6] }
+            { grade: "ม.1", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+            { grade: "ม.2", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+            { grade: "ม.3", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+            { grade: "ม.4", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+            { grade: "ม.5", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
+            { grade: "ม.6", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
         ];
 
         const students = [];
@@ -1620,10 +1631,10 @@ class AttendanceApp {
 
         // Keep only system accounts (Admin and Directors)
         const systemTeachers = [
-            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", password: "123456", phone: "081-7646763" },
-            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", password: "123456", phone: "094-4976328" },
-            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", password: "123456", phone: "091-8521021" },
-            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin", password: "123456" }
+            { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director", phone: "081-7646763" },
+            { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director", phone: "094-4976328" },
+            { username: "deputy2", name: "นางสาวหัสดาภรณ์ พรหมคำติ๊บ", role: "director", phone: "091-8521021" },
+            { username: "admin", name: "นางสาวเจนประภา เรือนคำ", role: "admin" }
         ];
 
         // Default 7 bases with empty teacher assignment
@@ -2158,7 +2169,7 @@ class AttendanceApp {
             // Sync session user state with updated database values
             if (this.db && this.db.teachers) {
                 const dbUser = this.db.teachers.find(t => t.username === this.currentUser.username);
-                if (dbUser && (dbUser.name !== this.currentUser.name || dbUser.role !== this.currentUser.role || dbUser.password !== this.currentUser.password)) {
+                if (dbUser && (dbUser.name !== this.currentUser.name || dbUser.role !== this.currentUser.role)) {
                     this.currentUser = dbUser;
                     localStorage.setItem('school_current_user', JSON.stringify(dbUser));
                     sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
@@ -2170,14 +2181,6 @@ class AttendanceApp {
             // Redirect teachers to checkin on load
             if (this.currentUser && this.currentUser.role === 'teacher') {
                 this.switchView('checkin');
-            }
-
-            // Optional prompt to change default password
-            const isDefaultPassword = this.currentUser.password === '123456' || !this.currentUser.password;
-            if (isDefaultPassword) {
-                setTimeout(() => {
-                    this.showOptionalPasswordChangePrompt();
-                }, 1500);
             }
         } else {
             // Auto show login modal if not logged in to guide users
@@ -2214,27 +2217,9 @@ class AttendanceApp {
             this.switchView('admin');
         } else {
             this.switchView('checkin');
-        }
-
-        // Optional prompt to change default password
-        const isDefaultPassword = userObj.password === '123456' || !userObj.password;
-        if (isDefaultPassword) {
-            setTimeout(() => {
-                this.showOptionalPasswordChangePrompt();
-            }, 1500);
-        }
     }
 
-    // Optional password change prompt
-    showOptionalPasswordChangePrompt() {
-        if (sessionStorage.getItem('password_prompt_shown')) return;
-        sessionStorage.setItem('password_prompt_shown', 'true');
 
-        const confirmChange = confirm("คำแนะนำด้านความปลอดภัย: รหัสผ่านของคุณยังคงเป็นรหัสผ่านเริ่มต้น (123456) คุณต้องการเปลี่ยนรหัสผ่านเพื่อความปลอดภัยหรือไม่?");
-        if (confirmChange) {
-            this.openChangePasswordModal(false);
-        }
-    }
 
     // Retry profile load when login auth succeeded but database load was slow/failed
     async retryLoginProfileLoad(event) {
@@ -2349,7 +2334,6 @@ class AttendanceApp {
         }
 
         const passwordInput = document.getElementById('login-password').value;
-        const expectedPassword = userObj.password || '123456';
         const email = `${userObj.username}@paiwittyakarn.local`;
 
         console.log("[Login Flow] Init Login for username:", userObj.username);
@@ -2357,19 +2341,8 @@ class AttendanceApp {
 
         const hasNetwork = navigator.onLine;
         
-        // Local validation logic (for offline or fallback)
-        const validatePasswordLocally = () => {
-            return passwordInput === expectedPassword;
-        };
-
         if (!hasNetwork) {
-            console.log("[Login Flow] Cache fallback used: YES (Offline login)");
-            if (validatePasswordLocally()) {
-                alert("เข้าสู่ระบบสำเร็จในโหมดออฟไลน์ (ข้อมูลจะถูกจัดเก็บในเครื่องชั่วคราวและซิงค์เมื่อมีเน็ต)");
-                await this.completeLogin(userObj);
-            } else {
-                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง (โหมดออฟไลน์)');
-            }
+            this.showStatusModal('error', 'ไม่สามารถเข้าสู่ระบบได้', 'ไม่สามารถเข้าสู่ระบบแบบออฟไลน์ได้ กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อยืนยันตัวตน');
             return;
         }
 
@@ -2405,6 +2378,111 @@ class AttendanceApp {
                     "Auth"
                 );
                 console.log("[Login Flow] Firebase Auth Status: SUCCESS");
+
+                // 1.5. Validate account status in Firestore after successful Auth
+                let accountDoc = null;
+                let profileDoc = null;
+                const uid = firebase.auth().currentUser.uid;
+                
+                if (this.useFirestore && this.firestore) {
+                    try {
+                        const [accSnap, profSnap] = await Promise.all([
+                            this.firestore.collection("userAccounts").doc(uid).get(),
+                            this.firestore.collection("userProfiles").doc(uid).get()
+                        ]);
+                        if (accSnap.exists) accountDoc = accSnap.data();
+                        if (profSnap.exists) profileDoc = profSnap.data();
+                    } catch (e) {
+                        console.warn("[Login Flow] Failed to load user account docs for status check:", e);
+                    }
+                }
+
+                // Check if inactive or disabled
+                const isInactive = (accountDoc && (accountDoc.status === 'inactive' || accountDoc.disabled === true)) ||
+                                   (profileDoc && (profileDoc.status === 'inactive' || profileDoc.disabled === true));
+                
+                if (isInactive) {
+                    await firebase.auth().signOut().catch(() => {});
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                    }
+                    this.pendingLoginUser = null;
+                    if (loadingStatus) loadingStatus.style.display = 'none';
+                    this.showStatusModal('error', 'บัญชีผู้ใช้ถูกระงับ', 'บัญชีผู้ใช้งานของคุณถูกระงับการใช้งานชั่วคราว หรือยังไม่ได้เปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบเพื่อขอเปิดสิทธิ์');
+                    return;
+                }
+
+                // Check profile / account integrity constraints
+                const isProfileMissing = !profileDoc;
+                const isAccountMissing = !accountDoc;
+                const isProfileIncomplete = profileDoc && (!profileDoc.name || !profileDoc.email || !profileDoc.role || !profileDoc.status);
+                const isRoleInvalid = accountDoc && (!accountDoc.role || !['admin', 'director', 'teacher'].includes(accountDoc.role));
+                
+                const isUidMismatch = (profileDoc && profileDoc.uid !== uid) || (accountDoc && accountDoc.uid !== uid);
+                
+                const authEmail = (firebase.auth().currentUser.email || '').trim().toLowerCase();
+                const profEmail = profileDoc && profileDoc.email ? profileDoc.email.trim().toLowerCase() : '';
+                const accEmail = accountDoc && accountDoc.email ? accountDoc.email.trim().toLowerCase() : '';
+                const isEmailMismatch = (profileDoc && profEmail !== authEmail) || (accountDoc && accEmail !== authEmail);
+
+                const hasIntegrityError = isProfileMissing || isAccountMissing || isProfileIncomplete || isRoleInvalid || isUidMismatch || isEmailMismatch;
+
+                if (hasIntegrityError) {
+                    await firebase.auth().signOut().catch(() => {});
+                    if (loginBtn) {
+                        loginBtn.disabled = false;
+                        loginBtn.innerHTML = originalText;
+                    }
+                    this.pendingLoginUser = null;
+                    if (loadingStatus) loadingStatus.style.display = 'none';
+
+                    const modalHtml = `
+                        เข้าสู่ระบบสำเร็จ แต่ข้อมูลผู้ใช้หรือสิทธิ์การใช้งานของคุณไม่สมบูรณ์<br>
+                        กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดสิทธิ์และปรับปรุงข้อมูลโปรไฟล์
+                        <div style="text-align: left; background: #f8fafc; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 13px; margin-top: 15px; color: #475569; border: 1px solid #e2e8f0; line-height: 1.5;">
+                            <div><strong>อีเมลผู้ใช้:</strong> ${authEmail}</div>
+                            <div><strong>UID:</strong> ${uid}</div>
+                            <div style="margin-top: 8px; border-top: 1px dashed #e2e8f0; padding-top: 8px;"><strong>รายละเอียดระบบ:</strong></div>
+                            <div>• โปรไฟล์: ${isProfileMissing ? '<span style="color: #ef4444;">ไม่พบเอกสารโปรไฟล์ (userProfiles)</span>' : (isProfileIncomplete ? '<span style="color: #f59e0b;">ข้อมูลโปรไฟล์ไม่สมบูรณ์</span>' : 'ปกติ')}</div>
+                            <div>• บัญชีสิทธิ์: ${isAccountMissing ? '<span style="color: #ef4444;">ไม่พบเอกสารสิทธิ์ (userAccounts)</span>' : (isRoleInvalid ? '<span style="color: #f59e0b;">บทบาท/สิทธิ์ไม่ถูกต้อง</span>' : 'ปกติ')}</div>
+                            <div>• การเชื่อมโยง: ${(isUidMismatch || isEmailMismatch) ? '<span style="color: #ef4444;">ข้อมูล UID/อีเมลไม่ตรงกัน</span>' : 'ปกติ'}</div>
+                        </div>
+                    `;
+
+                    const buttonsHtml = `
+                        <div style="display: flex; gap: 12px; justify-content: center; margin-top: 15px;">
+                            <button class="btn btn-secondary" style="padding: 8px 20px; font-size: 14px; border-radius: 6px; min-width: 100px;" onclick="app.closeModal('status-modal')">ลองใหม่</button>
+                            <button class="btn btn-danger" style="padding: 8px 20px; font-size: 14px; border-radius: 6px; min-width: 100px; background-color: var(--danger); border-color: var(--danger);" onclick="firebase.auth().signOut().then(() => { app.closeModal('status-modal'); })">ออกจากระบบ</button>
+                        </div>
+                    `;
+
+                    this.showStatusModal('error', 'ไม่พบโปรไฟล์ผู้ใช้', modalHtml, buttonsHtml);
+                    return;
+                }
+
+                // Update lastLoginAt, activatedAt, and status
+                if (this.useFirestore && this.firestore) {
+                    try {
+                        const nowStr = new Date().toISOString();
+                        const batch = this.firestore.batch();
+                        const accRef = this.firestore.collection("userAccounts").doc(uid);
+                        const profRef = this.firestore.collection("userProfiles").doc(uid);
+                        
+                        const accUpdate = { lastLoginAt: nowStr, status: 'active' };
+                        if (!accountDoc.activatedAt) accUpdate.activatedAt = nowStr;
+                        batch.update(accRef, accUpdate);
+                        
+                        const profUpdate = { lastLoginAt: nowStr, status: 'active' };
+                        if (!profileDoc.activatedAt) profUpdate.activatedAt = nowStr;
+                        batch.update(profRef, profUpdate);
+                        
+                        await batch.commit();
+                        console.log("[Login Flow] Login readiness timestamps successfully updated in Firestore");
+                    } catch (e) {
+                        console.warn("[Login Flow] Failed to update login timestamps in Firestore:", e);
+                    }
+                }
             } else {
                 throw new Error("Firebase SDK not loaded");
             }
@@ -2453,191 +2531,24 @@ class AttendanceApp {
             }
             
         } catch (authErr) {
-            console.log("[Login Flow] Cloud Auth Failed or Timed out. Error:", authErr.message);
+            console.error("[Login Flow] Cloud Auth Failed or Timed out. Error:", authErr);
             if (loginBtn) {
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = originalText;
             }
 
-            const isTimeout = authErr.message && authErr.message.includes('timeout');
-            const isNetworkError = isTimeout || 
-                                   authErr.code === 'auth/network-request-failed' || 
-                                   authErr.code === 'auth/timeout' || 
-                                   authErr.message.includes('network') ||
-                                   authErr.message.includes('failed');
-
-            // If it is a network error or timeout, try local authentication
-            if (isNetworkError) {
-                if (validatePasswordLocally()) {
-                    alert("การเชื่อมต่อคลาวด์ขัดข้องหรือล่าช้า: เข้าสู่ระบบสำเร็จโดยใช้ฐานข้อมูลในเครื่องชั่วคราว");
-                    await this.completeLogin(userObj);
-                } else {
-                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์คลาวด์ได้ และรหัสผ่านที่ป้อนไม่ถูกต้อง');
-                }
-                return;
-            }
-
-            // Handle wrong passwords / auto-provisioning (only if online and credentials rejected)
             if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-                if (validatePasswordLocally()) {
-                    if (loginBtn) {
-                        loginBtn.disabled = true;
-                        loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสร้างบัญชีความปลอดภัยใหม่...';
-                    }
-                    try {
-                        await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
-                        console.log("[Login Flow] Auto-provisioning Account: SUCCESS");
-                        
-                        this.initFirestore();
-                        
-                        if (loadingStatus) loadingStatus.style.display = 'block';
-                        if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
-                        if (retryBtn) retryBtn.style.display = 'none';
-
-                        const retryTimer = setTimeout(() => {
-                            if (retryBtn) retryBtn.style.display = 'block';
-                        }, 4000);
-
-                        this.pendingLoginUser = userObj;
-
-                        try {
-                            await this.loadDatabase(15000);
-                            clearTimeout(retryTimer);
-                            
-                            if (loadingStatus) loadingStatus.style.display = 'none';
-                            if (loginBtn) {
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
-                            }
-                            this.pendingLoginUser = null;
-                            await this.completeLogin(userObj);
-                        } catch (loadErr) {
-                            console.error("[Login Flow] Profile load failed after auto-provision:", loadErr);
-                            clearTimeout(retryTimer);
-                            if (loadingStatus) loadingStatus.style.display = 'none';
-                            if (loginBtn) {
-                                loginBtn.disabled = false;
-                                loginBtn.innerHTML = originalText;
-                            }
-                            this.pendingLoginUser = null;
-                            alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
-                            await this.completeLogin(userObj);
-                        }
-                    } catch (createErr) {
-                        console.error("[Login Flow] Auto-provisioning failed:", createErr);
-                        if (loginBtn) {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                        }
-                        
-                        const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
-                                                     createErr.code === 'auth/timeout' || 
-                                                     createErr.message.includes('timeout') ||
-                                                     createErr.message.includes('network');
-
-                        if (isCreateNetworkError) {
-                            // If auto-provision failed due to network error, complete login locally!
-                            alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากไม่สามารถลงทะเบียนคลาวด์ได้ในขณะนี้)");
-                            await this.completeLogin(userObj);
-                        } else if (createErr.code === 'auth/email-already-in-use') {
-                            // Firebase Auth account already exists - try signing in directly
-                            // This handles: deleted+recreated accounts, or accounts whose Auth was reset
-                            console.log("[Login Flow] Auth account already exists. Attempting signIn instead of create...");
-                            try {
-                                await firebase.auth().signInWithEmailAndPassword(email, passwordInput);
-                                console.log("[Login Flow] SignIn after email-already-in-use: SUCCESS");
-                                this.initFirestore();
-                                await this.loadDatabase(15000).catch(() => {});
-                                this.pendingLoginUser = null;
-                                await this.completeLogin(userObj);
-                            } catch (retrySignInErr) {
-                                console.error("[Login Flow] SignIn after email-already-in-use: FAIL", retrySignInErr);
-                                if (retrySignInErr.code === 'auth/wrong-password' || retrySignInErr.code === 'auth/invalid-credential') {
-                                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ',
-                                        'บัญชีคลาวด์ของคุณมีรหัสผ่านไม่ตรงกับฐานข้อมูล กรุณาแจ้งผู้ดูแลระบบให้รีเซ็ตรหัสผ่านผ่าน Firebase Console');
-                                } else {
-                                    // Fall through to local login if any other error
-                                    alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราว)");
-                                    await this.completeLogin(userObj);
-                                }
-                            }
-                        } else {
-                            this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถลงทะเบียนบัญชีความปลอดภัยบนระบบคลาวด์: ' + createErr.message);
-                        }
-                    }
-                } else {
-                    this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 'รหัสผ่านไม่ถูกต้อง');
-                }
-            } else if (authErr.code === 'auth/user-not-found' && validatePasswordLocally()) {
-                if (loginBtn) {
-                    loginBtn.disabled = true;
-                    loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลงทะเบียนบัญชีความปลอดภัย...';
-                }
-                try {
-                    await firebase.auth().createUserWithEmailAndPassword(email, passwordInput);
-                    this.initFirestore();
-                    
-                    if (loadingStatus) loadingStatus.style.display = 'block';
-                    if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
-                    if (retryBtn) retryBtn.style.display = 'none';
-
-                    const retryTimer = setTimeout(() => {
-                        if (retryBtn) retryBtn.style.display = 'block';
-                    }, 4000);
-
-                    this.pendingLoginUser = userObj;
-
-                    try {
-                        await this.loadDatabase(15000);
-                        clearTimeout(retryTimer);
-                        
-                        if (loadingStatus) loadingStatus.style.display = 'none';
-                        if (loginBtn) {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                        }
-                        this.pendingLoginUser = null;
-                        await this.completeLogin(userObj);
-                    } catch (loadErr) {
-                        console.error("[Login Flow] Profile load failed after registration:", loadErr);
-                        clearTimeout(retryTimer);
-                        if (loadingStatus) loadingStatus.style.display = 'none';
-                        if (loginBtn) {
-                            loginBtn.disabled = false;
-                            loginBtn.innerHTML = originalText;
-                        }
-                        this.pendingLoginUser = null;
-                        alert("สร้างบัญชีและเข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
-                        await this.completeLogin(userObj);
-                    }
-                } catch (createErr) {
-                    console.error("[Login Flow] Auto-provisioning failed:", createErr);
-                    if (loginBtn) {
-                        loginBtn.disabled = false;
-                        loginBtn.innerHTML = originalText;
-                    }
-
-                    const isCreateNetworkError = createErr.code === 'auth/network-request-failed' || 
-                                                 createErr.code === 'auth/timeout' || 
-                                                 createErr.message.includes('timeout') ||
-                                                 createErr.message.includes('network');
-
-                    if (isCreateNetworkError) {
-                        alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากไม่สามารถลงทะเบียนคลาวด์ได้ในขณะนี้)");
-                        await this.completeLogin(userObj);
-                    } else {
-                        this.showStatusModal('error', 'ข้อผิดพลาดการลงทะเบียน', 'ไม่สามารถสร้างบัญชีความปลอดภัย: ' + createErr.message);
-                    }
-                }
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                    'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านของคุณอีกครั้ง หรือคลิกปุ่ม "ลืมรหัสผ่าน?" เพื่อตั้งค่ารหัสผ่านใหม่');
+            } else if (authErr.code === 'auth/user-not-found') {
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                    'ไม่พบบัญชีผู้ใช้งานบนระบบคลาวด์ กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดสิทธิ์การใช้งาน');
+            } else if (authErr.code === 'auth/too-many-requests') {
+                this.showStatusModal('error', 'ระงับการเข้าสู่ระบบชั่วคราว', 
+                    'บัญชีนี้ถูกระงับการเข้าสู่ระบบชั่วคราวเนื่องจากป้อนรหัสผ่านผิดพลาดหลายครั้ง กรุณารอสักครู่แล้วลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ');
             } else {
-                console.warn("[Login Flow] Network/Firebase error during auth:", authErr);
-                // Try local check as general fallback
-                if (validatePasswordLocally()) {
-                    alert("การเชื่อมต่อคลาวด์ขัดข้อง: เข้าสู่ระบบสำเร็จโดยใช้ฐานข้อมูลในเครื่องชั่วคราว");
-                    await this.completeLogin(userObj);
-                } else {
-                    this.showStatusModal('error', 'การเชื่อมต่อล้มเหลว', 'อินเทอร์เน็ตช้าหรือไม่เสถียร กรุณารอสักครู่หรือลองใหม่');
-                }
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                    'เกิดข้อผิดพลาดในการตรวจสอบบัญชีผู้ใช้ หรือการเชื่อมต่อเครือข่ายขัดข้อง: ' + authErr.message);
             }
         }
     }
@@ -2817,12 +2728,6 @@ class AttendanceApp {
             return;
         }
 
-        const expectedCurrent = this.currentUser.password || this.currentUser.username;
-        if (current !== expectedCurrent) {
-            this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านปัจจุบันไม่ถูกต้อง!');
-            return;
-        }
-
         if (newPwd !== confirmPwd) {
             this.showStatusModal('error', 'ข้อผิดพลาด', 'รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน!');
             return;
@@ -2846,26 +2751,39 @@ class AttendanceApp {
                 try {
                     const user = firebase.auth().currentUser;
                     if (user) {
+                        const credential = firebase.auth.EmailAuthProvider.credential(user.email, current);
+                        await user.reauthenticateWithCredential(credential);
                         await user.updatePassword(newPwd);
+                    } else {
+                        throw new Error("ไม่พบผู้ใช้งานคลาวด์ที่ล็อกอินอยู่");
                     }
                 } catch (e) {
                     console.error("Failed to update password in Firebase Auth:", e);
-                    this.showStatusModal('error', 'เปลี่ยนรหัสผ่านไม่สำเร็จ', 'ระบบความปลอดภัยไม่สามารถอัปเดตรหัสผ่านได้: ' + e.message);
+                    let errorMsg = e.message;
+                    if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+                        errorMsg = 'รหัสผ่านปัจจุบันไม่ถูกต้อง!';
+                    }
+                    this.showStatusModal('error', 'เปลี่ยนรหัสผ่านไม่สำเร็จ', 'ระบบความปลอดภัยไม่สามารถอัปเดตรหัสผ่านได้: ' + errorMsg);
                     if (changePwdBtn) {
                         changePwdBtn.disabled = false;
                         changePwdBtn.innerHTML = originalText;
                     }
                     return;
                 }
+            } else {
+                this.showStatusModal('error', 'ข้อผิดพลาด', 'คุณสามารถเปลี่ยนรหัสผ่านได้เมื่อเชื่อมต่อระบบคลาวด์เท่านั้น');
+                return;
             }
 
-            t.password = newPwd;
-            this.currentUser.password = newPwd;
+            // Remove any password fields to satisfy security constraints
+            delete t.password;
+            delete this.currentUser.password;
+            
             sessionStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
             localStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
             this.saveDatabase(false);
             
-            if (this.useFirestore && changePwdBtn) {
+            if (changePwdBtn) {
                 changePwdBtn.disabled = false;
                 changePwdBtn.innerHTML = originalText;
             }
@@ -3192,7 +3110,57 @@ class AttendanceApp {
         if (html === '') {
             container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; width: 100%;">ไม่มีข้อมูลผู้บริหาร</div>';
         } else {
-            container.innerHTML = html;
+            // Login Readiness Report Section
+        html += `
+            <div class="card" style="margin-top: 24px; margin-bottom: 24px;">
+                <div class="card-header" style="background-color: rgba(59, 130, 246, 0.04); border-bottom: 1px solid var(--border-color);">
+                    <h3 style="color: var(--primary);"><i class="fa-solid fa-key"></i> รายงานความพร้อมและคำแนะนำการเข้าสู่ระบบ (Login Readiness - \${report.readinessIssues.length} รายการ)</h3>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ชื่อผู้ใช้/UID</th>
+                                <th>อีเมลความปลอดภัย</th>
+                                <th>สถานะความพร้อม</th>
+                                <th>ข้อแนะนำและวิธีแก้ไข</th>
+                                <th style="text-align: center;">การดำเนินการกู้คืน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        if (report.readinessIssues.length === 0) {
+            html += "<tr><td colspan='5' style='text-align: center; color: var(--success); font-weight: 600; padding: 24px;'>🎉 บัญชีผู้ใช้งานทั้งหมดมีความพร้อมเข้าสู่ระบบ 100%</td></tr>";
+        } else {
+            report.readinessIssues.forEach((issue, idx) => {
+                html += `
+                    <tr>
+                        <td>
+                            <strong>\${issue.name}</strong><br>
+                            <span style="font-family: monospace; font-size: 11px; color: var(--text-secondary); font-weight: bold;">\${issue.uid}</span>
+                        </td>
+                        <td>\${issue.email}</td>
+                        <td><span class="status-badge \${issue.statusType === 'inactive' ? 'danger' : (issue.statusType === 'email_mismatch' ? 'warning' : 'info')}" style="font-size: 11px;">\${issue.description}</span></td>
+                        <td style="font-size: 13px; color: var(--text-primary); font-weight: 500;">\${issue.recommendation}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-outline btn-sm btn-recover-account" data-idx="\${idx}" style="color: var(--primary); font-size: 12px; font-weight: 600;">
+                                <i class="fa-solid fa-user-gear"></i> กู้คืนบัญชี
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
         }
     }
 
@@ -3846,7 +3814,11 @@ class AttendanceApp {
                 baseId: scheduleRow.baseId,
                 classId: this.selectedCheckinClass,
                 checkedBy: this.currentUser.username,
+                teacherUid: firebase.auth().currentUser ? firebase.auth().currentUser.uid : "",
+                teacherName: this.currentUser.name || "",
                 timestamp: timestamp,
+                createdAt: timestamp,
+                updatedAt: timestamp,
                 teachers: checkedTeachers,
                 rating: rating,
                 notes: notes,
@@ -3886,10 +3858,15 @@ class AttendanceApp {
                     date: todayDate,
                     week: week,
                     baseId: scheduleRow.baseId,
+                    classId: this.selectedCheckinClass,
                     studentId: item.studentId,
                     status: item.status,
                     checkedBy: this.currentUser.username,
+                    teacherUid: firebase.auth().currentUser ? firebase.auth().currentUser.uid : "",
+                    teacherName: this.currentUser.name || "",
                     timestamp: timestamp,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
                     semesterId: this.db.activeSemesterId || "1-2569"
                 };
                 this.db.attendance_logs.push(logObj);
@@ -3924,11 +3901,13 @@ class AttendanceApp {
                 try {
                     const batch = this.firestore.batch();
                     
-                    studentIdsToSave.forEach(stId => {
-                        const docId = `${todayDate}_${scheduleRow.baseId}_${stId}`;
-                        const docRef = this.firestore.collection('attendance_logs').doc(docId);
-                        batch.delete(docRef);
-                    });
+                    if (this.currentUser && this.currentUser.role === 'admin') {
+                        studentIdsToSave.forEach(stId => {
+                            const docId = `${todayDate}_${scheduleRow.baseId}_${stId}`;
+                            const docRef = this.firestore.collection('attendance_logs').doc(docId);
+                            batch.delete(docRef);
+                        });
+                    }
 
                     newAttendanceLogs.forEach(log => {
                         const docId = `${log.date}_${log.baseId}_${log.studentId}`;
@@ -3979,10 +3958,15 @@ class AttendanceApp {
                 date: todayDate,
                 week: week,
                 baseId: baseId,
+                classId: classId,
                 studentId: stItem.studentId,
                 status: stItem.status,
                 checkedBy: log.checkedBy,
+                teacherUid: log.teacherUid || "",
+                teacherName: log.teacherName || "",
                 timestamp: timestamp,
+                createdAt: log.createdAt || log.timestamp || timestamp,
+                updatedAt: timestamp,
                 semesterId: semesterId
             };
             this.db.attendance_logs.push(logObj);
@@ -4114,10 +4098,15 @@ class AttendanceApp {
                     date: todayDate,
                     week: week,
                     baseId: baseId,
+                    classId: classId,
                     studentId: stItem.studentId,
                     status: stItem.status,
                     checkedBy: log.checkedBy,
+                    teacherUid: log.teacherUid || "",
+                    teacherName: log.teacherName || "",
                     timestamp: timestamp,
+                    createdAt: log.createdAt || log.timestamp || timestamp,
+                    updatedAt: timestamp,
                     semesterId: semesterId
                 };
                 this.db.attendance_logs.push(logObj);
@@ -4941,6 +4930,763 @@ class AttendanceApp {
         }
     }
 
+    async runUserDataIntegrityCheck() {
+        const container = document.getElementById("manage-sub-integrity");
+        if (!container) return;
+
+        // Render loading state
+        container.innerHTML = `
+            <div style="text-align: center; padding: 48px; color: var(--text-light);">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 48px; margin-bottom: 16px; color: var(--primary);"></i>
+                <h4 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">กำลังตรวจสอบความถูกต้องของข้อมูลผู้ใช้งาน...</h4>
+                <p>ระบบกำลังดึงข้อมูลจากระบบคลาวด์และเปรียบเทียบความสอดคล้องของบัญชีผู้ใช้</p>
+            </div>
+        `;
+
+        try {
+            if (!this.useFirestore || !this.firestore) {
+                container.innerHTML = `
+                    <div class="alert-banner" style="background-color: rgba(239, 68, 68, 0.08); border-color: var(--accent); color: var(--accent); margin: 24px 0;">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <div>
+                            <strong>ไม่สามารถตรวจสอบได้!</strong> ระบบนี้กำลังทำงานในโหมดออฟไลน์ (Local Storage) กรุณาเชื่อมต่อระบบคลาวด์/Firestore เพื่อทำการตรวจสอบ
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Fetch Firestore collections
+            const [usersSnap, profilesSnap, accountsSnap] = await Promise.all([
+                this.firestore.collection("users").get().catch(() => ({ docs: [] })),
+                this.firestore.collection("userProfiles").get().catch(() => ({ docs: [] })),
+                this.firestore.collection("userAccounts").get().catch(() => ({ docs: [] }))
+            ]);
+
+            const users = usersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const userProfiles = profilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const userAccounts = accountsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const teachers = this.db.teachers || [];
+
+            const report = this.analyzeUserDataIntegrity(users, userProfiles, userAccounts, teachers);
+            this.renderIntegrityReport(report, users, userProfiles, userAccounts);
+        } catch (error) {
+            console.error("Error during User Data Integrity Check:", error);
+            container.innerHTML = `
+                <div class="alert-banner" style="background-color: rgba(239, 68, 68, 0.08); border-color: var(--accent); color: var(--accent); margin: 24px 0;">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <div>
+                        <strong>เกิดข้อผิดพลาดในการตรวจสอบ!</strong> ${error.message || "ไม่สามารถโหลดข้อมูลผู้ใช้จาก Firestore ได้"}
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    analyzeUserDataIntegrity(users, userProfiles, userAccounts, teachers) {
+        const issues = [];
+        const warnings = [];
+        const allowedRoles = ["admin", "director", "teacher", "supervisor"];
+
+        const userMap = {};
+        users.forEach(u => { userMap[u.id] = u; });
+
+        const profileMap = {};
+        userProfiles.forEach(p => { profileMap[p.id] = p; });
+
+        const accountMap = {};
+        userAccounts.forEach(a => { accountMap[a.id] = a; });
+
+        // Compile all unique UIDs across all collections
+        const allUids = new Set([
+            ...users.map(u => u.id),
+            ...userProfiles.map(p => p.id),
+            ...userProfiles.filter(p => p.uid).map(p => p.uid),
+            ...userAccounts.map(a => a.id),
+            ...userAccounts.filter(a => a.uid).map(a => a.uid)
+        ]);
+
+        let healthyAccounts = 0;
+        let incompleteAccounts = 0;
+
+        allUids.forEach(uid => {
+            if (!uid) return;
+            const user = userMap[uid];
+            const profile = profileMap[uid] || userProfiles.find(p => p.uid === uid);
+            const account = accountMap[uid] || userAccounts.find(a => a.uid === uid);
+
+            let hasCriticalIssue = false;
+
+            // 1. Check Missing User Profile
+            if (!profile) {
+                issues.push({
+                    type: "missing_profile",
+                    severity: "critical",
+                    uid: uid,
+                    email: (user && user.email) || (account && account.email) || "N/A",
+                    description: `ไม่พบเอกสาร userProfile สำหรับผู้ใช้ UID: ${uid}`
+                });
+                hasCriticalIssue = true;
+            } else {
+                const missingFields = [];
+                if (!profile.name) missingFields.push("name");
+                if (!profile.email) missingFields.push("email");
+                if (!profile.role) missingFields.push("role");
+
+                if (missingFields.length > 0) {
+                    issues.push({
+                        type: "incomplete_profile",
+                        severity: "critical",
+                        uid: uid,
+                        email: profile.email || "N/A",
+                        description: `เอกสาร userProfile ขาดฟิลด์ข้อมูลสำคัญ: ${missingFields.join(", ")}`
+                    });
+                    hasCriticalIssue = true;
+                }
+            }
+
+            // 2. Check Missing User Account
+            if (!account) {
+                issues.push({
+                    type: "missing_account",
+                    severity: "critical",
+                    uid: uid,
+                    email: (user && user.email) || (profile && profile.email) || "N/A",
+                    description: `ไม่พบเอกสาร userAccount สำหรับผู้ใช้ UID: ${uid}`
+                });
+                hasCriticalIssue = true;
+            } else {
+                const missingFields = [];
+                if (!account.email) missingFields.push("email");
+                if (!account.role) missingFields.push("role");
+
+                if (missingFields.length > 0) {
+                    issues.push({
+                        type: "incomplete_account",
+                        severity: "critical",
+                        uid: uid,
+                        email: account.email || "N/A",
+                        description: `เอกสาร userAccount ขาดฟิลด์ข้อมูลสำคัญ: ${missingFields.join(", ")}`
+                    });
+                    hasCriticalIssue = true;
+                }
+            }
+
+            // 3. UID mismatches
+            if (profile && profile.uid && profile.id !== profile.uid) {
+                issues.push({
+                    type: "uid_mismatch",
+                    severity: "critical",
+                    uid: uid,
+                    email: profile.email || "N/A",
+                    description: `UID mismatch: ID เอกสาร userProfile (${profile.id}) ไม่ตรงกับฟิลด์ uid (${profile.uid})`
+                });
+                hasCriticalIssue = true;
+            }
+            if (account && account.uid && account.id !== account.uid) {
+                issues.push({
+                    type: "uid_mismatch",
+                    severity: "critical",
+                    uid: uid,
+                    email: account.email || "N/A",
+                    description: `UID mismatch: ID เอกสาร userAccount (${account.id}) ไม่ตรงกับฟิลด์ uid (${account.uid})`
+                });
+                hasCriticalIssue = true;
+            }
+            if (profile && account) {
+                const pUid = profile.uid || profile.id;
+                const aUid = account.uid || account.id;
+                if (pUid !== aUid) {
+                    issues.push({
+                        type: "uid_mismatch",
+                        severity: "critical",
+                        uid: uid,
+                        email: profile.email || "N/A",
+                        description: `UID mismatch: UID ของ userProfile (${pUid}) ไม่ตรงกับ userAccount (${aUid})`
+                    });
+                    hasCriticalIssue = true;
+                }
+            }
+
+            // 4. Email mismatches
+            if (profile && account && profile.email && account.email) {
+                const pEmail = profile.email.trim();
+                const aEmail = account.email.trim();
+                if (pEmail.toLowerCase() !== aEmail.toLowerCase()) {
+                    issues.push({
+                        type: "email_mismatch",
+                        severity: "critical",
+                        uid: uid,
+                        email: profile.email,
+                        description: `อีเมลไม่ตรงกัน: userProfile (${profile.email}) vs userAccount (${account.email})`
+                    });
+                    hasCriticalIssue = true;
+                } else if (pEmail !== aEmail) {
+                    warnings.push({
+                        type: "email_casing",
+                        severity: "warning",
+                        uid: uid,
+                        email: profile.email,
+                        description: `ตัวอักษรพิมพ์ใหญ่/เล็กของอีเมลไม่ตรงกัน: userProfile (${profile.email}) vs userAccount (${account.email})`
+                    });
+                }
+            }
+            if (user && profile && user.email && profile.email) {
+                const uEmail = user.email.trim();
+                const pEmail = profile.email.trim();
+                if (uEmail.toLowerCase() !== pEmail.toLowerCase()) {
+                    issues.push({
+                        type: "email_mismatch",
+                        severity: "critical",
+                        uid: uid,
+                        email: profile.email,
+                        description: `อีเมลไม่ตรงกัน: บัญชี Auth (${user.email}) vs userProfile (${profile.email})`
+                    });
+                    hasCriticalIssue = true;
+                } else if (uEmail !== pEmail) {
+                    warnings.push({
+                        type: "email_casing",
+                        severity: "warning",
+                        uid: uid,
+                        email: profile.email,
+                        description: `ตัวอักษรพิมพ์ใหญ่/เล็กของอีเมลไม่ตรงกัน: บัญชี Auth (${user.email}) vs userProfile (${profile.email})`
+                    });
+                }
+            }
+            if (user && account && user.email && account.email) {
+                const uEmail = user.email.trim();
+                const aEmail = account.email.trim();
+                if (uEmail.toLowerCase() !== aEmail.toLowerCase()) {
+                    issues.push({
+                        type: "email_mismatch",
+                        severity: "critical",
+                        uid: uid,
+                        email: account.email,
+                        description: `อีเมลไม่ตรงกัน: บัญชี Auth (${user.email}) vs userAccount (${account.email})`
+                    });
+                    hasCriticalIssue = true;
+                } else if (uEmail !== aEmail) {
+                    warnings.push({
+                        type: "email_casing",
+                        severity: "warning",
+                        uid: uid,
+                        email: account.email,
+                        description: `ตัวอักษรพิมพ์ใหญ่/เล็กของอีเมลไม่ตรงกัน: บัญชี Auth (${user.email}) vs userAccount (${account.email})`
+                    });
+                }
+            }
+
+            // 5. Role validation
+            if (profile && profile.role && !allowedRoles.includes(profile.role)) {
+                issues.push({
+                    type: "invalid_role",
+                    severity: "critical",
+                    uid: uid,
+                    email: profile.email || "N/A",
+                    description: `บทบาทไม่ถูกต้อง: '${profile.role}' ใน userProfile ไม่อยู่ในกลุ่มสิทธิ์ที่อนุญาต (${allowedRoles.join(", ")})`
+                });
+                hasCriticalIssue = true;
+            }
+            if (account && account.role && !allowedRoles.includes(account.role)) {
+                issues.push({
+                    type: "invalid_role",
+                    severity: "critical",
+                    uid: uid,
+                    email: account.email || "N/A",
+                    description: `บทบาทไม่ถูกต้อง: '${account.role}' ใน userAccount ไม่อยู่ในกลุ่มสิทธิ์ที่อนุญาต (${allowedRoles.join(", ")})`
+                });
+                hasCriticalIssue = true;
+            }
+            if (profile && account && profile.role && account.role && profile.role !== account.role) {
+                issues.push({
+                    type: "role_mismatch",
+                    severity: "critical",
+                    uid: uid,
+                    email: profile.email || "N/A",
+                    description: `บทบาทไม่ตรงกัน: userProfile (${profile.role}) vs userAccount (${account.role})`
+                });
+                hasCriticalIssue = true;
+            }
+
+            if (hasCriticalIssue) {
+                incompleteAccounts++;
+            } else {
+                healthyAccounts++;
+            }
+        });
+
+        const readinessIssues = [];
+        allUids.forEach(uid => {
+            if (!uid) return;
+            const user = userMap[uid];
+            const profile = profileMap[uid] || userProfiles.find(p => p.uid === uid);
+            const account = accountMap[uid] || userAccounts.find(a => a.uid === uid);
+
+            const emailAddr = (profile && profile.email) || (account && account.email) || (user && user.email) || "N/A";
+            const nameStr = (profile && profile.name) || "ครูประจำการ";
+            
+            const isInactiveAccount = (account && (account.status === 'inactive' || account.disabled === true)) || 
+                                     (profile && (profile.status === 'inactive' || profile.disabled === true));
+            
+            const isNeverLoggedIn = (account && !account.lastLoginAt) || (profile && !profile.lastLoginAt);
+
+            const isMissingReadiness = (account && !account.activatedAt) || (profile && !profile.activatedAt);
+
+            if (isInactiveAccount) {
+                readinessIssues.push({
+                    uid: uid,
+                    name: nameStr,
+                    email: emailAddr,
+                    statusType: "inactive",
+                    description: "บัญชีถูกระงับหรือปิดใช้งาน (Inactive/Disabled)",
+                    recommendation: "เปลี่ยนฟิลด์ status เป็น 'active' และกำหนดค่า disabled เป็น false ใน userAccounts/userProfiles บน Firestore"
+                });
+            } else if (isNeverLoggedIn) {
+                readinessIssues.push({
+                    uid: uid,
+                    name: nameStr,
+                    email: emailAddr,
+                    statusType: "never_logged_in",
+                    description: "ยังไม่เคยเข้าสู่ระบบ (Never Logged In)",
+                    recommendation: "ให้ผู้ใช้ล็อกอินด้วยรหัสผ่านเริ่มต้น หรือคลิก 'ลืมรหัสผ่าน?' เพื่อรับอีเมลตั้งรหัสผ่านใหม่"
+                });
+            } else if (isMissingReadiness) {
+                readinessIssues.push({
+                    uid: uid,
+                    name: nameStr,
+                    email: emailAddr,
+                    statusType: "missing_readiness",
+                    description: "ขาดฟิลด์ข้อมูลการเปิดใช้งาน (Missing activatedAt)",
+                    recommendation: "อัปเดตฟิลด์ activatedAt เป็นวันที่ปัจจุบัน และตั้งสถานะเป็น 'active' เพื่อให้บัญชีพร้อมใช้งานสมบูรณ์"
+                });
+            }
+
+            const hasEmailMismatch = issues.some(i => i.uid === uid && i.type === "email_mismatch") ||
+                                     warnings.some(w => w.uid === uid && w.type === "email_casing");
+            if (hasEmailMismatch) {
+                // Check if not already added to avoid duplicates
+                if (!readinessIssues.some(r => r.uid === uid && r.statusType === "email_mismatch")) {
+                    readinessIssues.push({
+                        uid: uid,
+                        name: nameStr,
+                        email: emailAddr,
+                        statusType: "email_mismatch",
+                        description: "พบอีเมลไม่ตรงกันหรือพิมพ์ใหญ่-เล็กต่างกัน (Email Mismatch)",
+                        recommendation: "แก้ไขอีเมลในคอลเลกชัน Firestore ทั้งหมดให้สะกดตรงกันและเป็นพิมพ์เล็กทั้งหมดเพื่อหลีกเลี่ยงการล็อกอินล้มเหลว"
+                    });
+                }
+            }
+        });
+
+        return {
+            summary: {
+                totalUsers: users.length,
+                totalProfiles: userProfiles.length,
+                totalAccounts: userAccounts.length,
+                totalTeachersInDb: teachers.length,
+                healthyAccounts: healthyAccounts,
+                incompleteAccounts: incompleteAccounts,
+                totalIssues: issues.length,
+                totalWarnings: warnings.length,
+                totalReadinessIssues: readinessIssues.length
+            },
+            issues,
+            warnings,
+            readinessIssues
+        };
+    }
+
+    renderIntegrityReport(report, users, userProfiles, userAccounts) {
+        const container = document.getElementById("manage-sub-integrity");
+        if (!container) return;
+
+        const sum = report.summary;
+        
+        let html = `
+            <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h3 style="font-weight: 700; color: var(--text-primary); margin: 0;"><i class="fa-solid fa-user-shield text-primary"></i> รายงานความถูกต้องและสอดคล้องของข้อมูลผู้ใช้งาน (User Data Integrity)</h3>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin: 4px 0 0 0;">ตรวจสอบความถูกต้องระหว่าง Firebase Auth, userProfiles, userAccounts และฐานข้อมูลคุณครู</p>
+                </div>
+                <button class="btn btn-outline" id="btn-export-integrity">
+                    <i class="fa-solid fa-file-export"></i> ส่งออกรายงานความสอดคล้อง (JSON)
+                </button>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="stat-grid" style="margin-bottom: 24px;">
+                <div class="card stat-card" style="border-left: 4px solid var(--primary);">
+                    <div class="stat-icon info"><i class="fa-solid fa-users"></i></div>
+                    <div class="stat-number">${sum.totalUsers}</div>
+                    <div class="stat-label">บัญชีผู้ใช้ทั้งหมด (Auth Users)</div>
+                </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--success);">
+                    <div class="stat-icon success"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="stat-number" style="color: var(--success);">${sum.healthyAccounts}</div>
+                    <div class="stat-label">บัญชีที่ข้อมูลสอดคล้องดี (Healthy)</div>
+                </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--accent);">
+                    <div class="stat-icon danger"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="stat-number" style="color: var(--accent);">${sum.incompleteAccounts}</div>
+                    <div class="stat-label">บัญชีที่มีข้อบกพร่อง (Critical Issues)</div>
+                </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--info);">
+                    <div class="stat-icon info"><i class="fa-solid fa-key"></i></div>
+                    <div class="stat-number" style="color: var(--primary);">${sum.totalReadinessIssues || 0}</div>
+                    <div class="stat-label">ปัญหาการเข้าสู่ระบบ (Readiness Issues)</div>
+                </div>            </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--success);">
+                    <div class="stat-icon success"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="stat-number" style="color: var(--success);">${sum.healthyAccounts}</div>
+                    <div class="stat-label">บัญชีที่ข้อมูลสอดคล้องดี (Healthy)</div>
+                </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--accent);">
+                    <div class="stat-icon danger"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="stat-number" style="color: var(--accent);">${sum.incompleteAccounts}</div>
+                    <div class="stat-label">บัญชีที่มีข้อบกพร่อง (Critical Issues)</div>
+                </div>
+                <div class="card stat-card" style="border-left: 4px solid var(--warning);">
+                    <div class="stat-icon warning"><i class="fa-solid fa-circle-exclamation"></i></div>
+                    <div class="stat-number" style="color: var(--warning);">${sum.totalWarnings}</div>
+                    <div class="stat-label">คำเตือนเล็กน้อย (Warnings)</div>
+                </div>
+            </div>
+        `;
+
+        // Critical Issues Section
+        html += `
+            <div class="card" style="margin-bottom: 24px;">
+                <div class="card-header" style="background-color: rgba(239, 68, 68, 0.04); border-bottom: 1px solid var(--border-color);">
+                    <h3 style="color: var(--accent);"><i class="fa-solid fa-circle-xmark"></i> รายการปัญหาที่ต้องแก้ไขด่วน (Critical Issues - ${report.issues.length} รายการ)</h3>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>UID ผู้ใช้</th>
+                                <th>อีเมลอ้างอิง</th>
+                                <th>ประเภทข้อบกพร่อง</th>
+                                <th>รายละเอียดปัญหา</th>
+                                <th style="text-align: center;">การแก้ไข (Dry-run)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        if (report.issues.length === 0) {
+            html += "<tr><td colspan=\"5\" style=\"text-align: center; color: var(--success); font-weight: 600; padding: 24px;\">🎉 ไม่พบข้อบกพร่องของข้อมูลในระบบคลาวด์</td></tr>";
+        } else {
+            report.issues.forEach((issue, idx) => {
+                html += `
+                    <tr>
+                        <td style="font-family: monospace; font-size: 13px; font-weight: bold; color: var(--text-primary);">${issue.uid}</td>
+                        <td>${issue.email}</td>
+                        <td><span class="status-badge danger" style="font-size: 11px;">${this.getIntegrityIssueLabel(issue.type)}</span></td>
+                        <td style="font-size: 13px; color: var(--text-primary); font-weight: 500;">${issue.description}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-outline btn-sm btn-repair-issue" data-idx="${idx}" style="color: var(--primary); font-size: 12px; font-weight: 600;">
+                                <i class="fa-solid fa-wrench"></i> แนะนำการแก้
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        // Warnings Section
+        html += `
+            <div class="card">
+                <div class="card-header" style="background-color: rgba(245, 158, 11, 0.04); border-bottom: 1px solid var(--border-color);">
+                    <h3 style="color: var(--warning);"><i class="fa-solid fa-circle-exclamation"></i> คำเตือนและคำแนะนำเพิ่มเติม (Warnings - ${report.warnings.length} รายการ)</h3>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>UID ผู้ใช้</th>
+                                <th>อีเมลอ้างอิง</th>
+                                <th>ประเภท</th>
+                                <th>คำเตือน</th>
+                                <th style="text-align: center;">การจัดการ (Dry-run)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+
+        if (report.warnings.length === 0) {
+            html += "<tr><td colspan=\"5\" style=\"text-align: center; color: var(--text-secondary); padding: 24px;\">ไม่มีคำเตือนเพิ่มเติมสำหรับข้อมูลผู้ใช้</td></tr>";
+        } else {
+            report.warnings.forEach((warning, idx) => {
+                html += `
+                    <tr>
+                        <td style="font-family: monospace; font-size: 13px; color: var(--text-secondary);">${warning.uid}</td>
+                        <td>${warning.email}</td>
+                        <td><span class="status-badge warning" style="font-size: 11px;">${this.getIntegrityIssueLabel(warning.type)}</span></td>
+                        <td style="font-size: 13px; color: var(--text-primary);">${warning.description}</td>
+                        <td style="text-align: center;">
+                            <button class="btn btn-outline btn-sm btn-repair-warning" data-idx="${idx}" style="color: var(--primary); font-size: 12px;">
+                                <i class="fa-solid fa-magnifying-glass"></i> ดูข้อเสนอแนะ
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+        // Bind Event Listeners
+        const btnExport = document.getElementById("btn-export-integrity");
+        if (btnExport) {
+            btnExport.onclick = () => this.exportIntegrityReport(report);
+        }
+
+        const repairIssueBtns = container.querySelectorAll(".btn-repair-issue");
+        repairIssueBtns.forEach(btn => {
+            btn.onclick = () => {
+                const idx = parseInt(btn.getAttribute("data-idx"));
+                const issue = report.issues[idx];
+                this.showDryRunRepair(issue.type, issue.uid, issue);
+            };
+        });
+
+        const repairWarningBtns = container.querySelectorAll(".btn-repair-warning");
+        repairWarningBtns.forEach(btn => {
+            btn.onclick = () => {
+                const idx = parseInt(btn.getAttribute("data-idx"));
+                const warning = report.warnings[idx];
+                this.showDryRunRepair(warning.type, warning.uid, warning);
+            };
+        });
+
+        const recoverBtns = container.querySelectorAll(".btn-recover-account");
+        recoverBtns.forEach(btn => {
+            btn.onclick = () => {
+                const idx = parseInt(btn.getAttribute("data-idx"));
+                const issue = report.readinessIssues[idx];
+                this.showRecoveryActionModal(issue.uid, issue.name, issue.email, issue.statusType, issue);
+            };
+        });
+    }
+
+    getIntegrityIssueLabel(type) {
+        switch (type) {
+            case "missing_profile": return "ไม่มีโปรไฟล์";
+            case "incomplete_profile": return "ข้อมูลโปรไฟล์ไม่ครบ";
+            case "missing_account": return "ไม่มีบัญชี Account";
+            case "incomplete_account": return "ข้อมูล Account ไม่ครบ";
+            case "uid_mismatch": return "UID ไม่สอดคล้องกัน";
+            case "email_mismatch": return "อีเมลไม่ตรงกัน";
+            case "email_casing": return "พิมพ์ใหญ่เล็กของอีเมล";
+            case "invalid_role": return "บทบาท/สิทธิ์ไม่ถูกต้อง";
+            case "role_mismatch": return "สิทธิ์ขัดแย้งกัน";
+            default: return type;
+        }
+    }
+
+    showDryRunRepair(type, uid, issue) {
+        let title = "คำแนะนำการซ่อมแซมบัญชีผู้ใช้ (Dry-run Recommendation)";
+        let steps = [];
+
+        if (type === "missing_profile") {
+            steps = [
+                `ระบุพบ UID: ${uid} มีบัญชีผู้ใช้แต่ไม่มีเอกสาร userProfile`,
+                `คำแนะนำ (ซ่อมแซม): สร้างเอกสารใหม่ในคอลเลกชัน "userProfiles" โดยใช้ ID เอกสารเป็น "${uid}"`,
+                `ฟิลด์ข้อมูลที่ควรกำหนด: { uid: "${uid}", email: "${issue.email}", name: "คุณครูผู้ใช้ใหม่", role: "teacher" }`
+            ];
+        } else if (type === "missing_account") {
+            steps = [
+                `ระบุพบ UID: ${uid} ไม่มีเอกสาร userAccount สำหรับกำหนดสิทธิ์เข้าระบบ`,
+                `คำแนะนำ (ซ่อมแซม): สร้างเอกสารใหม่ในคอลเลกชัน "userAccounts" โดยใช้ ID เอกสารเป็น "${uid}"`,
+                `ฟิลด์ข้อมูลที่ควรกำหนด: { uid: "${uid}", email: "${issue.email}", role: "teacher" }`
+            ];
+        } else if (type === "uid_mismatch") {
+            steps = [
+                `ระบุพบ UID: ${uid} มีการจับคู่ UID อ้างอิงและ ID เอกสารที่ไม่ถูกต้อง`,
+                `คำแนะนำ (ซ่อมแซม): ตรวจสอบการอัปเดตฟิลด์ "uid" ภายในตัวเอกสารให้สอดคล้องกับ ID เอกสาร (${uid})`,
+                `คำแนะนำเพิ่มเติม: แนะนำให้ประสานงาน Firebase Auth เพื่อยืนยันว่าสอดคล้องกับ UID จริงในระบบการลงชื่อเข้าใช้`
+            ];
+        } else if (type === "email_mismatch") {
+            steps = [
+                `ระบุพบอีเมลของบัญชีไม่ตรงกันระหว่างคอลเลกชันคลาวด์`,
+                `คำแนะนำ (ซ่อมแซม): ทำการเชื่อมโยงและอัปเดตอีเมลให้อยู่ในรูปแบบเดียวกัน (เช่น ซิงก์อีเมลจาก userProfile หรือระบบลงชื่อเข้าใช้จริง)`,
+                `ค่าที่แนะนำให้ตั้งค่า: "${issue.email.trim().toLowerCase()}"`
+            ];
+        } else if (type === "email_casing") {
+            steps = [
+                `คำเตือน: อีเมลอ้างอิงตรงกันแต่มีรูปแบบตัวพิมพ์ใหญ่/เล็กหรือช่องว่างต่างกัน`,
+                `คำแนะนำ: อัปเดตฟิลด์อีเมลใน userProfiles และ userAccounts ทั้งหมดให้เป็นตัวพิมพ์เล็ก (lowercase) และลบช่องว่าง (trim) เพื่อความสอดคล้องที่สมบูรณ์`
+            ];
+        } else if (type === "invalid_role") {
+            steps = [
+                `ระบุพบบทบาทผู้ใช้ที่ไม่ได้รับอนุญาตในระบบ`,
+                `บทบาทที่อนุญาต: admin, director, teacher, supervisor`,
+                `คำแนะนำ (ซ่อมแซม): อัปเดตสิทธิ์บทบาท (role) ให้เป็นหนึ่งในค่าที่ระบบอนุญาต โดยเลือกสิทธิ์ 'teacher' เป็นค่าเริ่มต้นหากไม่ระบุ`
+            ];
+        } else if (type === "role_mismatch") {
+            steps = [
+                `ระบุพบบทบาทไม่ตรงกันระหว่างเอกสาร userProfile และ userAccount`,
+                `คำแนะนำ (ซ่อมแซม): ซิงก์บทบาทสิทธิ์ให้มีค่าตรงกัน แนะนำให้อ้างอิงตามบทบาทใน userAccount เป็นหลักเพื่อรักษาความปลอดภัย`
+            ];
+        } else {
+            steps = [
+                `วิเคราะห์พบปัญหารหัส: ${type}`,
+                `กรุณาตรวจสอบโครงสร้างเอกสาร Firestore ของ UID: ${uid}`
+            ];
+        }
+
+        const stepsHtml = steps.map((s, idx) => `
+            <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: flex-start; font-size: 14px;">
+                <span style="background-color: var(--primary); color: white; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; flex-shrink: 0;">${idx + 1}</span>
+                <span style="color: var(--text-primary); font-weight: 500;">${s}</span>
+            </div>
+        `).join("");
+
+        const modalHtml = `
+            <div style="padding: 16px;">
+                <div style="background-color: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--radius-md); padding: 12px; margin-bottom: 20px; font-size: 13px; color: var(--text-secondary);">
+                    <i class="fa-solid fa-info-circle" style="color: var(--primary); margin-right: 6px;"></i>
+                    <strong>คำเตือน:</strong> การแก้ไขจริงจะถูกจำกัดเฉพาะรายงานและการจำลองการตั้งค่าเท่านั้น (Read-only / Report-only mode) ระบบยังไม่ทำการเขียนทับหรือทำลายข้อมูลการผลิตใดๆ ของระบบ Firebase คลาวด์
+                </div>
+                <div>
+                    ${stepsHtml}
+                </div>
+            </div>
+        `;
+
+        this.showStatusModal("info", title, modalHtml);
+    }
+
+    exportIntegrityReport(report) {
+        const jsonStr = JSON.stringify(report, null, 2);
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `user_data_integrity_report_${this.systemDate}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async handleForgotPassword(event) {
+        if (event) event.preventDefault();
+        
+        const usernameInput = document.getElementById('login-username');
+        const defaultUsername = usernameInput ? usernameInput.value.trim() : '';
+        
+        const username = prompt("กรุณาระบุชื่อผู้ใช้งานของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน (เช่น teacher1):", defaultUsername);
+        if (!username) return;
+        
+        const userObj = this.db.teachers.find(t => t.username.toLowerCase() === username.toLowerCase().trim());
+        if (!userObj) {
+            this.showStatusModal('error', 'ไม่พบชื่อผู้ใช้งาน', `ไม่พบชื่อผู้ใช้งาน "${username}" ในระบบ กรุณาตรวจสอบชื่อผู้ใช้งาน หรือติดต่อผู้ดูแลระบบ`);
+            return;
+        }
+        
+        const email = `${userObj.username}@paiwittyakarn.local`;
+        
+        this.showStatusModal('info', 'กำลังดำเนินการ...', `ระบบกำลังส่งคำขอรีเซ็ตรหัสผ่านสำหรับอีเมลความปลอดภัย: ${email}`);
+        
+        try {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                await firebase.auth().sendPasswordResetEmail(email);
+                this.showStatusModal('success', 'ส่งคำขอรีเซ็ตรหัสผ่านสำเร็จ', 
+                    `ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลความปลอดภัย ${email} เรียบร้อยแล้ว (หากระบบเมลภายในไม่ได้รับ กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่านให้คุณโดยตรง)`);
+            } else {
+                throw new Error("Firebase Auth SDK not loaded");
+            }
+        } catch (err) {
+            console.error("[Login Recovery] Failed to send password reset email:", err);
+            
+            const errorMsg = err.message || err.code;
+            const recoveryHtml = `
+                <div style="padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary);">
+                    <p style="margin-bottom: 12px;"><strong>เกิดข้อผิดพลาดในการส่งอีเมลรีเซ็ต:</strong> ${errorMsg}</p>
+                    <div style="background-color: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: var(--radius-md); padding: 12px; margin-bottom: 16px;">
+                        <i class="fa-solid fa-circle-info" style="color: var(--warning); margin-right: 6px;"></i>
+                        <strong>คำแนะนำในการกู้คืนบัญชีสำหรับคุณครู:</strong>
+                    </div>
+                    <div style="margin-bottom: 8px;">1. แจ้งผู้ดูแลระบบ (Admin) เพื่อรีเซ็ตรหัสผ่านผ่านแท็บ <strong>"ตรวจสอบข้อมูลผู้ใช้งาน"</strong></div>
+                    <div style="margin-bottom: 8px;">2. ผู้ดูแลระบบสามารถใช้ <strong>"แนะนำการกู้คืน"</strong> เพื่อรีเซ็ตรหัสผ่านหรือสร้างบัญชีใหม่ให้คุณผ่านระบบ Firebase Console ได้ทันที</div>
+                    <div style="margin-bottom: 8px;">3. อีเมลลงทะเบียนของคุณคือ: <code style="background-color: #F1F5F9; padding: 2px 4px; border-radius: 4px; font-weight: bold;">${email}</code></div>
+                </div>
+            `;
+            this.showStatusModal('info', 'คำแนะนำการกู้คืนบัญชีผู้ใช้', recoveryHtml);
+        }
+    }
+
+    showRecoveryActionModal(uid, name, email, statusType, issue) {
+        const title = `แผนการกู้คืนสิทธิ์บัญชีผู้ใช้: ${name}`;
+        
+        const steps = [
+            `ตรวจสอบความถูกต้องของอีเมล: ${email}`,
+            `แอดมินเข้าไปยังแผงควบคุม Firebase Console -> Authentication`,
+            `ค้นหาบัญชีอีเมล ${email} (หากไม่มี ให้กดเพิ่มผู้ใช้งานและกำหนดรหัสผ่านใหม่)`,
+            `บน Firestore แก้ไขเอกสารคอลเลกชัน "userProfiles" ของ ID: ${uid} (ตั้งค่า status = 'active', activatedAt = วันที่ปัจจุบัน)`,
+            `บน Firestore แก้ไขเอกสารคอลเลกชัน "userAccounts" ของ ID: ${uid} (ตั้งค่า status = 'active', activatedAt = วันที่ปัจจุบัน)`,
+            `ให้ครูใช้รหัสผ่านใหม่ที่แอดมินตั้งค่าเข้าสู่ระบบ จากนั้นระบบจะซิงค์เวลา lastLoginAt ให้เองโดยอัตโนมัติ`
+        ];
+
+        const stepsHtml = steps.map((s, idx) => `
+            <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: flex-start; font-size: 14px;">
+                <span style="background-color: var(--primary); color: white; border-radius: 50%; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold; flex-shrink: 0;">${idx + 1}</span>
+                <span style="color: var(--text-primary); font-weight: 500;">${s}</span>
+            </div>
+        `).join("");
+
+        const modalHtml = `
+            <div style="padding: 16px;">
+                <div style="background-color: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: var(--radius-md); padding: 12px; margin-bottom: 20px; font-size: 13px; color: var(--text-secondary);">
+                    <i class="fa-solid fa-info-circle" style="color: var(--primary); margin-right: 6px;"></i>
+                    <strong>คำเตือน:</strong> การแก้ไขจริงจะถูกจำกัดเฉพาะรายงานและการจำลองการตั้งค่าเท่านั้น (Read-only / Report-only mode) ระบบยังไม่ทำการเขียนทับหรือทำลายข้อมูลการผลิตใดๆ ของระบบ Firebase คลาวด์
+                </div>
+                <div style="margin-bottom: 20px;">
+                    ${stepsHtml}
+                </div>
+                <div style="display: flex; gap: 12px; border-top: 1px dashed var(--border-color); padding-top: 16px; justify-content: flex-end;">
+                    <button class="btn btn-outline" onclick="app.closeModal('status-modal')">ปิดหน้าต่าง</button>
+                    <button class="btn btn-primary" onclick="app.sendFirebasePasswordReset('${email}')">
+                        <i class="fa-solid fa-paper-plane"></i> ส่งอีเมลรีเซ็ตรหัสผ่าน (Cloud Reset)
+                    </button>
+                </div>
+            </div>
+        `;
+
+        this.showStatusModal("info", title, modalHtml);
+    }
+
+    async sendFirebasePasswordReset(email) {
+        if (!email || email === "N/A") {
+            alert("ไม่สามารถส่งอีเมลรีเซ็ตได้เนื่องจากไม่มีข้อมูลอีเมลที่ถูกต้อง");
+            return;
+        }
+        try {
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                await firebase.auth().sendPasswordResetEmail(email);
+                alert(`ระบบคลาวด์ได้ส่งลิงก์สำหรับรีเซ็ตรหัสผ่านไปยัง ${email} สำเร็จ!`);
+            } else {
+                throw new Error("Firebase SDK not loaded");
+            }
+        } catch (err) {
+            console.error("Failed to send cloud reset email:", err);
+            alert(`ไม่สามารถส่งคำขอรีเซ็ตคลาวด์ได้: ${err.message || err.code}`);
+        }
+    }
+
     switchManageTab(tabId) {
         this.manageTab = tabId;
         
@@ -4955,7 +5701,7 @@ class AttendanceApp {
         this.updateTeacherSelectionUI();
 
         // Update tab buttons style
-        const tabs = ['students', 'teachers', 'bases', 'schedule', 'semesters', 'staging', 'import', 'cloud'];
+        const tabs = ['students', 'teachers', 'bases', 'schedule', 'semesters', 'staging', 'import', 'cloud', 'integrity'];
         tabs.forEach(t => {
             const btn = document.getElementById(`btn-tab-${t}`);
             const div = document.getElementById(`manage-sub-${t}`);
@@ -4988,6 +5734,8 @@ class AttendanceApp {
         } else if (tabId === 'cloud') {
             this.loadCloudBackups();
             this.loadAuditLogs();
+        } else if (tabId === 'integrity') {
+            this.runUserDataIntegrityCheck();
         }
     }
 
@@ -5512,10 +6260,6 @@ class AttendanceApp {
         document.getElementById('teacher-form-name').value = "";
         document.getElementById('teacher-form-role').value = "teacher";
         
-        document.getElementById('teacher-form-password-label').textContent = "รหัสผ่านเริ่มต้น (รหัสเริ่มต้นคือ username)";
-        document.getElementById('teacher-form-password').value = "";
-        document.getElementById('teacher-form-password').placeholder = "ระบุรหัสผ่านเริ่มต้น...";
-        
         this.openModal('teacher-modal');
     }
 
@@ -5529,10 +6273,6 @@ class AttendanceApp {
         document.getElementById('teacher-form-name').value = t.name;
         document.getElementById('teacher-form-role').value = t.role;
         
-        document.getElementById('teacher-form-password-label').textContent = "รหัสผ่านใหม่ / รีเซ็ตรหัสผ่าน";
-        document.getElementById('teacher-form-password').value = "";
-        document.getElementById('teacher-form-password').placeholder = "ระบุรหัสผ่านใหม่ (ปล่อยว่างหากต้องการใช้รหัสเดิม)...";
-        
         this.openModal('teacher-modal');
     }
 
@@ -5540,7 +6280,6 @@ class AttendanceApp {
         const username = document.getElementById('teacher-form-username').value.trim();
         const name = document.getElementById('teacher-form-name').value.trim();
         const role = document.getElementById('teacher-form-role').value;
-        const passwordVal = document.getElementById('teacher-form-password').value.trim();
         const formIndex = document.getElementById('teacher-form-username').disabled; // If disabled, it's an edit
 
         if (!username || !name) {
@@ -5553,29 +6292,18 @@ class AttendanceApp {
                 alert("มีรหัสผู้ใช้ (Username) นี้อยู่ในระบบแล้ว!");
                 return;
             }
-            const defaultPassword = passwordVal || username;
-            if (defaultPassword.length < 6) {
-                alert("สำหรับความปลอดภัย รหัสผู้ใช้งานหรือรหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร!");
+            if (username.length < 6) {
+                alert("สำหรับความปลอดภัย รหัสผู้ใช้งานต้องมีความยาวอย่างน้อย 6 ตัวอักษร!");
                 return;
             }
             const newTeacher = { username, name, role };
-            if (passwordVal) {
-                newTeacher.password = passwordVal;
-            }
             this.db.teachers.push(newTeacher);
             this.logAudit(`Added teacher: ${name} (Username: ${username})`);
         } else { // Edit
-            if (passwordVal && passwordVal.length < 6) {
-                alert("รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร!");
-                return;
-            }
             const t = this.db.teachers.find(x => x.username === username);
             if (t) {
                 t.name = name;
                 t.role = role;
-                if (passwordVal) {
-                    t.password = passwordVal;
-                }
             }
             this.logAudit(`Updated teacher: ${name} (Username: ${username})`);
         }
@@ -5605,35 +6333,21 @@ class AttendanceApp {
             return;
         }
 
-        const confirmReset = confirm(`คุณต้องการรีเซ็ตรหัสผ่านของครู ${teacher.name} ใช่หรือไม่?\nรหัสผ่านจะถูกตั้งค่ากลับเป็นรหัสผ่านเริ่มต้น (123456)`);
+        const confirmReset = confirm(`คุณต้องการส่งอีเมลขอรีเซ็ตรหัสผ่านไปยังครู ${teacher.name} ใช่หรือไม่?`);
         if (!confirmReset) return;
 
-        const defaultPassword = "123456";
-        teacher.password = defaultPassword;
-        teacher.isAuthCreated = false;
+        const email = `${teacher.username}@paiwittyakarn.local`;
 
         try {
-            await this.saveDatabase(false);
-            
-            // Show custom alert warning the admin about deleting the Firebase Auth user
-            const msg = `
-                <div style="text-align: left; line-height: 1.6;">
-                    <p>ระบบได้รีเซ็ตรหัสผ่านในฐานข้อมูลคลาวด์และเครื่องเป็น <strong>${defaultPassword}</strong> เรียบร้อยแล้ว</p>
-                    <div style="background-color: #FFF3CD; border-left: 4px solid #FFC107; padding: 12px; margin-top: 12px; border-radius: 4px;">
-                        <strong style="color: #856404; display: block; margin-bottom: 6px;"><i class="fa-solid fa-triangle-exclamation"></i> ขั้นตอนสำคัญสำหรับผู้ดูแลระบบ (Admin)</strong>
-                        <p style="margin: 0; font-size: 13px; color: #664d03;">
-                            เนื่องจากนโยบายความปลอดภัยของระบบคลาวด์ Firebase 
-                            <strong>คุณต้องเข้าสู่ระบบ Firebase Console (Authentication) และทำการลบบัญชีผู้ใช้ของครูท่านนี้ออก</strong> 
-                            เพื่อให้ระบบยอมให้ครูเข้าสู่ระบบด้วยรหัสผ่านใหม่นี้เป็นครั้งแรก (ระบบจะสร้างบัญชีความปลอดภัยบนคลาวด์ให้ครูใหม่โดยอัตโนมัติเมื่อครูทำรายการล็อกอินในครั้งถัดไป)
-                        </p>
-                    </div>
-                </div>
-            `;
-            this.showStatusModal('success', 'รีเซ็ตรหัสผ่านสำเร็จ', msg);
-            this.renderManageTeachers();
+            if (typeof firebase !== 'undefined' && firebase.auth) {
+                await firebase.auth().sendPasswordResetEmail(email);
+                this.showStatusModal('success', 'ส่งคำขอรีเซ็ตสำเร็จ', `ส่งอีเมลรีเซ็ตรหัสผ่านไปยัง ${email} เรียบร้อยแล้ว`);
+            } else {
+                this.showStatusModal('error', 'ส่งคำขอรีเซ็ตไม่สำเร็จ', 'ไม่สามารถเชื่อมต่อระบบ Firebase Auth ได้');
+            }
         } catch (e) {
-            console.error("Failed to reset teacher password:", e);
-            this.showStatusModal('error', 'รีเซ็ตรหัสผ่านไม่สำเร็จ', `เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${e.message}`);
+            console.error("Failed to send password reset email:", e);
+            this.showStatusModal('error', 'ส่งคำขอรีเซ็ตไม่สำเร็จ', `เกิดข้อผิดพลาดในการดำเนินการ: ${e.message}`);
         }
     }
 
@@ -6051,7 +6765,6 @@ class AttendanceApp {
             const username = String(row.username || '').trim();
             const name = String(row.name || '').trim();
             let role = String(row.role || 'teacher').trim().toLowerCase();
-            const password = row.password ? String(row.password).trim() : undefined;
 
             if (!username || !name) return;
 
@@ -6063,12 +6776,9 @@ class AttendanceApp {
             if (existing) {
                 existing.name = name;
                 existing.role = role;
-                if (password) {
-                    existing.password = password;
-                }
                 updatedCount++;
             } else {
-                const newTeacher = { username, name, role, password: password || "123456" };
+                const newTeacher = { username, name, role };
                 this.db.teachers.push(newTeacher);
                 addedCount++;
             }
@@ -6132,8 +6842,8 @@ class AttendanceApp {
 
     downloadTeacherTemplate() {
         const templateData = [
-            { username: "teacher8", name: "ครูสมหมาย สอนดี", role: "teacher", password: "password123" },
-            { username: "deputy2", name: "นายสมศักดิ์ รักเรียน", role: "director", password: "deputy2password" }
+            { username: "teacher8", name: "ครูสมหมาย สอนดี", role: "teacher" },
+            { username: "deputy2", name: "นายสมศักดิ์ รักเรียน", role: "director" }
         ];
         const ws = XLSX.utils.json_to_sheet(templateData);
         const wb = XLSX.utils.book_new();
@@ -6152,7 +6862,21 @@ class AttendanceApp {
     }
 
     backupDatabase() {
-        const jsonStr = JSON.stringify(this.db, null, 2);
+        // Deep clone to avoid mutating database during serialization
+        const dbCopy = JSON.parse(JSON.stringify(this.db));
+        if (dbCopy.teachers) {
+            dbCopy.teachers.forEach(t => {
+                delete t.password;
+                delete t.defaultPassword;
+            });
+        }
+        if (dbCopy.users) {
+            dbCopy.users.forEach(u => {
+                delete u.password;
+                delete u.defaultPassword;
+            });
+        }
+        const jsonStr = JSON.stringify(dbCopy, null, 2);
         const blob = new Blob([jsonStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -6765,97 +7489,37 @@ class AttendanceApp {
     // Helper to map classrooms to bases dynamically
     getClassesForBaseAndGrade(baseId, grade, isWeekB) {
         const allGradeClasses = {
-            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9"],
-            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9"],
-            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8"],
-            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7"],
-            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6"],
-            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
+            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9", "ม.1/10"],
+            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9", "ม.2/10"],
+            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8", "ม.3/9", "ม.3/10"],
+            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7", "ม.4/8", "ม.4/9", "ม.4/10"],
+            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6", "ม.5/7", "ม.5/8", "ม.5/9", "ม.5/10"],
+            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6", "ม.6/7", "ม.6/8", "ม.6/9", "ม.6/10"]
         };
 
-        if (baseId === 'base4' && grade === 'ม.4') {
-            const classesList = [];
-            const classRooms = {};
-            if (!isWeekB) {
-                classesList.push("ม.4/1", "ม.4/6", "ม.4/7");
-                classRooms["ม.4/1"] = "ห้อง 2101";
-                classRooms["ม.4/6"] = "ห้อง 2101";
-                classRooms["ม.4/7"] = "ไก่ไข่อารมณ์ดี";
-            } else {
-                classesList.push("ม.4/2", "ม.4/5", "ม.4/3", "ม.4/4");
-                classRooms["ม.4/2"] = "ห้อง 2201";
-                classRooms["ม.4/5"] = "ห้อง 2201";
-                classRooms["ม.4/3"] = "ห้อง 2102-2103";
-                classRooms["ม.4/4"] = "ห้อง 2102-2103";
-            }
-            const label = !isWeekB
-                ? "ม.4/7 (ไก่ไข่อารมณ์ดี) | ม.4/1, ม.4/6 (ห้อง 2101)"
-                : "ม.4/2, ม.4/5 (ห้อง 2201) | ม.4/3, ม.4/4 (ห้อง 2102-2103)";
-            return {
-                classes: classesList,
-                classRooms: classRooms,
-                classesLabel: label
-            };
-        }
+        const cls = allGradeClasses[grade] || [];
+        const classRooms = {};
 
         if (baseId === 'base1') { // ไฟเบอร์ ทรงพลัง
-            const cls = allGradeClasses[grade] || [];
-            const rooms = {};
-            cls.forEach(c => { rooms[c] = "หอประชุมพุทธรักษา"; });
+            cls.forEach(c => { classRooms[c] = "หอประชุมพุทธรักษา"; });
             return {
                 classes: cls,
-                classRooms: rooms,
+                classRooms: classRooms,
                 classesLabel: `${grade} (หอประชุมพุทธรักษา)`
             };
         }
 
         if (baseId === 'base7') { // หลู่ส่างกานเครือ เกื้อบุญ
-            const cls = allGradeClasses[grade] || [];
-            const rooms = {};
-            cls.forEach(c => { rooms[c] = "หอประชุมสุภเมธี"; });
+            cls.forEach(c => { classRooms[c] = "หอประชุมสุภเมธี"; });
             return {
                 classes: cls,
-                classRooms: rooms,
+                classRooms: classRooms,
                 classesLabel: `${grade} (หอประชุมสุภเมธี)`
             };
         }
 
-        const group1 = [];
-        const group2 = [];
-        const group3 = [];
-        const group4 = [];
-        
-        if (grade === 'ม.1' || grade === 'ม.2') {
-            group1.push(`${grade}/1`, `${grade}/9`);
-            group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
-            group3.push(`${grade}/5`, `${grade}/6`);
-            group4.push(`${grade}/7`, `${grade}/8`);
-        } else if (grade === 'ม.3') {
-            group1.push(`${grade}/1`, `${grade}/8`);
-            group2.push(`${grade}/2`, `${grade}/3`, `${grade}/4`);
-            group3.push(`${grade}/5`, `${grade}/6`);
-            group4.push(`${grade}/7`);
-        } else if (grade === 'ม.4' || grade === 'ม.5' || grade === 'ม.6') {
-            if (grade === 'ม.4') {
-                group1.push("ม.4/1", "ม.4/2", "ม.4/7");
-                group2.push("ม.4/5", "ม.4/6");
-                group3.push("ม.4/3", "ม.4/4");
-            } else if (grade === 'ม.5') {
-                group1.push("ม.5/1", "ม.5/6");
-                group2.push("ม.5/2", "ม.5/5");
-                group3.push("ม.5/3", "ม.5/4");
-            } else {
-                group1.push(`${grade}/1`, `${grade}/6`);
-                group2.push(`${grade}/2`, `${grade}/5`);
-                group3.push(`${grade}/3`, `${grade}/4`);
-            }
-        }
-
-        const classesList = [];
-        const classRooms = {};
-        let roomA = '', roomB = '', roomC = '', roomD = '';
-
         const isJunior = (grade === 'ม.1' || grade === 'ม.2' || grade === 'ม.3');
+        let roomA = '', roomB = '', roomC = '', roomD = '';
 
         if (baseId === 'base2') { // อาณาจักรอักษร
             roomA = "ห้อง 2206";
@@ -6890,53 +7554,61 @@ class AttendanceApp {
             roomD = isJunior ? "ห้อง 2301" : "";
         }
 
-        if (!isWeekB) {
-            classesList.push(...group1, ...group2);
-            group1.forEach(c => { classRooms[c] = roomA; });
-            group2.forEach(c => { classRooms[c] = roomB; });
-        } else {
-            classesList.push(...group3, ...group4);
-            group3.forEach(c => { classRooms[c] = roomC; });
-            group4.forEach(c => { classRooms[c] = roomD; });
-        }
-
-        let label = '';
-        if (!isWeekB) {
-            label = `${group1.join(', ')} (${roomA}) | ${group2.join(', ')} (${roomB})`;
-        } else {
-            if (group4.length > 0) {
-                label = `${group3.join(', ')} (${roomC}) | ${group4.join(', ')} (${roomD})`;
+        // Map rooms:
+        cls.forEach((c, idx) => {
+            const rNum = idx + 1;
+            if (rNum <= 2) {
+                classRooms[c] = roomA || roomB || roomC;
+            } else if (rNum <= 5) {
+                classRooms[c] = roomB || roomA || roomC;
+            } else if (rNum <= 7) {
+                classRooms[c] = roomC || roomB;
             } else {
-                label = `${group3.join(', ')} (${roomC})`;
+                classRooms[c] = roomD || roomC;
+            }
+        });
+
+        // Let's create the label
+        const labelParts = [];
+        if (roomA) labelParts.push(`${grade}/1-${grade}/2 (${roomA})`);
+        if (roomB) labelParts.push(`${grade}/3-${grade}/5 (${roomB})`);
+        if (roomC) {
+            if (roomD) {
+                labelParts.push(`${grade}/6-${grade}/7 (${roomC})`);
+                labelParts.push(`${grade}/8-${grade}/10 (${roomD})`);
+            } else {
+                labelParts.push(`${grade}/6-${grade}/10 (${roomC})`);
             }
         }
 
         return {
-            classes: classesList,
+            classes: cls,
             classRooms: classRooms,
-            classesLabel: label
+            classesLabel: labelParts.join(' | ')
         };
     }
 
-    // Ensure schedule row properties (attendingClasses, classRooms) are populated dynamically from classes label
     ensureScheduleRowProperties(sch) {
         if (!sch || !sch.classes) return;
 
         const expectedClasses = {
-            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9"],
-            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9"],
-            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8"],
-            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7"],
-            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6"],
-            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6"]
+            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9", "ม.1/10"],
+            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9", "ม.2/10"],
+            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8", "ม.3/9", "ม.3/10"],
+            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7", "ม.4/8", "ม.4/9", "ม.4/10"],
+            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6", "ม.5/7", "ม.5/8", "ม.5/9", "ม.5/10"],
+            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6", "ม.6/7", "ม.6/8", "ม.6/9", "ม.6/10"]
         };
+
+        if (Array.isArray(sch.attendingClasses) && sch.attendingClasses.length > 0) {
+            return;
+        }
 
         const classesRegex = /ม\.[1-6]\/\d+/g;
         const gradeRegex = /ม\.[1-6](?!\/\d+)/g;
         
         let parsedClasses = [];
         
-        // Match whole grades (e.g. "ม.5") and expand them
         const gradeMatches = sch.classes.match(gradeRegex) || [];
         gradeMatches.forEach(g => {
             if (expectedClasses[g]) {
@@ -6944,27 +7616,23 @@ class AttendanceApp {
             }
         });
         
-        // Match individual classes (e.g. "ม.5/1")
         const individualMatches = sch.classes.match(classesRegex) || [];
         parsedClasses.push(...individualMatches);
         
         const uniqueClasses = [...new Set(parsedClasses)];
         sch.attendingClasses = uniqueClasses;
 
-        // Populate classRooms mapping
         sch.classRooms = sch.classRooms || {};
         const parts = sch.classes.split('|');
         parts.forEach(part => {
             const roomMatch = part.match(/\(([^)]+)\)/);
             const partRoom = roomMatch ? roomMatch[1] : (sch.room || '-');
             
-            // Assign this room to all classes in this part
             const partClasses = part.match(classesRegex) || [];
             partClasses.forEach(cls => {
                 sch.classRooms[cls] = partRoom;
             });
             
-            // If the part matches a whole grade (e.g. "ม.5"), assign this room to all its sub-classes
             const partGrades = part.match(gradeRegex) || [];
             partGrades.forEach(g => {
                 if (expectedClasses[g]) {
@@ -6974,8 +7642,7 @@ class AttendanceApp {
                 }
             });
         });
-
-        // Fallback for any classrooms that didn't get mapped
+        
         uniqueClasses.forEach(cls => {
             if (!sch.classRooms[cls]) {
                 sch.classRooms[cls] = sch.room || '-';
@@ -7019,13 +7686,14 @@ class AttendanceApp {
         };
     }
 
-    showStatusModal(type, title, message) {
+    showStatusModal(type, title, message, buttonsHtml = null) {
         const modal = document.getElementById('status-modal');
         if (!modal) return;
 
         const iconContainer = document.getElementById('status-modal-icon');
         const titleContainer = document.getElementById('status-modal-title');
         const messageContainer = document.getElementById('status-modal-message');
+        const actionContainer = document.getElementById('status-modal-action-container');
 
         titleContainer.textContent = title;
         messageContainer.innerHTML = message;
@@ -7036,6 +7704,16 @@ class AttendanceApp {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-xmark" style="color: var(--danger); filter: drop-shadow(0 4px 6px rgba(239, 68, 68, 0.2));"></i>';
         } else if (type === 'warning') {
             iconContainer.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="color: var(--warning); filter: drop-shadow(0 4px 6px rgba(255, 193, 7, 0.2));"></i>';
+        } else {
+            iconContainer.innerHTML = '<i class="fa-solid fa-circle-info" style="color: var(--primary); filter: drop-shadow(0 4px 6px rgba(59, 130, 246, 0.2));"></i>';
+        }
+
+        if (actionContainer) {
+            if (buttonsHtml) {
+                actionContainer.innerHTML = buttonsHtml;
+            } else {
+                actionContainer.innerHTML = `<button class="btn btn-primary" style="min-width: 140px; padding: 10px 28px; font-size: 15px; font-weight: 600; border-radius: 8px;" onclick="app.closeModal('status-modal')">ตกลง</button>`;
+            }
         }
 
         this.openModal('status-modal');
