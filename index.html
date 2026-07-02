@@ -130,6 +130,10 @@
                 <!-- Hero Banner -->
                 <div class="hero-banner-container"></div>
 
+                <!-- Holiday Banner -->
+                <div id="dashboard-holiday-banner" class="alert-banner" style="display: none; background-color: rgba(239, 68, 68, 0.08); border-color: var(--accent); color: var(--accent); margin-bottom: 20px;">
+                </div>
+
                 <!-- Dashboard Statistics Cards -->
                 <div class="stat-grid">
                     <div class="card stat-card">
@@ -300,6 +304,10 @@
 
             <!-- VIEW: Attendance Check-in -->
             <section class="view-container" id="view-checkin">
+                <!-- Holiday Banner -->
+                <div id="checkin-holiday-banner" class="alert-banner" style="display: none; background-color: rgba(239, 68, 68, 0.08); border-color: var(--accent); color: var(--accent); margin-bottom: 20px;">
+                </div>
+
                 <!-- Check-in header status -->
                 <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
@@ -674,6 +682,7 @@
                         <button class="btn btn-outline btn-sm" id="btn-tab-bases" onclick="app.switchManageTab('bases')">จัดการฐานการเรียนรู้</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-schedule" onclick="app.switchManageTab('schedule')">จัดการตารางหมุนฐาน</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-semesters" onclick="app.switchManageTab('semesters')">จัดการภาคเรียน</button>
+                        <button class="btn btn-outline btn-sm" id="btn-tab-schoolcalendar" onclick="app.switchManageTab('schoolcalendar')">จัดการปฏิทินโรงเรียน</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-import" onclick="app.switchManageTab('import')">Import/Export Excel</button>
                         <button class="btn btn-outline btn-sm" id="btn-tab-staging" onclick="app.switchManageTab('staging')" style="position: relative; margin-right: 8px;">
                             กล่องพักเช็กชื่อ
@@ -1048,6 +1057,40 @@
                                     <tbody id="audit-logs-table-body">
                                         <!-- Loaded dynamically via JS -->
                                         <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">ไม่มีบันทึกประวัติ</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sub-view: School Calendar -->
+                    <div class="manage-sub-view" id="manage-sub-schoolcalendar" style="display: none;">
+                        <div class="card" style="margin-bottom: 24px;">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                                <h3><i class="fa-solid fa-calendar-days"></i> วันหยุดและปฏิทินสัปดาห์เรียน</h3>
+                                <div style="display: flex; gap: 8px;">
+                                    <button class="btn btn-secondary btn-sm" onclick="app.openCalendarSetupWizardModal()">
+                                        <i class="fa-solid fa-magic"></i> ตั้งค่าสัปดาห์เรียนอัตโนมัติ
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" onclick="app.openSchoolEventModal()">
+                                        <i class="fa-solid fa-plus"></i> เพิ่มรายการ
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>ประเภท</th>
+                                            <th>ชื่อวันหยุด / กิจกรรม</th>
+                                            <th>วันที่เริ่มต้น</th>
+                                            <th>วันที่สิ้นสุด</th>
+                                            <th>รายละเอียด</th>
+                                            <th style="width: 150px; text-align: center;">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="school-calendar-table-body">
+                                        <!-- Dynamic rows -->
                                     </tbody>
                                 </table>
                             </div>
@@ -1934,6 +1977,46 @@
         </div>
     </div>
 
+    <!-- MODAL: ADD/EDIT SCHOOL EVENT/HOLIDAY -->
+    <div class="modal" id="school-event-modal">
+        <div class="modal-content" style="max-width: 450px; width: 90%;">
+            <div class="modal-header">
+                <h3 id="school-event-modal-title"><i class="fa-solid fa-calendar-plus"></i> เพิ่มวันหยุด / กิจกรรมโรงเรียน</h3>
+                <button class="modal-close" onclick="app.closeModal('school-event-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <input type="hidden" id="event-form-id">
+                <div class="form-group">
+                    <label for="event-form-name">ชื่อกิจกรรม / วันหยุด *</label>
+                    <input type="text" id="event-form-name" placeholder="เช่น วันปีใหม่, วันวิสาขบูชา, กีฬาสี">
+                </div>
+                <div class="form-group">
+                    <label for="event-form-type">ประเภท *</label>
+                    <select id="event-form-type">
+                        <option value="holiday">วันหยุดราชการ / วันหยุดโรงเรียน</option>
+                        <option value="event">กิจกรรมโรงเรียน (การเรียนการสอนงด)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="event-form-start">วันที่เริ่มต้น *</label>
+                    <input type="date" id="event-form-start">
+                </div>
+                <div class="form-group">
+                    <label for="event-form-end">วันที่สิ้นสุด (หากมีวันเดียวไม่ต้องระบุ)</label>
+                    <input type="date" id="event-form-end">
+                </div>
+                <div class="form-group">
+                    <label for="event-form-desc">รายละเอียดเพิ่มเติม</label>
+                    <textarea id="event-form-desc" rows="3" placeholder="ระบุเหตุผลหรือคำอธิบายสั้นๆ (ถ้ามี)"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="app.closeModal('school-event-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveSchoolEventFromForm()">บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: ROTATION CELL DETAIL -->
     <div class="modal" id="rotation-detail-modal">
         <div class="modal-content" style="max-width: 650px; width: 90%;">
@@ -2459,6 +2542,80 @@
                 <button class="btn btn-outline" id="rot-btn-cancel" onclick="app.closeRotationBuilder()" style="margin-right: auto;">ยกเลิก</button>
                 <button class="btn btn-primary" id="rot-btn-next" onclick="app.nextRotationStep()">ถัดไป</button>
                 <button class="btn btn-success" id="rot-btn-save" onclick="app.saveRotationBuilderSchedule()" style="display: none;"><i class="fa-solid fa-floppy-disk"></i> บันทึกตาราง</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SCHOOL CALENDAR SETUP WIZARD -->
+    <div class="modal" id="school-calendar-wizard-modal">
+        <div class="modal-content" style="max-width: 480px; width: 90%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-magic text-primary"></i> ตั้งค่าสัปดาห์เรียนอัตโนมัติ</h3>
+                <button class="modal-close" onclick="app.closeModal('school-calendar-wizard-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="cal-wizard-start-date" style="font-weight: 600; display: block; margin-bottom: 6px;">วันที่เริ่มต้นภาคเรียน (วันจันทร์แรก)</label>
+                    <input type="date" id="cal-wizard-start-date" class="form-control" style="width: 100%;" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="cal-wizard-weeks" style="font-weight: 600; display: block; margin-bottom: 6px;">จำนวนสัปดาห์เรียน</label>
+                    <input type="number" id="cal-wizard-weeks" class="form-control" style="width: 100%;" min="1" max="52" value="20" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="cal-wizard-exclude-weekends" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="cal-wizard-exclude-weekends" style="font-weight: 600; cursor: pointer; user-select: none; margin: 0;">เว้นวันหยุดเสาร์-อาทิตย์ (จัดจันทร์-ศุกร์ เท่านั้น)</label>
+                </div>
+                <div style="background-color: rgba(59, 130, 246, 0.08); border: 1px solid var(--primary-light); padding: 12px; border-radius: var(--radius-sm); font-size: 13px; color: var(--primary-dark); line-height: 1.5;">
+                    <i class="fa-solid fa-circle-info"></i> ระบบจะสร้างช่วงวันที่ของแต่ละสัปดาห์โดยอัตโนมัติ โดยสัปดาห์แรกจะเริ่มต้นที่วันจันทร์ตามระบุ และสิ้นสุดที่วันศุกร์
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-outline" onclick="app.closeModal('school-calendar-wizard-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.generateCalendarWeeks()"><i class="fa-solid fa-wand-magic-sparkles"></i> สร้างปฏิทิน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD / EDIT SCHOOL EVENT -->
+    <div class="modal" id="school-calendar-event-modal">
+        <div class="modal-content" style="max-width: 480px; width: 90%;">
+            <div class="modal-header">
+                <h3 id="cal-event-modal-title"><i class="fa-solid fa-calendar-plus text-primary"></i> เพิ่มวันหยุด / กิจกรรม</h3>
+                <button class="modal-close" onclick="app.closeModal('school-calendar-event-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding-top: 15px;">
+                <input type="hidden" id="cal-event-index">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="cal-event-week" style="font-weight: 600; display: block; margin-bottom: 6px;">สัปดาห์เรียนที่</label>
+                    <input type="number" id="cal-event-week" class="form-control" style="width: 100%;" min="1" max="52" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="cal-event-type" style="font-weight: 600; display: block; margin-bottom: 6px;">ประเภท</label>
+                    <select id="cal-event-type" class="form-control" style="width: 100%; padding: 8px 12px; height: auto;" onchange="app.onCalendarEventTypeChange()">
+                        <option value="Normal">สัปดาห์เรียนปกติ (Normal)</option>
+                        <option value="Holiday">วันหยุดพิเศษ/เทศกาล (Holiday)</option>
+                        <option value="Special">วันกิจกรรมพิเศษ (Special Day)</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label for="cal-event-name" style="font-weight: 600; display: block; margin-bottom: 6px;">ชื่อกิจกรรม / หมายเหตุ</label>
+                    <input type="text" id="cal-event-name" class="form-control" style="width: 100%;" placeholder="เช่น สัปดาห์เรียนปกติ, วันมาฆบูชา, กีฬาสี..." required>
+                </div>
+                <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label for="cal-event-start-date" style="font-weight: 600; display: block; margin-bottom: 6px;">วันที่เริ่มต้น</label>
+                        <input type="date" id="cal-event-start-date" class="form-control" style="width: 100%;" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label for="cal-event-end-date" style="font-weight: 600; display: block; margin-bottom: 6px;">วันที่สิ้นสุด</label>
+                        <input type="date" id="cal-event-end-date" class="form-control" style="width: 100%;" required>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-outline" onclick="app.closeModal('school-calendar-event-modal')">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="app.saveCalendarEvent()"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล</button>
             </div>
         </div>
     </div>

@@ -478,7 +478,7 @@ class AttendanceApp {
     async loadDatabase(timeoutMs = 20000) {
         if (this.useFirestore) {
             try {
-                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId'];
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
                 const loadedDb = {};
                 let hasData = true;
 
@@ -569,8 +569,12 @@ class AttendanceApp {
                             loadedDb[collections[i]] = doc.data().data || [];
                         }
                     } else {
-                        hasData = false;
-                        break;
+                        if (collections[i] === 'schoolCalendar') {
+                            loadedDb['schoolCalendar'] = [];
+                        } else {
+                            hasData = false;
+                            break;
+                        }
                     }
                 }
 
@@ -633,6 +637,9 @@ class AttendanceApp {
             this.db.subjectCalendars = subjectCalendars ? JSON.parse(subjectCalendars) : [];
             this.db.subjectCalendarLessons = subjectCalendarLessons ? JSON.parse(subjectCalendarLessons) : [];
             
+            const schoolCalendar = localStorage.getItem('school_calendar');
+            this.db.schoolCalendar = schoolCalendar ? JSON.parse(schoolCalendar) : [];
+
             this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
         }
@@ -670,7 +677,8 @@ class AttendanceApp {
             base_activity_logs: [],
             staging_logs: [],
             subjectCalendars: [],
-            subjectCalendarLessons: []
+            subjectCalendarLessons: [],
+            schoolCalendar: []
         };
         this.isDemoData = false;
         console.log("[DB Init] Empty database initialized. Students: 0. Awaiting real data import.");
@@ -681,7 +689,7 @@ class AttendanceApp {
         
         try {
             console.log("[Background Sync] Fetching database updates from Firestore...");
-            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId'];
+            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
             const loadedDb = {};
             let hasData = true;
 
@@ -702,15 +710,19 @@ class AttendanceApp {
 
             for (let i = 0; i < collections.length; i++) {
                 const doc = docResults[i];
-                if (doc.exists) {
+                if (doc && doc.exists) {
                     if (collections[i] === 'activeSemesterId') {
                         loadedDb['activeSemesterId'] = doc.data().data?.id || "1-2569";
                     } else {
                         loadedDb[collections[i]] = doc.data().data || [];
                     }
                 } else {
-                    hasData = false;
-                    break;
+                    if (collections[i] === 'schoolCalendar') {
+                        loadedDb['schoolCalendar'] = [];
+                    } else {
+                        hasData = false;
+                        break;
+                    }
                 }
             }
 
@@ -727,6 +739,7 @@ class AttendanceApp {
                 this.db.activeSemesterId = loadedDb.activeSemesterId;
                 this.db.base_activity_logs = loadedDb.base_activity_logs;
                 this.db.staging_logs = loadedDb.staging_logs;
+                this.db.schoolCalendar = loadedDb.schoolCalendar || [];
 
                 // Sync and listen to attendance logs
                 if (this.logsUnsubscribe) {
@@ -760,6 +773,7 @@ class AttendanceApp {
                 localStorage.setItem('school_active_semester_id', this.db.activeSemesterId);
                 localStorage.setItem('school_base_activity_logs', JSON.stringify(this.db.base_activity_logs));
                 localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs));
+                localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
 
                 this.updateFirestoreConnectionStatus(true);
                 this.updateStagingBadgeCount();
@@ -784,6 +798,7 @@ class AttendanceApp {
         localStorage.setItem('school_active_semester_id', this.db.activeSemesterId || "1-2569");
         localStorage.setItem('school_base_activity_logs', JSON.stringify(this.db.base_activity_logs || []));
         localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs || []));
+        localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
 
         if (this.useFirestore) {
             try {
@@ -792,7 +807,7 @@ class AttendanceApp {
                 if (collectionsToSync) {
                     syncCols = collectionsToSync;
                 } else if (saveLogsToFirestore) {
-                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId'];
+                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
                 }
 
                 if (syncCols.length > 0) {
@@ -2864,6 +2879,29 @@ class AttendanceApp {
         if (badgeDateEl) {
             badgeDateEl.textContent = this.formatThaiDateShort(this.systemDate);
         }
+
+        // Update Holiday/Special day banners
+        const dashHolidayBanner = document.getElementById('dashboard-holiday-banner');
+        const checkinHolidayBanner = document.getElementById('checkin-holiday-banner');
+        
+        if (this.currentWeekInfo && this.currentWeekInfo.type && this.currentWeekInfo.type !== 'Normal') {
+            const icon = this.currentWeekInfo.type === 'Holiday' ? 'fa-calendar-minus' : 'fa-star';
+            const typeLabel = this.currentWeekInfo.type === 'Holiday' ? 'วันหยุดพิเศษ/วันหยุดเทศกาล' : 'วันกิจกรรมพิเศษ';
+            const noteText = this.currentWeekInfo.note ? `: ${this.currentWeekInfo.note}` : '';
+            const holidayHtml = `<i class="fa-solid ${icon}"></i> <span><strong>แจ้งเตือน:</strong> วันนี้เป็น${typeLabel}${noteText} (สัปดาห์ที่ ${weekNum})</span>`;
+            
+            if (dashHolidayBanner) {
+                dashHolidayBanner.innerHTML = holidayHtml;
+                dashHolidayBanner.style.display = 'flex';
+            }
+            if (checkinHolidayBanner) {
+                checkinHolidayBanner.innerHTML = holidayHtml;
+                checkinHolidayBanner.style.display = 'flex';
+            }
+        } else {
+            if (dashHolidayBanner) dashHolidayBanner.style.display = 'none';
+            if (checkinHolidayBanner) checkinHolidayBanner.style.display = 'none';
+        }
         
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
@@ -2911,18 +2949,42 @@ class AttendanceApp {
     // Helper: find week object from date YYYY-MM-DD
     getWeekByDate(dateStr) {
         const date = new Date(dateStr);
+        date.setHours(0,0,0,0);
+        
+        // 1. Try to find match in schoolCalendar first
+        if (this.db.schoolCalendar && this.db.schoolCalendar.length > 0) {
+            const calMatch = this.db.schoolCalendar.find(s => {
+                const start = new Date(s.startDate);
+                start.setHours(0,0,0,0);
+                const end = new Date(s.endDate);
+                end.setHours(0,0,0,0);
+                return date >= start && date <= end;
+            });
+            if (calMatch) {
+                return { 
+                    week: parseInt(calMatch.week), 
+                    dates: `${this.formatThaiDateShort(calMatch.startDate)} - ${this.formatThaiDateShort(calMatch.endDate)}`,
+                    type: calMatch.type || 'Normal',
+                    note: calMatch.note || ''
+                };
+            }
+        }
+
+        // 2. Fallback to rotation_schedule
         const match = this.db.rotation_schedule.find(s => {
             const start = new Date(s.startDate);
+            start.setHours(0,0,0,0);
             const end = new Date(s.endDate);
+            end.setHours(0,0,0,0);
             return date >= start && date <= end;
         });
 
         if (match) {
-            return { week: match.week, dates: match.dates };
+            return { week: match.week, dates: match.dates, type: 'Normal', note: '' };
         }
         
         // Fallback or default to Week 6 if not matching
-        return { week: 6, dates: "15 มิ.ย. - 21 มิ.ย. 69" };
+        return { week: 6, dates: "15 มิ.ย. - 21 มิ.ย. 69", type: 'Normal', note: '' };
     }
 
     // RENDER: Dashboard view
@@ -3812,6 +3874,14 @@ class AttendanceApp {
         const scheduleRow = this.currentCheckinSchedule;
 
         if (!scheduleRow) return;
+
+        if (this.currentWeekInfo && this.currentWeekInfo.type && this.currentWeekInfo.type !== 'Normal') {
+            const typeLabel = this.currentWeekInfo.type === 'Holiday' ? 'วันหยุดพิเศษ/วันหยุดเทศกาล' : 'วันกิจกรรมพิเศษ';
+            const noteText = this.currentWeekInfo.note ? ` (${this.currentWeekInfo.note})` : '';
+            if (!confirm(`คำเตือน: วันนี้เป็น${typeLabel}${noteText} คุณยังคงต้องการบันทึกการเช็คชื่อใช่หรือไม่?`)) {
+                return;
+            }
+        }
 
         if (!this.selectedCheckinClass) {
             alert("กรุณาเลือกชั้นเรียนที่จะทำการสอนก่อนบันทึก!");
@@ -5749,7 +5819,7 @@ class AttendanceApp {
         this.updateTeacherSelectionUI();
 
         // Update tab buttons style
-        const tabs = ['students', 'teachers', 'bases', 'schedule', 'semesters', 'staging', 'import', 'cloud', 'integrity'];
+        const tabs = ['students', 'teachers', 'bases', 'schedule', 'semesters', 'staging', 'import', 'cloud', 'integrity', 'schoolcalendar'];
         tabs.forEach(t => {
             const btn = document.getElementById(`btn-tab-${t}`);
             const div = document.getElementById(`manage-sub-${t}`);
@@ -5784,6 +5854,8 @@ class AttendanceApp {
             this.loadAuditLogs();
         } else if (tabId === 'integrity') {
             this.runUserDataIntegrityCheck();
+        } else if (tabId === 'schoolcalendar') {
+            this.renderSchoolCalendar();
         }
     }
 
@@ -8432,6 +8504,280 @@ generateDefaultRotationSchedule(customBases = null) {
         this.saveDatabase(false, ['semesters']);
         this.renderManageSemesters();
         this.logAudit(`Deleted semester: ${semId}`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  SCHOOL CALENDAR & ACADEMIC WEEKS MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════
+
+    renderSchoolCalendar() {
+        const tbody = document.getElementById('school-calendar-table-body');
+        if (!tbody) return;
+
+        tbody.innerHTML = '';
+        const calendar = this.db.schoolCalendar || [];
+
+        if (calendar.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-light); padding: 24px;">ยังไม่มีข้อมูลปฏิทินหรือวันหยุด กรุณาใช้เครื่องมือตั้งค่าสัปดาห์เรียนอัตโนมัติหรือเพิ่มรายการ</td></tr>`;
+            return;
+        }
+
+        // Sort by week and start date
+        const sortedCal = [...calendar].sort((a, b) => {
+            if (parseInt(a.week) !== parseInt(b.week)) {
+                return parseInt(a.week) - parseInt(b.week);
+            }
+            return new Date(a.startDate) - new Date(b.startDate);
+        });
+
+        sortedCal.forEach((item, idx) => {
+            const tr = document.createElement('tr');
+            
+            let typeBadge = '';
+            if (item.type === 'Holiday') {
+                typeBadge = '<span class="status-badge" style="background-color: rgba(239, 68, 68, 0.1); color: var(--accent, #EF4444); border: 1px solid rgba(239, 68, 68, 0.2);">วันหยุด (Holiday)</span>';
+            } else if (item.type === 'Special') {
+                typeBadge = '<span class="status-badge" style="background-color: rgba(245, 158, 11, 0.1); color: #D97706; border: 1px solid rgba(245, 158, 11, 0.2);">กิจกรรมพิเศษ</span>';
+            } else {
+                typeBadge = '<span class="status-badge" style="background-color: rgba(16, 185, 129, 0.1); color: #059669; border: 1px solid rgba(16, 185, 129, 0.2);">สัปดาห์เรียนปกติ</span>';
+            }
+
+            tr.innerHTML = `
+                <td>${typeBadge}</td>
+                <td style="font-weight: 600;">สัปดาห์ที่ ${item.week}</td>
+                <td>${this.formatThaiDate(item.startDate)}</td>
+                <td>${this.formatThaiDate(item.endDate)}</td>
+                <td>${item.note || '-'}</td>
+                <td style="text-align: center;">
+                    <div style="display: flex; justify-content: center; gap: 8px;">
+                        <button class="btn btn-outline btn-sm" style="padding: 4px 8px; font-size: 12px;" onclick="app.openSchoolEventModal(${idx})">
+                            <i class="fa-solid fa-pen"></i> แก้ไข
+                        </button>
+                        <button class="btn btn-danger btn-sm" style="padding: 4px 8px; font-size: 12px; background-color: var(--accent);" onclick="app.deleteCalendarEvent(${idx})">
+                            <i class="fa-solid fa-trash"></i> ลบ
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    openCalendarSetupWizardModal() {
+        const modal = document.getElementById('school-calendar-wizard-modal');
+        if (!modal) return;
+
+        // Set default start date to today or a close upcoming Monday
+        const startInput = document.getElementById('cal-wizard-start-date');
+        if (startInput) {
+            const today = new Date();
+            // Find next Monday if today is not Monday
+            const day = today.getDay();
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+            const monday = new Date(today.setDate(diff));
+            startInput.value = monday.toISOString().split('T')[0];
+        }
+
+        modal.classList.add('active');
+    }
+
+    generateCalendarWeeks() {
+        const startInput = document.getElementById('cal-wizard-start-date');
+        const weeksInput = document.getElementById('cal-wizard-weeks');
+
+        if (!startInput || !startInput.value) {
+            alert('กรุณาเลือกวันที่เริ่มต้นภาคเรียน');
+            return;
+        }
+
+        const weeksCount = parseInt(weeksInput?.value || 20);
+        if (isNaN(weeksCount) || weeksCount < 1 || weeksCount > 52) {
+            alert('จำนวนสัปดาห์เรียนต้องอยู่ระหว่าง 1 ถึง 52');
+            return;
+        }
+
+        const newCalendar = [];
+        let currentMonday = new Date(startInput.value);
+
+        for (let w = 1; w <= weeksCount; w++) {
+            // Find Friday of this week
+            const currentFriday = new Date(currentMonday);
+            currentFriday.setDate(currentMonday.getDate() + 4);
+
+            const startStr = currentMonday.toISOString().split('T')[0];
+            const endStr = currentFriday.toISOString().split('T')[0];
+
+            newCalendar.push({
+                week: w,
+                startDate: startStr,
+                endDate: endStr,
+                type: 'Normal',
+                note: 'สัปดาห์เรียนปกติ'
+            });
+
+            // Advance to next Monday (7 days after current Monday)
+            currentMonday.setDate(currentMonday.getDate() + 7);
+        }
+
+        this.db.schoolCalendar = newCalendar;
+        this.saveDatabase(false, ['schoolCalendar']);
+        this.closeModal('school-calendar-wizard-modal');
+        this.renderSchoolCalendar();
+        
+        // Also update local cache view
+        this.currentWeekInfo = this.getWeekByDate(this.systemDate);
+        this.render();
+
+        this.logAudit(`Auto-generated ${weeksCount} academic weeks starting ${startInput.value}`);
+        this.showStatusModal('success', 'สร้างปฏิทินสำเร็จ', `สร้างสัปดาห์เรียนจำนวน ${weeksCount} สัปดาห์ เรียบร้อยแล้ว`);
+    }
+
+    openSchoolEventModal(index = null) {
+        const modal = document.getElementById('school-calendar-event-modal');
+        if (!modal) return;
+
+        const titleEl = document.getElementById('cal-event-modal-title');
+        const indexEl = document.getElementById('cal-event-index');
+        const weekEl = document.getElementById('cal-event-week');
+        const typeEl = document.getElementById('cal-event-type');
+        const nameEl = document.getElementById('cal-event-name');
+        const startEl = document.getElementById('cal-event-start-date');
+        const endEl = document.getElementById('cal-event-end-date');
+
+        if (index !== null && this.db.schoolCalendar && this.db.schoolCalendar[index]) {
+            // Edit Mode
+            const item = this.db.schoolCalendar[index];
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-pen text-primary"></i> แก้ไขข้อมูลปฏิทิน';
+            if (indexEl) indexEl.value = index;
+            if (weekEl) weekEl.value = item.week;
+            if (typeEl) typeEl.value = item.type || 'Normal';
+            if (nameEl) nameEl.value = item.note || '';
+            if (startEl) startEl.value = item.startDate;
+            if (endEl) endEl.value = item.endDate;
+        } else {
+            // Add Mode
+            if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-calendar-plus text-primary"></i> เพิ่มวันหยุด / กิจกรรม';
+            if (indexEl) indexEl.value = '';
+            
+            // Default week number to next week index
+            let nextWeek = 1;
+            if (this.db.schoolCalendar && this.db.schoolCalendar.length > 0) {
+                const maxWeek = Math.max(...this.db.schoolCalendar.map(c => parseInt(c.week)));
+                nextWeek = maxWeek + 1;
+            }
+            if (weekEl) weekEl.value = nextWeek;
+            if (typeEl) typeEl.value = 'Holiday';
+            if (nameEl) nameEl.value = '';
+            if (startEl) startEl.value = this.systemDate;
+            if (endEl) endEl.value = this.systemDate;
+        }
+
+        modal.classList.add('active');
+    }
+
+    onCalendarEventTypeChange() {
+        const typeEl = document.getElementById('cal-event-type');
+        const nameEl = document.getElementById('cal-event-name');
+        if (!typeEl || !nameEl) return;
+
+        if (typeEl.value === 'Normal') {
+            nameEl.value = 'สัปดาห์เรียนปกติ';
+        } else if (nameEl.value === 'สัปดาห์เรียนปกติ') {
+            nameEl.value = '';
+        }
+    }
+
+    saveCalendarEvent() {
+        const indexEl = document.getElementById('cal-event-index');
+        const weekEl = document.getElementById('cal-event-week');
+        const typeEl = document.getElementById('cal-event-type');
+        const nameEl = document.getElementById('cal-event-name');
+        const startEl = document.getElementById('cal-event-start-date');
+        const endEl = document.getElementById('cal-event-end-date');
+
+        if (!weekEl || !startEl || !endEl || !nameEl) return;
+
+        const weekVal = parseInt(weekEl.value);
+        const typeVal = typeEl.value;
+        const nameVal = nameEl.value.trim();
+        const startVal = startEl.value;
+        const endVal = endEl.value;
+
+        if (isNaN(weekVal) || weekVal < 1) {
+            alert('กรุณากรอกสัปดาห์เรียนที่ถูกต้อง');
+            return;
+        }
+        if (!nameVal) {
+            alert('กรุณากรอกชื่อกิจกรรม / หมายเหตุ');
+            return;
+        }
+        if (!startVal || !endVal) {
+            alert('กรุณาระบุช่วงวันที่เริ่มต้นและสิ้นสุด');
+            return;
+        }
+        if (new Date(startVal) > new Date(endVal)) {
+            alert('วันที่เริ่มต้นไม่สามารถอยู่หลังวันที่สิ้นสุดได้');
+            return;
+        }
+
+        const eventObj = {
+            week: weekVal,
+            type: typeVal,
+            note: nameVal,
+            startDate: startVal,
+            endDate: endVal
+        };
+
+        if (!this.db.schoolCalendar) this.db.schoolCalendar = [];
+
+        const indexVal = indexEl.value;
+        if (indexVal !== '') {
+            // Edit
+            const idx = parseInt(indexVal);
+            this.db.schoolCalendar[idx] = eventObj;
+            this.logAudit(`Updated school calendar item index ${idx}: Week ${weekVal}, ${typeVal}`);
+        } else {
+            // Add
+            this.db.schoolCalendar.push(eventObj);
+            this.logAudit(`Added school calendar item: Week ${weekVal}, ${typeVal}`);
+        }
+
+        // Sort
+        this.db.schoolCalendar.sort((a, b) => {
+            if (parseInt(a.week) !== parseInt(b.week)) {
+                return parseInt(a.week) - parseInt(b.week);
+            }
+            return new Date(a.startDate) - new Date(b.startDate);
+        });
+
+        this.saveDatabase(false, ['schoolCalendar']);
+        this.closeModal('school-calendar-event-modal');
+        this.renderSchoolCalendar();
+
+        // Update current state if it affects today
+        this.currentWeekInfo = this.getWeekByDate(this.systemDate);
+        this.render();
+
+        this.showStatusModal('success', 'บันทึกสำเร็จ', 'บันทึกข้อมูลปฏิทินโรงเรียนเรียบร้อยแล้ว');
+    }
+
+    deleteCalendarEvent(index) {
+        if (!this.db.schoolCalendar || !this.db.schoolCalendar[index]) return;
+        const item = this.db.schoolCalendar[index];
+
+        if (!confirm(`ต้องการลบรายการของสัปดาห์ที่ ${item.week} (${item.note || item.type}) ใช่หรือไม่?`)) {
+            return;
+        }
+
+        this.db.schoolCalendar.splice(index, 1);
+        this.saveDatabase(false, ['schoolCalendar']);
+        this.renderSchoolCalendar();
+
+        // Update current state
+        this.currentWeekInfo = this.getWeekByDate(this.systemDate);
+        this.render();
+
+        this.logAudit(`Deleted school calendar item index ${index}`);
     }
 
     // ═══════════════════════════════════════════════════════════════════
