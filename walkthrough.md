@@ -128,3 +128,43 @@ Below is the checklist for verifying the new functionality in the application.
 - [ ] Change status filter (e.g. to "มีคาบเรียนชดเชย"). Verify that calendars with makeup lessons are correctly filtered.
 - [ ] Click **"รีเซ็ต"** (Reset) and verify that all inputs are cleared and all calendars are shown again.
 - [ ] Verify that there is absolutely no week selector, learning base selector, base activity date filter, or base calendar grid visible on this page.
+
+---
+
+## V2.0.1 - Lesson Planner Integration (ปรัชญาของเศรษฐกิจพอเพียง)
+
+### 12. Navigation & Access Control
+- [ ] Log in as a **Teacher** (e.g. `teacher1`), **Admin**, or other roles. Verify that the new menu item **"แผนกิจกรรมพอเพียง"** (Lesson Planner) is visible in the sidebar navigation.
+- [ ] Click the item. Verify that it switches to the **"แผนการจัดกิจกรรมการเรียนรู้ (Lesson Planner)"** view.
+- [ ] Log in as a Guest. Verify that Guest users can access the planner in read-only mode to view approved/pending plans.
+
+### 13. Writing a Sufficiency Economy Lesson Plan
+- [ ] Log in as a **Teacher**, go to **"แผนกิจกรรมพอเพียง"**, and click **"เขียนแผนใหม่"**.
+- [ ] Fill out the required details in the form:
+  - **หัวข้อแผนการเรียนรู้** (Topic, e.g., "การปลูกผักไฮโดรโปนิกส์พอเพียง")
+  - **ฐานการเรียนรู้** (Learning Base selection)
+  - **ระดับชั้น** (Grade level, e.g., "ม.1 - ม.3")
+  - **วัตถุประสงค์การเรียนรู้**
+  - **3 ห่วง**: ความพอประมาณ, ความมีเหตุผล, การมีภูมิคุ้มกันที่ดี
+  - **2 เงื่อนไข**: เงื่อนไขความรู้, เงื่อนไขคุณธรรม
+  - **4 มิติ**: มิติด้านวัตถุ/เศรษฐกิจ, มิติด้านสังคม, มิติด้านสิ่งแวดล้อม, มิติด้านวัฒนธรรม
+  - **กิจกรรมการเรียนรู้** (Activities)
+  - **การวัดและประเมินผล** (Evaluation)
+- [ ] Click **"บันทึกแบบร่าง"** (Save Draft). Verify that the plan is saved with status **"แบบร่าง"** and listed in the planner list.
+- [ ] Edit the plan and click **"ส่งขออนุมัติแผน"** (Submit for Review). Verify that the status switches to **"รออนุมัติ"** (Pending).
+
+### 14. Approval and Feedback Workflow
+- [ ] Log in as a **Director** (e.g., `director1`), **Supervisor** (e.g., `supervisor1`), or **Admin**.
+- [ ] Go to **"แผนกิจกรรมพอเพียง"** and click **"ดูรายละเอียด"** on the pending lesson plan.
+- [ ] Verify that you can see all the details of the plan in an organized visual layout.
+- [ ] Write a comment in the feedback section (e.g. "เนื้อหานี้บูรณาการกับมิติด้านวัตถุได้ดีมาก") and click **"อนุมัติแผน"** (Approve Plan).
+- [ ] Verify that the plan status updates to **"อนุมัติแล้ว"** and the comment is persisted.
+- [ ] For other pending plans, try writing feedback and clicking **"ส่งกลับแก้ไข"** (Send Back for Edits). Verify that status returns to Draft/Editable for the teacher.
+
+### 15. Cloud and Local Sync Verification
+- [ ] While online, save or update a plan. Open the Firebase Console / Firestore and verify that a new document containing the updated array is written to `system_data/lesson_plans`.
+- [ ] Turn off connection (or simulate offline), reload the app, and verify that all plans are retrieved from local storage cache.
+
+---
+
+**All features have been merged, pushed, and tagged under v2.0.1 successfully!**
