@@ -196,7 +196,28 @@ service cloud.firestore {
         (hasRole('teacher') && request.resource.data.teacherUid == request.auth.uid && (resource == null || resource.data.teacherUid == request.auth.uid)) ||
         hasRole('admin')
       );
-      allow delete: if isAuthenticated() && hasRole('admin');
+    }
+
+    // ==========================================
+    // COLLECTION: lesson_plans
+    // ==========================================
+    match /lesson_plans/{planId} {
+      allow read: if isAuthenticated() && (
+        resource.data.teacherUid == request.auth.uid ||
+        hasAnyRole(['admin', 'director', 'supervisor'])
+      );
+      allow create: if isAuthenticated() && (
+        (hasRole('teacher') && request.resource.data.teacherUid == request.auth.uid) ||
+        hasRole('admin')
+      );
+      allow update: if isAuthenticated() && (
+        (hasRole('teacher') && resource.data.teacherUid == request.auth.uid && request.resource.data.teacherUid == request.auth.uid) ||
+        hasRole('admin')
+      );
+      allow delete: if isAuthenticated() && (
+        (hasRole('teacher') && resource.data.teacherUid == request.auth.uid) ||
+        hasRole('admin')
+      );
     }
   }
 }

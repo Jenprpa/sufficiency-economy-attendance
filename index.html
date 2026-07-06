@@ -79,6 +79,7 @@
                 <a href="#" class="nav-item" data-view="calendar" id="menu-calendar" style="display:none;"><i class="fa-solid fa-calendar-days"></i> ปฏิทินฐานการเรียนรู้</a>
                 <a href="#" class="nav-item" data-view="bases" id="menu-bases" style="display:none;"><i class="fa-solid fa-leaf"></i> ฐานเรียนรู้</a>
                 <a href="#" class="nav-item" data-view="rotation" id="menu-rotation"><i class="fa-solid fa-calendar-image"></i> ตารางสอน</a>
+                <a href="#" class="nav-item" data-view="lesson-planner" id="menu-lesson-planner" style="display:none;"><i class="fa-solid fa-book-open"></i> แผนการสอน</a>
                 <a href="#" class="nav-item" data-view="search" id="menu-search"><i class="fa-solid fa-magnifying-glass"></i> ค้นหา</a>
                 <a href="#" class="nav-item" data-view="checkin" id="menu-checkin" style="display: none;"><i class="fa-solid fa-user-check"></i> เช็กชื่อ</a>
                 <a href="#" class="nav-item" data-view="reports" id="menu-reports" style="display: none;"><i class="fa-solid fa-chart-simple"></i> รายงาน</a>
@@ -1609,6 +1610,70 @@
                     </div>
                 </div>
             </section>
+
+            <!-- VIEW: Lesson Planner -->
+            <section class="view-container" id="view-lesson-planner" style="display: none;">
+                <!-- Header Card -->
+                <div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <h2 style="margin: 0; font-weight: 700; font-size: 22px; color: white;"><i class="fa-solid fa-book-open"></i> แผนการจัดกิจกรรมการเรียนรู้ (Lesson Planner)</h2>
+                            <p style="margin: 6px 0 0 0; opacity: 0.9; font-size: 14px;">สร้างและบริหารจัดการแผนการเรียนการสอนรายสัปดาห์</p>
+                        </div>
+                        <button class="btn btn-secondary" id="btn-create-lesson-plan" onclick="app.openLessonPlanModal()">
+                            <i class="fa-solid fa-plus"></i> สร้างแผนการสอน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filter Bar Card -->
+                <div class="card" style="margin-bottom: 24px; padding: 16px;">
+                    <div class="grid-form" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-year" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">ปีการศึกษา</label>
+                            <select id="filter-plan-year" class="form-control" onchange="app.renderLessonPlanner()" style="width: 100%; height: 38px;">
+                                <option value="All">ทุกปีการศึกษา</option>
+                                <option value="2569" selected>2569</option>
+                                <option value="2568">2568</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-semester" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">ภาคเรียน</label>
+                            <select id="filter-plan-semester" class="form-control" onchange="app.renderLessonPlanner()" style="width: 100%; height: 38px;">
+                                <option value="All">ทุกภาคเรียน</option>
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-subject" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">ค้นหาวิชา</label>
+                            <input type="text" id="filter-plan-subject" class="form-control" placeholder="รหัส หรือ ชื่อวิชา..." oninput="app.renderLessonPlanner()" style="width: 100%; height: 38px; padding: 8px 12px;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-class" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">ห้องเรียน</label>
+                            <input type="text" id="filter-plan-class" class="form-control" placeholder="เช่น ม.1/1..." oninput="app.renderLessonPlanner()" style="width: 100%; height: 38px; padding: 8px 12px;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-week" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">สัปดาห์ที่</label>
+                            <input type="number" id="filter-plan-week" class="form-control" min="1" max="52" placeholder="สัปดาห์..." oninput="app.renderLessonPlanner()" style="width: 100%; height: 38px; padding: 8px 12px;">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label for="filter-plan-status" style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">สถานะ</label>
+                            <select id="filter-plan-status" class="form-control" onchange="app.renderLessonPlanner()" style="width: 100%; height: 38px;">
+                                <option value="All">ทุกสถานะ</option>
+                                <option value="Draft">ร่าง (Draft)</option>
+                                <option value="Ready">พร้อมใช้ (Ready)</option>
+                                <option value="Taught">สอนแล้ว (Taught)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- List / Card Area -->
+                <div class="lesson-plans-list" id="lesson-plans-container" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px;">
+                    <!-- Cards will be populated dynamically -->
+                </div>
+            </section>
         </main>
     </div>
 
@@ -2615,6 +2680,148 @@
             <div class="modal-footer" style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
                 <button class="btn btn-outline" onclick="app.closeModal('school-calendar-event-modal')">ยกเลิก</button>
                 <button class="btn btn-primary" onclick="app.saveCalendarEvent()"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD / EDIT LESSON PLAN -->
+    <div class="modal" id="lesson-plan-modal">
+        <div class="modal-content" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3 id="lesson-plan-modal-title"><i class="fa-solid fa-book text-primary"></i> สร้างแผนการสอนใหม่</h3>
+                <button class="modal-close" onclick="app.closeModal('lesson-plan-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form id="lesson-plan-form" onsubmit="event.preventDefault(); app.saveLessonPlan();">
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto; padding-top: 15px;">
+                    <input type="hidden" id="plan-form-id">
+                    
+                    <!-- Basic Information Section -->
+                    <h4 style="border-bottom: 2px solid var(--border-color); padding-bottom: 6px; color: var(--primary); margin-top: 0; font-weight: 700;"><i class="fa-solid fa-circle-info"></i> ข้อมูลพื้นฐาน</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label for="plan-form-subject-name">ชื่อวิชา *</label>
+                            <input type="text" id="plan-form-subject-name" class="form-control" placeholder="เช่น คณิตศาสตร์พื้นฐาน..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-form-subject-code">รหัสวิชา *</label>
+                            <input type="text" id="plan-form-subject-code" class="form-control" placeholder="เช่น ค21101..." required>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label for="plan-form-grade-level">ระดับชั้น *</label>
+                            <select id="plan-form-grade-level" class="form-control" required>
+                                <option value="ม.1">ม.1</option>
+                                <option value="ม.2">ม.2</option>
+                                <option value="ม.3">ม.3</option>
+                                <option value="ม.4">ม.4</option>
+                                <option value="ม.5">ม.5</option>
+                                <option value="ม.6">ม.6</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-form-class-name">ห้องเรียน *</label>
+                            <input type="text" id="plan-form-class-name" class="form-control" placeholder="เช่น ม.1/1..." required>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label for="plan-form-year">ปีการศึกษา *</label>
+                            <select id="plan-form-year" class="form-control" required>
+                                <option value="2569">2569</option>
+                                <option value="2568">2568</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-form-semester">ภาคเรียน *</label>
+                            <select id="plan-form-semester" class="form-control" required>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label for="plan-form-week">สัปดาห์ที่ *</label>
+                            <input type="number" id="plan-form-week" class="form-control" min="1" max="52" placeholder="สัปดาห์..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-form-date">วันที่สอน *</label>
+                            <input type="date" id="plan-form-date" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-form-period">คาบที่สอน *</label>
+                            <input type="number" id="plan-form-period" class="form-control" min="1" max="10" placeholder="คาบที่..." required>
+                        </div>
+                    </div>
+
+                    <!-- Lesson Details Section -->
+                    <h4 style="border-bottom: 2px solid var(--border-color); padding-bottom: 6px; color: var(--primary); margin-top: 24px; font-weight: 700;"><i class="fa-solid fa-file-invoice"></i> รายละเอียดแผนการสอน</h4>
+                    <div class="form-group">
+                        <label for="plan-form-title">หัวเรื่อง/ชื่อบทเรียน *</label>
+                        <input type="text" id="plan-form-title" class="form-control" placeholder="ระบุหัวเรื่องหรือบทเรียนที่สอน..." required>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-objectives">จุดประสงค์การเรียนรู้</label>
+                        <textarea id="plan-form-objectives" class="form-control" rows="3" placeholder="เพื่อให้นักเรียนสามารถ..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-indicators">ตัวชี้วัด / ผลการเรียนรู้</label>
+                        <textarea id="plan-form-indicators" class="form-control" rows="2" placeholder="ตัวชี้วัด มฐ..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-content">สาระการเรียนรู้ (เนื้อหา)</label>
+                        <textarea id="plan-form-content" class="form-control" rows="3" placeholder="ระบุสาระสำคัญ/เนื้อหาที่สอน..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-activities">กิจกรรมการเรียนรู้ (กระบวนการสอน)</label>
+                        <textarea id="plan-form-activities" class="form-control" rows="4" placeholder="ขั้นนำ, ขั้นสอน, ขั้นสรุป..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-materials">สื่อ / แหล่งเรียนรู้</label>
+                        <textarea id="plan-form-materials" class="form-control" rows="2" placeholder="เช่น สไลด์นำเสนอ, หนังสือเรียน, อุปกรณ์ทดลอง..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-assessment">การวัดและประเมินผล</label>
+                        <textarea id="plan-form-assessment" class="form-control" rows="2" placeholder="เช่น ตรวจใบงาน, สังเกตพฤติกรรม..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-homework">ภาระงาน / การบ้าน</label>
+                        <input type="text" id="plan-form-homework" class="form-control" placeholder="การบ้านหรือชิ้นงานที่มอบหมาย (ถ้ามี)...">
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-notes">บันทึกเพิ่มเติม</label>
+                        <textarea id="plan-form-notes" class="form-control" rows="2" placeholder="ข้อสังเกต หรือสิ่งที่ต้องระวังเพิ่มเติม..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="plan-form-status">สถานะแผนการสอน</label>
+                        <select id="plan-form-status" class="form-control">
+                            <option value="Draft">ร่าง (Draft) - บันทึกเพื่อแก้ไขต่อ</option>
+                            <option value="Ready">พร้อมใช้ (Ready) - แผนสมบูรณ์พร้อมสอน</option>
+                            <option value="Taught">สอนแล้ว (Taught) - ดำเนินการสอนแล้ว</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                    <button type="button" class="btn btn-outline" onclick="app.closeModal('lesson-plan-modal')">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> บันทึกแผนการสอน</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: VIEW LESSON PLAN DETAIL -->
+    <div class="modal" id="lesson-plan-detail-modal">
+        <div class="modal-content" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-book-open text-primary"></i> รายละเอียดแผนการสอน</h3>
+                <button class="modal-close" onclick="app.closeModal('lesson-plan-detail-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="lesson-plan-detail-content" style="max-height: 75vh; overflow-y: auto; padding-top: 15px; line-height: 1.6;">
+                <!-- Content populated dynamically -->
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 15px;">
+                <button class="btn btn-secondary" onclick="app.closeModal('lesson-plan-detail-modal')">ปิดหน้าต่าง</button>
             </div>
         </div>
     </div>

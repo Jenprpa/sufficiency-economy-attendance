@@ -19,6 +19,8 @@ class AttendanceApp {
         this.pageSize = 15;
         this.selectedStudents = [];
         this.selectedTeachers = [];
+        this.lessonPlanFilter = { baseId: '', status: 'all', search: '' };
+        this.currentLessonPlan = null;
         
         // Active Charts
         this.dashChart = null;
@@ -647,6 +649,9 @@ class AttendanceApp {
             const schoolCalendar = localStorage.getItem('school_calendar');
             this.db.schoolCalendar = schoolCalendar ? JSON.parse(schoolCalendar) : [];
 
+            const lessonPlans = localStorage.getItem('school_lesson_plans');
+            this.db.lesson_plans = lessonPlans ? JSON.parse(lessonPlans) : [];
+
             this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
         }
@@ -685,7 +690,8 @@ class AttendanceApp {
             staging_logs: [],
             subjectCalendars: [],
             subjectCalendarLessons: [],
-            schoolCalendar: []
+            schoolCalendar: [],
+            lesson_plans: []
         };
         this.isDemoData = false;
         console.log("[DB Init] Empty database initialized. Students: 0. Awaiting real data import.");
@@ -696,7 +702,7 @@ class AttendanceApp {
         
         try {
             console.log("[Background Sync] Fetching database updates from Firestore...");
-            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
+            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
             const loadedDb = {};
             let hasData = true;
 
@@ -747,6 +753,7 @@ class AttendanceApp {
                 this.db.base_activity_logs = loadedDb.base_activity_logs;
                 this.db.staging_logs = loadedDb.staging_logs;
                 this.db.schoolCalendar = loadedDb.schoolCalendar || [];
+                this.db.lesson_plans = loadedDb.lesson_plans || [];
 
                 // Sync and listen to attendance logs
                 if (this.logsUnsubscribe) {
@@ -781,6 +788,7 @@ class AttendanceApp {
                 localStorage.setItem('school_base_activity_logs', JSON.stringify(this.db.base_activity_logs));
                 localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs));
                 localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
+                localStorage.setItem('school_lesson_plans', JSON.stringify(this.db.lesson_plans || []));
 
                 this.updateFirestoreConnectionStatus(true);
                 this.updateStagingBadgeCount();
@@ -806,6 +814,7 @@ class AttendanceApp {
         localStorage.setItem('school_base_activity_logs', JSON.stringify(this.db.base_activity_logs || []));
         localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs || []));
         localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
+        localStorage.setItem('school_lesson_plans', JSON.stringify(this.db.lesson_plans || []));
 
         if (this.useFirestore) {
             try {
@@ -814,7 +823,7 @@ class AttendanceApp {
                 if (collectionsToSync) {
                     syncCols = collectionsToSync;
                 } else if (saveLogsToFirestore) {
-                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
+                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
                 }
 
                 if (syncCols.length > 0) {
@@ -1879,19 +1888,19 @@ class AttendanceApp {
             }
         } else if (this.currentUser.role === 'teacher') {
             // Teacher mode
-            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar'];
+            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar', 'lesson-planner'];
             if (!teacherViews.includes(viewId)) {
                 viewId = 'checkin';
             }
         } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
             // Director/Supervisor mode
-            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar'];
+            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar', 'lesson-planner'];
             if (!directorViews.includes(viewId)) {
                 viewId = 'admin';
             }
         } else if (this.currentUser.role === 'admin') {
             // Admin mode
-            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar'];
+            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar', 'lesson-planner'];
             if (!adminViews.includes(viewId)) {
                 viewId = 'manage';
             }
@@ -1916,6 +1925,8 @@ class AttendanceApp {
         // Trigger loading and rendering functions for the view
         if (viewId === 'subject-calendar') {
             this.renderSubjectCalendarTab();
+        } else if (viewId === 'lesson-planner') {
+            this.renderLessonPlanner();
         }
 
         // Update top title if element exists
@@ -1929,7 +1940,8 @@ class AttendanceApp {
                 reports: 'รายงานและการส่งออกข้อมูล',
                 manage: 'ระบบจัดการข้อมูล (Admin Console)',
                 'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)',
-                'subject-calendar': 'ระบบปฏิทินรายวิชา (Subject Calendar)'
+                'subject-calendar': 'ระบบปฏิทินรายวิชา (Subject Calendar)',
+                'lesson-planner': 'แผนการจัดกิจกรรมการเรียนรู้ (Lesson Planner)'
             };
             viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
         }
@@ -2295,6 +2307,7 @@ class AttendanceApp {
         const menuTeacherHistory = document.getElementById('menu-teacher-history');
         const menuAdmin = document.getElementById('menu-admin');
         const menuManage = document.getElementById('menu-manage');
+        const menuLessonPlanner = document.getElementById('menu-lesson-planner');
 
         if (this.currentUser) {
             if (nameLabel) nameLabel.textContent = this.currentUser.name;
@@ -2334,6 +2347,7 @@ class AttendanceApp {
                 if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
                 if (menuAdmin) menuAdmin.style.display = 'block';
                 if (menuManage) menuManage.style.display = 'block';
+                if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
             } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
                 if (roleLabel) roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเมิน";
                 if (menuDashboard) menuDashboard.style.display = 'block';
@@ -2347,6 +2361,7 @@ class AttendanceApp {
                 if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
                 if (menuAdmin) menuAdmin.style.display = 'block';
                 if (menuManage) menuManage.style.display = 'none';
+                if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
             } else {
                 // Teacher:
                 if (roleLabel) roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
@@ -2361,6 +2376,7 @@ class AttendanceApp {
                 if (menuTeacherHistory) menuTeacherHistory.style.display = 'block';
                 if (menuAdmin) menuAdmin.style.display = 'none';
                 if (menuManage) menuManage.style.display = 'none';
+                if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
             }
         } else {
             if (nameLabel) nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
@@ -2385,6 +2401,7 @@ class AttendanceApp {
             if (menuTeacherHistory) menuTeacherHistory.style.display = 'none';
             if (menuAdmin) menuAdmin.style.display = 'none';
             if (menuManage) menuManage.style.display = 'none';
+            if (menuLessonPlanner) menuLessonPlanner.style.display = 'none';
         }
 
         // Date simulator permission lock
@@ -2930,6 +2947,8 @@ class AttendanceApp {
             this.renderBases();
         } else if (this.currentView === 'search') {
             this.renderSearch();
+        } else if (this.currentView === 'lesson-planner') {
+            this.renderLessonPlanner();
         }
     }
 
@@ -10954,6 +10973,730 @@ generateDefaultRotationSchedule(customBases = null) {
         } catch (e) {
             console.error("Failed to save rotation schedule:", e);
             this.showStatusModal('error', 'บันทึกข้อมูลล้มเหลว', 'เกิดข้อผิดพลาดในการเชื่อมต่อคลาวด์: ' + e.message);
+        }
+    }
+
+    // --- Lesson Planner Module ---
+    renderLessonPlanner() {
+        const container = document.getElementById('view-lesson-planner');
+        if (!container) return;
+
+        // Initialize sub-view state
+        if (!this.lessonPlanSubView) {
+            this.lessonPlanSubView = 'list';
+        }
+        if (!this.lessonPlanFilters) {
+            this.lessonPlanFilters = {
+                baseId: '',
+                status: 'all',
+                searchQuery: ''
+            };
+        }
+
+        // Initialize DB array if somehow undefined
+        this.db.lesson_plans = this.db.lesson_plans || [];
+
+        if (this.lessonPlanSubView === 'list') {
+            this.renderLessonPlanList(container);
+        } else if (this.lessonPlanSubView === 'form') {
+            this.renderLessonPlanForm(container);
+        } else if (this.lessonPlanSubView === 'detail') {
+            this.renderLessonPlanDetail(container);
+        }
+    }
+
+    renderLessonPlanList(container) {
+        // Filter the lesson plans
+        const filteredPlans = (this.db.lesson_plans || []).filter(plan => {
+            // Base filter
+            if (this.lessonPlanFilters.baseId && plan.baseId !== this.lessonPlanFilters.baseId) {
+                return false;
+            }
+            // Status filter
+            if (this.lessonPlanFilters.status !== 'all' && plan.status !== this.lessonPlanFilters.status) {
+                return false;
+            }
+            // Search query filter (title, objectives, or creator)
+            if (this.lessonPlanFilters.searchQuery) {
+                const query = this.lessonPlanFilters.searchQuery.toLowerCase();
+                const titleMatch = (plan.title || '').toLowerCase().includes(query);
+                const objMatch = (plan.objectives || '').toLowerCase().includes(query);
+                const creatorMatch = (plan.creatorName || '').toLowerCase().includes(query);
+                if (!titleMatch && !objMatch && !creatorMatch) {
+                    return false;
+                }
+            }
+            return true;
+        });
+
+        // Generate base selection options
+        const baseOptions = (this.db.bases || []).map(base => 
+            `<option value="${base.id}" ${this.lessonPlanFilters.baseId === base.id ? 'selected' : ''}>${base.name}</option>`
+        ).join('');
+
+        // Count for status badges
+        const countAll = (this.db.lesson_plans || []).length;
+        const countApproved = (this.db.lesson_plans || []).filter(p => p.status === 'approved').length;
+        const countPending = (this.db.lesson_plans || []).filter(p => p.status === 'pending').length;
+        const countDraft = (this.db.lesson_plans || []).filter(p => p.status === 'draft').length;
+
+        container.innerHTML = `
+            <div class="lesson-planner-layout">
+                <!-- Sidebar filters -->
+                <div class="planner-sidebar card-sleek">
+                    <div class="sidebar-header">
+                        <h3><i class="fas fa-filter"></i> ค้นหาและกรองข้อมูล</h3>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="filter-plan-base"><i class="fas fa-university"></i> ฐานการเรียนรู้</label>
+                        <select id="filter-plan-base" class="form-control-sleek">
+                            <option value="">ทุกฐานการเรียนรู้</option>
+                            ${baseOptions}
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="filter-plan-search"><i class="fas fa-search"></i> คำค้นหา</label>
+                        <input type="text" id="filter-plan-search" class="form-control-sleek" placeholder="ชื่อแผน, วัตถุประสงค์..." value="${this.lessonPlanFilters.searchQuery}">
+                    </div>
+
+                    <div class="status-filters">
+                        <button class="status-filter-btn ${this.lessonPlanFilters.status === 'all' ? 'active' : ''}" data-status="all">
+                            <span>ทั้งหมด</span>
+                            <span class="count-badge">${countAll}</span>
+                        </button>
+                        <button class="status-filter-btn approved ${this.lessonPlanFilters.status === 'approved' ? 'active' : ''}" data-status="approved">
+                            <span>อนุมัติแล้ว</span>
+                            <span class="count-badge">${countApproved}</span>
+                        </button>
+                        <button class="status-filter-btn pending ${this.lessonPlanFilters.status === 'pending' ? 'active' : ''}" data-status="pending">
+                            <span>รออนุมัติ</span>
+                            <span class="count-badge">${countPending}</span>
+                        </button>
+                        <button class="status-filter-btn draft ${this.lessonPlanFilters.status === 'draft' ? 'active' : ''}" data-status="draft">
+                            <span>แบบร่าง</span>
+                            <span class="count-badge">${countDraft}</span>
+                        </button>
+                    </div>
+
+                    <div class="sidebar-actions">
+                        <button id="btn-create-plan" class="btn-primary-sleek w-100">
+                            <i class="fas fa-plus"></i> เขียนแผนใหม่
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Main plans grid -->
+                <div class="planner-main">
+                    <div class="planner-main-header">
+                        <h2>รายการแผนการจัดกิจกรรมการเรียนรู้</h2>
+                        <span class="text-muted">พบ ${filteredPlans.length} แผนการเรียนรู้</span>
+                    </div>
+
+                    ${filteredPlans.length === 0 ? `
+                        <div class="empty-state-card card-sleek">
+                            <i class="fas fa-folder-open empty-icon" style="font-size: 3rem; margin-bottom: 15px; color: var(--text-muted);"></i>
+                            <h3>ไม่พบแผนการจัดกิจกรรมการเรียนรู้</h3>
+                            <p>ไม่มีแผนการจัดกิจกรรมที่ตรงกับเงื่อนไขการค้นหาของคุณ ลองเปลี่ยนฟิลเตอร์หรือเริ่มเขียนแผนการจัดกิจกรรมใหม่</p>
+                        </div>
+                    ` : `
+                        <div class="plans-grid">
+                            ${filteredPlans.map(plan => {
+                                const base = this.db.bases.find(b => b.id === plan.baseId) || { name: 'ไม่ระบุฐาน' };
+                                let statusClass = 'draft';
+                                let statusText = 'แบบร่าง';
+                                if (plan.status === 'approved') {
+                                    statusClass = 'approved';
+                                    statusText = 'อนุมัติแล้ว';
+                                } else if (plan.status === 'pending') {
+                                    statusClass = 'pending';
+                                    statusText = 'รออนุมัติ';
+                                }
+
+                                const dateStr = plan.updatedAt ? new Date(plan.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : 'ไม่ระบุวันที่';
+                                
+                                // Can edit if admin, or creator
+                                const canEdit = this.currentUser.role === 'admin' || this.currentUser.username === plan.creator;
+                                
+                                return `
+                                    <div class="plan-card card-sleek animate-fade-in" data-id="${plan.id}">
+                                        <div>
+                                            <div class="plan-card-header">
+                                                <span class="badge-base">${base.name}</span>
+                                                <span class="badge-status ${statusClass}">${statusText}</span>
+                                            </div>
+                                            <div class="plan-card-body">
+                                                <h3 class="plan-title">${plan.title}</h3>
+                                                <div class="plan-meta">
+                                                    <span><i class="fas fa-user-circle"></i> โดย: ${plan.creatorName || plan.creator}</span>
+                                                    <span><i class="fas fa-graduation-cap"></i> ระดับ: ${plan.level || 'ไม่ระบุ'}</span>
+                                                    <span><i class="fas fa-clock"></i> แก้ไขล่าสุด: ${dateStr}</span>
+                                                </div>
+                                                <p class="plan-objectives-preview">
+                                                    <strong>วัตถุประสงค์:</strong> ${plan.objectives ? (plan.objectives.length > 120 ? plan.objectives.substring(0, 120) + '...' : plan.objectives) : '-'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="plan-card-actions">
+                                            <button class="btn-detail btn-action-secondary" data-id="${plan.id}">
+                                                <i class="fas fa-eye"></i> ดูรายละเอียด
+                                            </button>
+                                            ${canEdit ? `
+                                                <button class="btn-edit btn-action-warning" data-id="${plan.id}">
+                                                    <i class="fas fa-edit"></i> แก้ไข
+                                                </button>
+                                                <button class="btn-delete btn-action-danger" data-id="${plan.id}">
+                                                    <i class="fas fa-trash"></i> ลบ
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        // Bind events
+        const baseSelect = container.querySelector('#filter-plan-base');
+        if (baseSelect) {
+            baseSelect.addEventListener('change', (e) => {
+                this.lessonPlanFilters.baseId = e.target.value;
+                this.renderLessonPlanner();
+            });
+        }
+
+        const searchInput = container.querySelector('#filter-plan-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.lessonPlanFilters.searchQuery = e.target.value;
+                this.renderLessonPlanner();
+            });
+        }
+
+        const statusBtns = container.querySelectorAll('.status-filter-btn');
+        statusBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.lessonPlanFilters.status = btn.getAttribute('data-status');
+                this.renderLessonPlanner();
+            });
+        });
+
+        const btnCreate = container.querySelector('#btn-create-plan');
+        if (btnCreate) {
+            btnCreate.addEventListener('click', () => {
+                this.currentLessonPlan = null; // New plan
+                this.lessonPlanSubView = 'form';
+                this.renderLessonPlanner();
+            });
+        }
+
+        // Plan action buttons
+        container.querySelectorAll('.btn-detail').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const planId = btn.getAttribute('data-id');
+                this.currentLessonPlan = this.db.lesson_plans.find(p => p.id === planId);
+                this.lessonPlanSubView = 'detail';
+                this.renderLessonPlanner();
+            });
+        });
+
+        container.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const planId = btn.getAttribute('data-id');
+                this.currentLessonPlan = this.db.lesson_plans.find(p => p.id === planId);
+                this.lessonPlanSubView = 'form';
+                this.renderLessonPlanner();
+            });
+        });
+
+        container.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const planId = btn.getAttribute('data-id');
+                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแผนการเรียนรู้นี้?')) {
+                    this.db.lesson_plans = this.db.lesson_plans.filter(p => p.id !== planId);
+                    await this.saveDatabase(false, ['lesson_plans']);
+                    this.renderLessonPlanner();
+                }
+            });
+        });
+    }
+
+    renderLessonPlanForm(container) {
+        const plan = this.currentLessonPlan || {
+            title: '',
+            baseId: '',
+            level: '',
+            objectives: '',
+            moderation: '',
+            reasonableness: '',
+            immunity: '',
+            knowledge: '',
+            virtue: '',
+            dimObject: '',
+            dimSocial: '',
+            dimEnvironment: '',
+            dimCulture: '',
+            activities: '',
+            evaluation: ''
+        };
+
+        const isNew = !this.currentLessonPlan;
+
+        const baseOptions = (this.db.bases || []).map(base => 
+            `<option value="${base.id}" ${plan.baseId === base.id ? 'selected' : ''}>${base.name}</option>`
+        ).join('');
+
+        container.innerHTML = `
+            <div class="lesson-plan-form-container animate-fade-in">
+                <div class="form-header card-sleek">
+                    <h2><i class="fas fa-file-signature"></i> ${isNew ? 'เขียนแผนการจัดกิจกรรมใหม่' : 'แก้ไขแผนการจัดกิจกรรม'}</h2>
+                    <p>กรอกข้อมูลรายละเอียดแผนการเรียนรู้บูรณาการตามหลักปรัชญาของเศรษฐกิจพอเพียง</p>
+                </div>
+
+                <form id="lesson-plan-form" class="mt-4">
+                    <!-- General details -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-info-circle"></i> ข้อมูลทั่วไป</h3>
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label for="plan-title">หัวข้อแผนการเรียนรู้ <span class="text-danger">*</span></label>
+                                <input type="text" id="plan-title" class="form-control-sleek" required value="${plan.title || ''}" placeholder="เช่น ปลูกผักไฮโดรโปนิกส์พิชิตพอเพียง">
+                            </div>
+                            <div class="col-md-3 form-group">
+                                <label for="plan-base">ฐานการเรียนรู้ <span class="text-danger">*</span></label>
+                                <select id="plan-base" class="form-control-sleek" required>
+                                    <option value="">เลือกฐานการเรียนรู้</option>
+                                    ${baseOptions}
+                                </select>
+                            </div>
+                            <div class="col-md-3 form-group">
+                                <label for="plan-level">ระดับชั้น <span class="text-danger">*</span></label>
+                                <input type="text" id="plan-level" class="form-control-sleek" required value="${plan.level || ''}" placeholder="เช่น ม.1 - ม.3">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-objectives">วัตถุประสงค์การเรียนรู้ <span class="text-danger">*</span></label>
+                            <textarea id="plan-objectives" class="form-control-sleek" rows="3" required placeholder="เขียนวัตถุประสงค์ข้อ 1, 2, 3...">${plan.objectives || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- 3 ห่วง (Three Pillars) -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-circle-notch"></i> หลักพอประมาณ มีเหตุผล มีภูมิคุ้มกันที่ดี (3 ห่วง)</h3>
+                        <div class="row">
+                            <div class="col-md-4 form-group">
+                                <label for="plan-moderation" class="d-flex align-items-center">
+                                    <span class="circle-num">1</span> ความพอประมาณ
+                                </label>
+                                <textarea id="plan-moderation" class="form-control-sleek" rows="4" placeholder="เช่น การใช้อุปกรณ์และวัสดุอย่างเหมาะสมตามกำลัง, การแบ่งเวลาจัดกิจกรรมอย่างพอเหมาะ">${plan.moderation || ''}</textarea>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="plan-reasonableness" class="d-flex align-items-center">
+                                    <span class="circle-num">2</span> ความมีเหตุผล
+                                </label>
+                                <textarea id="plan-reasonableness" class="form-control-sleek" rows="4" placeholder="เช่น เพื่อสร้างทักษะอาชีพและเข้าใจกระบวนการทำงานจริง, มีการอภิปรายแก้ปัญหาร่วมกันอย่างสมเหตุสมผล">${plan.reasonableness || ''}</textarea>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="plan-immunity" class="d-flex align-items-center">
+                                    <span class="circle-num">3</span> การมีภูมิคุ้มกันที่ดี
+                                </label>
+                                <textarea id="plan-immunity" class="form-control-sleek" rows="4" placeholder="เช่น การเตรียมอุปกรณ์สำรอง, มีการสอนความปลอดภัยและวิธีรับมือข้อผิดพลาดระหว่างปฏิบัติงาน">${plan.immunity || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2 เงื่อนไข (Two Conditions) -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-key"></i> เงื่อนไขความรู้และเงื่อนไขคุณธรรม (2 เงื่อนไข)</h3>
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label for="plan-knowledge"><i class="fas fa-book-reader"></i> เงื่อนไขความรู้</label>
+                                <textarea id="plan-knowledge" class="form-control-sleek" rows="4" placeholder="ความรู้ที่จำเป็น เช่น ขั้นตอนการเตรียมวัสดุ, หลักการเพาะเลี้ยงและการดูแล">${plan.knowledge || ''}</textarea>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label for="plan-virtue"><i class="fas fa-hands-helping"></i> เงื่อนไขคุณธรรม</label>
+                                <textarea id="plan-virtue" class="form-control-sleek" rows="4" placeholder="คุณธรรมที่ต้องการเน้นย้ำ เช่น ความรับผิดชอบ, ความซื่อสัตย์, ความขยันอดทน, ความสามัคคี">${plan.virtue || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4 มิติ (Four Dimensions) -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-globe"></i> ผลกระทบเพื่อความสมดุลและพร้อมรับความเปลี่ยนแปลง (4 มิติ)</h3>
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label for="plan-dim-object"><i class="fas fa-boxes"></i> มิติด้านวัตถุ / เศรษฐกิจ</label>
+                                <textarea id="plan-dim-object" class="form-control-sleek" rows="3" placeholder="เช่น การบริหารงบประมาณอย่างคุ้มค่า, ลดค่าใช้จ่าย, การใช้ทรัพยากรให้เกิดประโยชน์สูงสุด">${plan.dimObject || ''}</textarea>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label for="plan-dim-social"><i class="fas fa-users"></i> มิติด้านสังคม</label>
+                                <textarea id="plan-dim-social" class="form-control-sleek" rows="3" placeholder="เช่น การแลกเปลี่ยนเรียนรู้ระหว่างกลุ่ม, ส่งเสริมการทำงานเป็นทีมและช่วยเหลือเกื้อกูล">${plan.dimSocial || ''}</textarea>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-6 form-group">
+                                <label for="plan-dim-environment"><i class="fas fa-leaf"></i> มิติด้านสิ่งแวดล้อม</label>
+                                <textarea id="plan-dim-environment" class="form-control-sleek" rows="3" placeholder="เช่น การคัดแยกขยะที่เกิดขึ้น, การประหยัดพลังงานและน้ำ, การใช้วัสดุเป็นมิตรต่อธรรมชาติ">${plan.dimEnvironment || ''}</textarea>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label for="plan-dim-culture"><i class="fas fa-synagogue"></i> มิติด้านวัฒนธรรม</label>
+                                <textarea id="plan-dim-culture" class="form-control-sleek" rows="3" placeholder="เช่น ส่งเสริมคุณค่าความพอเพียงให้เป็นนิสัย, การสืบสานภูมิปัญญาท้องถิ่นและการอนุรักษ์มารยาทไทย">${plan.dimCulture || ''}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activities & Evaluation -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-running"></i> กิจกรรมและการประเมินผล</h3>
+                        <div class="form-group">
+                            <label for="plan-activities">กระบวนการจัดกิจกรรมการเรียนรู้ <span class="text-danger">*</span></label>
+                            <textarea id="plan-activities" class="form-control-sleek" rows="5" required placeholder="ระบุขั้นตอนการจัดกิจกรรม เช่น ขั้นนำ, ขั้นสอน/ปฏิบัติ, ขั้นสรุป">${plan.activities || ''}</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="plan-evaluation">การวัดและประเมินผล <span class="text-danger">*</span></label>
+                            <textarea id="plan-evaluation" class="form-control-sleek" rows="3" required placeholder="เช่น การสังเกตพฤติกรรม, แบบประเมินการปฏิบัติงาน, การนำเสนอผลงาน">${plan.evaluation || ''}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="form-actions-bar">
+                        <button type="button" id="btn-cancel-form" class="btn-secondary-sleek">
+                            <i class="fas fa-times"></i> ยกเลิก
+                        </button>
+                        <button type="button" id="btn-save-draft" class="btn-warning-sleek">
+                            <i class="fas fa-save"></i> บันทึกแบบร่าง
+                        </button>
+                        <button type="submit" id="btn-submit-review" class="btn-success-sleek">
+                            <i class="fas fa-paper-plane"></i> ส่งขออนุมัติแผน
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        const form = container.querySelector('#lesson-plan-form');
+        const btnCancel = container.querySelector('#btn-cancel-form');
+        const btnSaveDraft = container.querySelector('#btn-save-draft');
+
+        const handleSave = async (status) => {
+            const title = form.querySelector('#plan-title').value.trim();
+            const baseId = form.querySelector('#plan-base').value;
+            const level = form.querySelector('#plan-level').value.trim();
+            const objectives = form.querySelector('#plan-objectives').value.trim();
+            const activities = form.querySelector('#plan-activities').value.trim();
+            const evaluation = form.querySelector('#plan-evaluation').value.trim();
+
+            if (!title || !baseId || !level || !objectives || !activities || !evaluation) {
+                alert('กรุณากรอกฟิลด์ที่จำเป็น (*) ให้ครบถ้วน!');
+                return false;
+            }
+
+            const planData = {
+                id: isNew ? 'lp_' + Date.now() : plan.id,
+                title,
+                baseId,
+                level,
+                objectives,
+                moderation: form.querySelector('#plan-moderation').value.trim(),
+                reasonableness: form.querySelector('#plan-reasonableness').value.trim(),
+                immunity: form.querySelector('#plan-immunity').value.trim(),
+                knowledge: form.querySelector('#plan-knowledge').value.trim(),
+                virtue: form.querySelector('#plan-virtue').value.trim(),
+                dimObject: form.querySelector('#plan-dim-object').value.trim(),
+                dimSocial: form.querySelector('#plan-dim-social').value.trim(),
+                dimEnvironment: form.querySelector('#plan-dim-environment').value.trim(),
+                dimCulture: form.querySelector('#plan-dim-culture').value.trim(),
+                activities,
+                evaluation,
+                status,
+                creator: isNew ? this.currentUser.username : plan.creator,
+                creatorName: isNew ? this.currentUser.name : plan.creatorName,
+                createdAt: isNew ? new Date().toISOString() : plan.createdAt,
+                updatedAt: new Date().toISOString(),
+                comments: plan.comments || []
+            };
+
+            if (isNew) {
+                this.db.lesson_plans.push(planData);
+            } else {
+                const idx = this.db.lesson_plans.findIndex(p => p.id === plan.id);
+                if (idx !== -1) {
+                    this.db.lesson_plans[idx] = planData;
+                }
+            }
+
+            await this.saveDatabase(false, ['lesson_plans']);
+            this.lessonPlanSubView = 'list';
+            this.renderLessonPlanner();
+            return true;
+        };
+
+        btnCancel.addEventListener('click', () => {
+            this.lessonPlanSubView = 'list';
+            this.renderLessonPlanner();
+        });
+
+        btnSaveDraft.addEventListener('click', () => {
+            handleSave('draft');
+        });
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            handleSave('pending');
+        });
+    }
+
+    renderLessonPlanDetail(container) {
+        const plan = this.currentLessonPlan;
+        if (!plan) {
+            this.lessonPlanSubView = 'list';
+            this.renderLessonPlanner();
+            return;
+        }
+
+        const base = this.db.bases.find(b => b.id === plan.baseId) || { name: 'ไม่ระบุฐาน' };
+        let statusClass = 'draft';
+        let statusText = 'แบบร่าง';
+        if (plan.status === 'approved') {
+            statusClass = 'approved';
+            statusText = 'อนุมัติแล้ว';
+        } else if (plan.status === 'pending') {
+            statusClass = 'pending';
+            statusText = 'รออนุมัติ';
+        }
+
+        const dateStr = plan.updatedAt ? new Date(plan.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ระบุ';
+        const createdDateStr = plan.createdAt ? new Date(plan.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ระบุ';
+
+        // Can approve if user is director, supervisor, or admin
+        const canApprove = ['director', 'supervisor', 'admin'].includes(this.currentUser.role);
+
+        container.innerHTML = `
+            <div class="lesson-plan-detail-container animate-fade-in">
+                <!-- Header Card -->
+                <div class="detail-header card-sleek mb-4">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <div>
+                            <span class="badge-base large mb-2" style="display: inline-block;">${base.name}</span>
+                            <h2 class="detail-title">${plan.title}</h2>
+                            <div class="plan-detail-meta mt-2">
+                                <span><i class="fas fa-user-circle"></i> โดย: <strong>${plan.creatorName || plan.creator}</strong></span>
+                                <span><i class="fas fa-graduation-cap"></i> ระดับชั้น: <strong>${plan.level || 'ไม่ระบุ'}</strong></span>
+                                <span><i class="fas fa-calendar-alt"></i> สร้างเมื่อ: ${createdDateStr}</span>
+                                <span><i class="fas fa-clock"></i> อัปเดตล่าสุด: ${dateStr}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="badge-status large ${statusClass}">${statusText}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2-Column / Multi-section Layout -->
+                <div class="row">
+                    <div class="col-lg-8">
+                        <!-- Objectives -->
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-bullseye"></i> วัตถุประสงค์การเรียนรู้</h3>
+                            <p class="pre-wrap">${plan.objectives || '-'}</p>
+                        </div>
+
+                        <!-- 3 ห่วง (Three Pillars) -->
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-circle-notch"></i> การบูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง (3 ห่วง)</h3>
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <div class="pillar-box moderation">
+                                        <h4>ความพอประมาณ</h4>
+                                        <p class="pre-wrap text-sm">${plan.moderation || '-'}</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="pillar-box reasonableness">
+                                        <h4>ความมีเหตุผล</h4>
+                                        <p class="pre-wrap text-sm">${plan.reasonableness || '-'}</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <div class="pillar-box immunity">
+                                        <h4>การมีภูมิคุ้มกันที่ดี</h4>
+                                        <p class="pre-wrap text-sm">${plan.immunity || '-'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2 เงื่อนไข (Two Conditions) -->
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-key"></i> เงื่อนไขความรู้และคุณธรรม (2 เงื่อนไข)</h3>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="condition-box knowledge">
+                                        <h4><i class="fas fa-book-reader"></i> เงื่อนไขความรู้</h4>
+                                        <p class="pre-wrap text-sm">${plan.knowledge || '-'}</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="condition-box virtue">
+                                        <h4><i class="fas fa-hands-helping"></i> เงื่อนไขคุณธรรม</h4>
+                                        <p class="pre-wrap text-sm">${plan.virtue || '-'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4 มิติ (Four Dimensions) -->
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-globe"></i> ผลลัพธ์เพื่อความสมดุลและพร้อมรับความเปลี่ยนแปลง (4 มิติ)</h3>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="dim-box object">
+                                        <h5>มิติด้านวัตถุ / เศรษฐกิจ</h5>
+                                        <p class="pre-wrap text-xs">${plan.dimObject || '-'}</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="dim-box social">
+                                        <h5>มิติด้านสังคม</h5>
+                                        <p class="pre-wrap text-xs">${plan.dimSocial || '-'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="dim-box environment">
+                                        <h5>มิติด้านสิ่งแวดล้อม</h5>
+                                        <p class="pre-wrap text-xs">${plan.dimEnvironment || '-'}</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="dim-box culture">
+                                        <h5>มิติด้านวัฒนธรรม</h5>
+                                        <p class="pre-wrap text-xs">${plan.dimCulture || '-'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Activities & Evaluation -->
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-running"></i> กระบวนการจัดกิจกรรมการเรียนรู้</h3>
+                            <p class="pre-wrap">${plan.activities || '-'}</p>
+                        </div>
+
+                        <div class="card-sleek mb-4">
+                            <h3 class="section-title-sleek"><i class="fas fa-check-circle"></i> การวัดและประเมินผล</h3>
+                            <p class="pre-wrap">${plan.evaluation || '-'}</p>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <!-- Comment / Approval Section -->
+                        <div class="card-sleek mb-4 sticky-sidebar">
+                            <h3 class="section-title-sleek"><i class="fas fa-comments"></i> ความเห็นและสถานะการอนุมัติ</h3>
+                            
+                            <!-- Comment feed -->
+                            <div class="comments-feed">
+                                ${(!plan.comments || plan.comments.length === 0) ? `
+                                    <p class="text-muted text-center py-3">ยังไม่มีความคิดเห็นหรือข้อเสนอแนะ</p>
+                                ` : plan.comments.map(c => {
+                                    const cDate = new Date(c.timestamp).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                                    return `
+                                        <div class="comment-item">
+                                            <div class="comment-meta">
+                                                <strong>${c.userName}</strong> 
+                                                <span class="role-tag">${c.userRole === 'director' ? 'ผู้บริหาร' : c.userRole === 'supervisor' ? 'ศึกษานิเทศก์' : 'ผู้ดูแล'}</span>
+                                            </div>
+                                            <p class="comment-text">${c.text}</p>
+                                            <span class="comment-time">${cDate}</span>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+
+                            ${canApprove ? `
+                                <div class="approval-form mt-4 pt-3 border-top">
+                                    <label for="approval-comment" class="mb-2 d-block">เขียนความคิดเห็น / ข้อเสนอแนะ</label>
+                                    <textarea id="approval-comment" class="form-control-sleek" rows="3" placeholder="ระบุความเห็นหรือคำแนะนำเพื่อพัฒนา..."></textarea>
+                                    
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button id="btn-reject-plan" class="btn-danger-sleek flex-1">
+                                            <i class="fas fa-undo"></i> ส่งกลับแก้ไข
+                                        </button>
+                                        <button id="btn-approve-plan" class="btn-success-sleek flex-1">
+                                            <i class="fas fa-check"></i> อนุมัติแผน
+                                        </button>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Back button -->
+                <div class="form-actions-bar justify-content-start mt-4">
+                    <button id="btn-back-to-list" class="btn-secondary-sleek">
+                        <i class="fas fa-arrow-left"></i> ย้อนกลับรายการ
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Back to list
+        container.querySelector('#btn-back-to-list').addEventListener('click', () => {
+            this.lessonPlanSubView = 'list';
+            this.renderLessonPlanner();
+        });
+
+        // Bind Approval / Rejection
+        if (canApprove) {
+            const commentTextarea = container.querySelector('#approval-comment');
+            
+            const submitApproval = async (newStatus) => {
+                const commentText = commentTextarea.value.trim();
+                
+                // Add comment if text exists
+                if (commentText) {
+                    plan.comments = plan.comments || [];
+                    plan.comments.push({
+                        id: 'c_' + Date.now(),
+                        userId: this.currentUser.username,
+                        userName: this.currentUser.name,
+                        userRole: this.currentUser.role,
+                        text: commentText,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                plan.status = newStatus;
+                plan.updatedAt = new Date().toISOString();
+
+                // Save
+                const idx = this.db.lesson_plans.findIndex(p => p.id === plan.id);
+                if (idx !== -1) {
+                    this.db.lesson_plans[idx] = plan;
+                }
+
+                await this.saveDatabase(false, ['lesson_plans']);
+                this.lessonPlanSubView = 'detail'; // Refresh detail view
+                this.renderLessonPlanner();
+                
+                alert(newStatus === 'approved' ? 'อนุมัติแผนการสอนเสร็จสิ้น!' : 'ส่งกลับให้ครูแก้ไขแผนเรียบร้อยแล้ว!');
+            };
+
+            container.querySelector('#btn-approve-plan').addEventListener('click', () => {
+                submitApproval('approved');
+            });
+
+            container.querySelector('#btn-reject-plan').addEventListener('click', () => {
+                if (confirm('ยืนยันส่งกลับเพื่อให้ครูแก้ไขแผนนี้หรือไม่?')) {
+                    submitApproval('draft');
+                }
+            });
         }
     }
 
