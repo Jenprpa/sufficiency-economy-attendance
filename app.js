@@ -100,6 +100,13 @@ class AttendanceApp {
             }
         } catch (e) {
             console.error("Initialization error:", e);
+            const loadingScreen = document.getElementById('app-loading-screen');
+            if (loadingScreen) {
+                loadingScreen.classList.add('fade-out');
+                setTimeout(() => {
+                    loadingScreen.remove();
+                }, 500);
+            }
         }
     }
 
@@ -2993,7 +3000,7 @@ class AttendanceApp {
         const todayDate = this.systemDate;
 
         // Get schedule rows for current week
-        const todaySchedule = this.db.rotation_schedule.filter(s => s.week === week);
+        const todaySchedule = (this.db.rotation_schedule || []).filter(s => s.week === week);
         
         // Calculate counts
         let checkedCount = 0;
@@ -3006,13 +3013,13 @@ class AttendanceApp {
         todaySchedule.forEach(sch => {
             let groupStudents = [];
             if (!sch.isSpecial && !sch.isEmpty) {
-                groupStudents = this.db.students.filter(st => sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${st.room}`));
+                groupStudents = (this.db.students || []).filter(st => sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${st.room}`));
                 totalStudentsCount += groupStudents.length;
                 activeBasesCount++;
             }
 
             // Check if checked in today
-            const baseLogs = this.db.attendance_logs.filter(
+            const baseLogs = (this.db.attendance_logs || []).filter(
                 log => log.date === todayDate && log.baseId === sch.baseId
             );
             
@@ -3029,7 +3036,7 @@ class AttendanceApp {
 
         // Update stats card UI
         const totalStudEl = document.getElementById('dash-total-students');
-        const realStudentCount = this.db.students.length;
+        const realStudentCount = (this.db.students || []).length;
         const looksLikeDemoData = this.isDemoData || (realStudentCount === 1800);
         if (totalStudEl) {
             if (looksLikeDemoData && realStudentCount > 0) {
