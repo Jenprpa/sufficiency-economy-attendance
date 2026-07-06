@@ -11006,8 +11006,16 @@ generateDefaultRotationSchedule(customBases = null) {
     }
 
     renderLessonPlanList(container) {
+        // Filter visible plans based on user role: teacher sees only own plans, admin/director/supervisor sees all
+        const visiblePlans = (this.db.lesson_plans || []).filter(plan => {
+            if (this.currentUser && this.currentUser.role === 'teacher' && plan.creator !== this.currentUser.username) {
+                return false;
+            }
+            return true;
+        });
+
         // Filter the lesson plans
-        const filteredPlans = (this.db.lesson_plans || []).filter(plan => {
+        const filteredPlans = visiblePlans.filter(plan => {
             // Base filter
             if (this.lessonPlanFilters.baseId && plan.baseId !== this.lessonPlanFilters.baseId) {
                 return false;
@@ -11035,10 +11043,10 @@ generateDefaultRotationSchedule(customBases = null) {
         ).join('');
 
         // Count for status badges
-        const countAll = (this.db.lesson_plans || []).length;
-        const countApproved = (this.db.lesson_plans || []).filter(p => p.status === 'approved').length;
-        const countPending = (this.db.lesson_plans || []).filter(p => p.status === 'pending').length;
-        const countDraft = (this.db.lesson_plans || []).filter(p => p.status === 'draft').length;
+        const countAll = visiblePlans.length;
+        const countApproved = visiblePlans.filter(p => p.status === 'approved').length;
+        const countPending = visiblePlans.filter(p => p.status === 'pending').length;
+        const countDraft = visiblePlans.filter(p => p.status === 'draft').length;
 
         container.innerHTML = `
             <div class="lesson-planner-layout">
