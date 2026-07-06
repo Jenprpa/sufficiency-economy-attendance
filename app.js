@@ -1,4 +1,4 @@
-// Pai Wittyakarn School Student Attendance App - Core Engine
+// Pai Wittyakarn School Student Attendance App - Core Engine - V2.0.1
 
 class AttendanceApp {
     constructor() {

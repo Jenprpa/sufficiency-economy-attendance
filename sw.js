@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sufficiency-economy-attendance-v3';
+const CACHE_NAME = 'sufficiency-economy-attendance-v4';
 const ASSETS = [
   './',
   './index.html',
