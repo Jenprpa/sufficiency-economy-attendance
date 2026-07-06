@@ -2569,4 +2569,136 @@ tr:hover td {
     gap: 8px;
 }
 
+/* Sufficiency Activity Planner 2-3-4-3-4 Framework styles */
+.framework-section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-top: 10px;
+    margin-bottom: 15px;
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.framework-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.framework-card {
+    background: var(--bg-card);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-top: 4px solid var(--card-accent, #6c757d);
+}
+
+.framework-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.framework-card.conditions {
+    --card-accent: #6f42c1; /* Purple */
+}
+
+.framework-card.principles {
+    --card-accent: #ffc107; /* Gold/Yellow */
+}
+
+.framework-card.dimensions {
+    --card-accent: #20c997; /* Teal */
+}
+
+.framework-card.sciences {
+    --card-accent: #007bff; /* Blue */
+}
+
+.framework-card.royal-policies {
+    --card-accent: #fd7e14; /* Orange */
+}
+
+.framework-card h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--card-accent, var(--text-color));
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    padding-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.framework-checkbox-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.88rem;
+    color: var(--text-color);
+    cursor: pointer;
+    padding: 2px 0;
+    line-height: 1.4;
+    transition: opacity 0.2s ease;
+}
+
+.framework-checkbox-item:hover {
+    opacity: 0.85;
+}
+
+.framework-checkbox-item input[type="checkbox"] {
+    margin-top: 3px;
+    cursor: pointer;
+}
+
+.badge-framework {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 30px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-right: 6px;
+    margin-bottom: 8px;
+    line-height: 1.2;
+}
+
+.badge-framework.condition {
+    background: rgba(111, 66, 193, 0.1);
+    color: #6f42c1;
+    border: 1px solid rgba(111, 66, 193, 0.15);
+}
+
+.badge-framework.principle {
+    background: rgba(255, 193, 7, 0.15);
+    color: #b58100;
+    border: 1px solid rgba(255, 193, 7, 0.2);
+}
+
+.badge-framework.dimension {
+    background: rgba(32, 201, 151, 0.1);
+    color: #20c997;
+    border: 1px solid rgba(32, 201, 151, 0.15);
+}
+
+.badge-framework.science {
+    background: rgba(0, 123, 255, 0.1);
+    color: #007bff;
+    border: 1px solid rgba(0, 123, 255, 0.15);
+}
+
+.badge-framework.policy {
+    background: rgba(253, 126, 20, 0.1);
+    color: #fd7e14;
+    border: 1px solid rgba(253, 126, 20, 0.15);
+}
+
+
 

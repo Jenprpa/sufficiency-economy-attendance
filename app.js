@@ -1941,7 +1941,7 @@ class AttendanceApp {
                 manage: 'ระบบจัดการข้อมูล (Admin Console)',
                 'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)',
                 'subject-calendar': 'ระบบปฏิทินรายวิชา (Subject Calendar)',
-                'lesson-planner': 'แผนการจัดกิจกรรมการเรียนรู้ (Lesson Planner)'
+                'lesson-planner': 'แผนกิจกรรมพอเพียง (Sufficiency Activity Planner)'
             };
             viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
         }
@@ -11098,15 +11098,15 @@ generateDefaultRotationSchedule(customBases = null) {
                 <!-- Main plans grid -->
                 <div class="planner-main">
                     <div class="planner-main-header">
-                        <h2>รายการแผนการจัดกิจกรรมการเรียนรู้</h2>
-                        <span class="text-muted">พบ ${filteredPlans.length} แผนการเรียนรู้</span>
+                        <h2>รายการแผนกิจกรรมพอเพียง</h2>
+                        <span class="text-muted">พบ ${filteredPlans.length} แผนกิจกรรม</span>
                     </div>
 
                     ${filteredPlans.length === 0 ? `
                         <div class="empty-state-card card-sleek">
                             <i class="fas fa-folder-open empty-icon" style="font-size: 3rem; margin-bottom: 15px; color: var(--text-muted);"></i>
-                            <h3>ไม่พบแผนการจัดกิจกรรมการเรียนรู้</h3>
-                            <p>ไม่มีแผนการจัดกิจกรรมที่ตรงกับเงื่อนไขการค้นหาของคุณ ลองเปลี่ยนฟิลเตอร์หรือเริ่มเขียนแผนการจัดกิจกรรมใหม่</p>
+                            <h3>ไม่พบแผนกิจกรรมพอเพียง</h3>
+                            <p>ไม่มีแผนกิจกรรมพอเพียงที่ตรงกับเงื่อนไขการค้นหาของคุณ ลองเปลี่ยนฟิลเตอร์หรือเริ่มเขียนแผนกิจกรรมพอเพียงใหม่</p>
                         </div>
                     ` : `
                         <div class="plans-grid">
@@ -11224,7 +11224,7 @@ generateDefaultRotationSchedule(customBases = null) {
         container.querySelectorAll('.btn-delete').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const planId = btn.getAttribute('data-id');
-                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแผนการเรียนรู้นี้?')) {
+                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแผนกิจกรรมพอเพียงนี้?')) {
                     this.db.lesson_plans = this.db.lesson_plans.filter(p => p.id !== planId);
                     await this.saveDatabase(false, ['lesson_plans']);
                     this.renderLessonPlanner();
@@ -11252,6 +11252,15 @@ generateDefaultRotationSchedule(customBases = null) {
             evaluation: ''
         };
 
+        // Auto-initialize framework object
+        plan.framework = plan.framework || {
+            conditions: [],
+            principles: [],
+            dimensions: [],
+            sciences: [],
+            royalPolicies: []
+        };
+
         const isNew = !this.currentLessonPlan;
 
         const baseOptions = (this.db.bases || []).map(base => 
@@ -11261,8 +11270,8 @@ generateDefaultRotationSchedule(customBases = null) {
         container.innerHTML = `
             <div class="lesson-plan-form-container animate-fade-in">
                 <div class="form-header card-sleek">
-                    <h2><i class="fas fa-file-signature"></i> ${isNew ? 'เขียนแผนการจัดกิจกรรมใหม่' : 'แก้ไขแผนการจัดกิจกรรม'}</h2>
-                    <p>กรอกข้อมูลรายละเอียดแผนการเรียนรู้บูรณาการตามหลักปรัชญาของเศรษฐกิจพอเพียง</p>
+                    <h2><i class="fas fa-file-signature"></i> ${isNew ? 'เขียนแผนกิจกรรมพอเพียงใหม่' : 'แก้ไขแผนกิจกรรมพอเพียง'}</h2>
+                    <p>กรอกข้อมูลรายละเอียดแผนกิจกรรมพอเพียงบูรณาการตามหลักปรัชญาของเศรษฐกิจพอเพียง</p>
                 </div>
 
                 <form id="lesson-plan-form" class="mt-4">
@@ -11271,7 +11280,7 @@ generateDefaultRotationSchedule(customBases = null) {
                         <h3 class="section-title-sleek"><i class="fas fa-info-circle"></i> ข้อมูลทั่วไป</h3>
                         <div class="row">
                             <div class="col-md-6 form-group">
-                                <label for="plan-title">หัวข้อแผนการเรียนรู้ <span class="text-danger">*</span></label>
+                                <label for="plan-title">หัวข้อแผนกิจกรรมพอเพียง <span class="text-danger">*</span></label>
                                 <input type="text" id="plan-title" class="form-control-sleek" required value="${plan.title || ''}" placeholder="เช่น ปลูกผักไฮโดรโปนิกส์พิชิตพอเพียง">
                             </div>
                             <div class="col-md-3 form-group">
@@ -11357,6 +11366,101 @@ generateDefaultRotationSchedule(customBases = null) {
                         </div>
                     </div>
 
+                    <!-- กรอบแนวคิดเศรษฐกิจพอเพียง 2-3-4-3-4 (Framework Checkboxes) -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="framework-section-title"><i class="fas fa-cubes"></i> การวิเคราะห์ความสอดคล้องตามกรอบแนวคิด (Framework 2-3-4-3-4)</h3>
+                        <div class="framework-grid">
+                            <!-- เงื่อนไข 2 -->
+                            <div class="framework-card conditions">
+                                <h4><i class="fas fa-key"></i> เงื่อนไข 2</h4>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-conditions" value="Knowledge" ${plan.framework.conditions.includes('Knowledge') ? 'checked' : ''}>
+                                    <span>เงื่อนไขความรู้ (ความรู้รอบตัว, รอบคอบ, ระมัดระวัง)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-conditions" value="Morality" ${plan.framework.conditions.includes('Morality') ? 'checked' : ''}>
+                                    <span>เงื่อนไขคุณธรรม (ซื่อสัตย์สุจริต, อดทน, เพียร, มีสติปัญญา)</span>
+                                </label>
+                            </div>
+
+                            <!-- หลักการ 3 -->
+                            <div class="framework-card principles">
+                                <h4><i class="fas fa-circle-notch"></i> หลักการ 3</h4>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-principles" value="Moderation" ${plan.framework.principles.includes('Moderation') ? 'checked' : ''}>
+                                    <span>ความพอประมาณ (ความพอดีที่ไม่น้อยเกินไปและไม่มากเกินไป)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-principles" value="Reasonableness" ${plan.framework.principles.includes('Reasonableness') ? 'checked' : ''}>
+                                    <span>ความมีเหตุผล (การตัดสินใจอย่างมีเหตุผลตามหลักวิชาการ)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-principles" value="Self-Immunity" ${plan.framework.principles.includes('Self-Immunity') ? 'checked' : ''}>
+                                    <span>การมีภูมิคุ้มกันที่ดี (การเตรียมตัวพร้อมรับผลกระทบ)</span>
+                                </label>
+                            </div>
+
+                            <!-- มิติ 4 -->
+                            <div class="framework-card dimensions">
+                                <h4><i class="fas fa-globe"></i> มิติ 4</h4>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-dimensions" value="Economic" ${plan.framework.dimensions.includes('Economic') ? 'checked' : ''}>
+                                    <span>วัตถุ/เศรษฐกิจ (พร้อมรับการเปลี่ยนแปลงด้านวัตถุและรายได้)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-dimensions" value="Social" ${plan.framework.dimensions.includes('Social') ? 'checked' : ''}>
+                                    <span>สังคม (การช่วยเหลือเกื้อกูล ความสามัคคี)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-dimensions" value="Environmental" ${plan.framework.dimensions.includes('Environmental') ? 'checked' : ''}>
+                                    <span>สิ่งแวดล้อม (ความใส่ใจธรรมชาติและพลังงาน)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-dimensions" value="Cultural" ${plan.framework.dimensions.includes('Cultural') ? 'checked' : ''}>
+                                    <span>วัฒนธรรม (การอนุรักษ์วิถีชีวิต ภูมิปัญญาไทย)</span>
+                                </label>
+                            </div>
+
+                            <!-- ศาสตร์ 3 -->
+                            <div class="framework-card sciences">
+                                <h4><i class="fas fa-university"></i> ศาสตร์ 3</h4>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-sciences" value="Royalศาสตร์" ${plan.framework.sciences.includes('Royalศาสตร์') ? 'checked' : ''}>
+                                    <span>ศาสตร์พระราชา (หลักการทรงงาน, เข้าใจเข้าถึงพัฒนา)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-sciences" value="Science & Technology" ${plan.framework.sciences.includes('Science & Technology') ? 'checked' : ''}>
+                                    <span>ศาสตร์สากล (วิทยาศาสตร์ เทคโนโลยี นวัตกรรม)</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-sciences" value="Local Wisdom" ${plan.framework.sciences.includes('Local Wisdom') ? 'checked' : ''}>
+                                    <span>ศาสตร์ภูมิปัญญา (ความรู้ท้องถิ่น, ปราชญ์ชาวบ้าน)</span>
+                                </label>
+                            </div>
+
+                            <!-- พระราโชบาย 4 -->
+                            <div class="framework-card royal-policies">
+                                <h4><i class="fas fa-crown"></i> พระราโชบาย 4</h4>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-royal-policies" value="1" ${plan.framework.royalPolicies.includes('1') ? 'checked' : ''}>
+                                    <span>1. มีทัศนคติที่ถูกต้องต่อบ้านเมือง</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-royal-policies" value="2" ${plan.framework.royalPolicies.includes('2') ? 'checked' : ''}>
+                                    <span>2. มีพื้นฐานชีวิตที่มั่นคง - มีคุณธรรม</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-royal-policies" value="3" ${plan.framework.royalPolicies.includes('3') ? 'checked' : ''}>
+                                    <span>3. มีงานทำ - มีอาชีพ</span>
+                                </label>
+                                <label class="framework-checkbox-item">
+                                    <input type="checkbox" name="fw-royal-policies" value="4" ${plan.framework.royalPolicies.includes('4') ? 'checked' : ''}>
+                                    <span>4. เป็นพลเมืองที่ดี</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Activities & Evaluation -->
                     <div class="card-sleek mb-4">
                         <h3 class="section-title-sleek"><i class="fas fa-running"></i> กิจกรรมและการประเมินผล</h3>
@@ -11403,6 +11507,20 @@ generateDefaultRotationSchedule(customBases = null) {
                 return false;
             }
 
+            // Get selected checkboxes
+            const getCheckedValues = (name) => {
+                const checked = form.querySelectorAll(`input[name="${name}"]:checked`);
+                return Array.from(checked).map(el => el.value);
+            };
+
+            const framework = {
+                conditions: getCheckedValues('fw-conditions'),
+                principles: getCheckedValues('fw-principles'),
+                dimensions: getCheckedValues('fw-dimensions'),
+                sciences: getCheckedValues('fw-sciences'),
+                royalPolicies: getCheckedValues('fw-royal-policies')
+            };
+
             const planData = {
                 id: isNew ? 'lp_' + Date.now() : plan.id,
                 title,
@@ -11420,6 +11538,7 @@ generateDefaultRotationSchedule(customBases = null) {
                 dimCulture: form.querySelector('#plan-dim-culture').value.trim(),
                 activities,
                 evaluation,
+                framework, // Save the framework object
                 status,
                 creator: isNew ? this.currentUser.username : plan.creator,
                 creatorName: isNew ? this.currentUser.name : plan.creatorName,
@@ -11483,6 +11602,93 @@ generateDefaultRotationSchedule(customBases = null) {
         // Can approve if user is director, supervisor, or admin
         const canApprove = ['director', 'supervisor', 'admin'].includes(this.currentUser.role);
 
+        // Auto-initialize framework object (Backward compatibility)
+        plan.framework = plan.framework || {
+            conditions: [],
+            principles: [],
+            dimensions: [],
+            sciences: [],
+            royalPolicies: []
+        };
+
+        const fwLabels = {
+            conditions: {
+                Knowledge: 'เงื่อนไขความรู้',
+                Morality: 'เงื่อนไขคุณธรรม'
+            },
+            principles: {
+                Moderation: 'ความพอประมาณ',
+                Reasonableness: 'ความมีเหตุผล',
+                'Self-Immunity': 'การมีภูมิคุ้มกันที่ดี'
+            },
+            dimensions: {
+                Economic: 'วัตถุ/เศรษฐกิจ',
+                Social: 'สังคม',
+                Environmental: 'สิ่งแวดล้อม',
+                Cultural: 'วัฒนธรรม'
+            },
+            sciences: {
+                Royalศาสตร์: 'ศาสตร์พระราชา',
+                'Science & Technology': 'ศาสตร์สากล',
+                'Local Wisdom': 'ศาสตร์ภูมิปัญญา'
+            },
+            royalPolicies: {
+                '1': 'พระราโชบาย 1. ทัศนคติที่ถูกต้องต่อบ้านเมือง',
+                '2': 'พระราโชบาย 2. พื้นฐานชีวิตที่มั่นคง - มีคุณธรรม',
+                '3': 'พระราโชบาย 3. มีงานทำ - มีอาชีพ',
+                '4': 'พระราโชบาย 4. เป็นพลเมืองที่ดี'
+            }
+        };
+
+        const hasFramework = 
+            (plan.framework.conditions && plan.framework.conditions.length > 0) ||
+            (plan.framework.principles && plan.framework.principles.length > 0) ||
+            (plan.framework.dimensions && plan.framework.dimensions.length > 0) ||
+            (plan.framework.sciences && plan.framework.sciences.length > 0) ||
+            (plan.framework.royalPolicies && plan.framework.royalPolicies.length > 0);
+
+        let frameworkHTML = '';
+        if (hasFramework) {
+            frameworkHTML = `
+                <!-- Framework 2-3-4-3-4 Badges -->
+                <div class="card-sleek mb-4">
+                    <h3 class="section-title-sleek"><i class="fas fa-cubes"></i> การวิเคราะห์ความสอดคล้องตามกรอบแนวคิด (Framework 2-3-4-3-4)</h3>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        ${(plan.framework.conditions && plan.framework.conditions.length > 0) ? `
+                            <div>
+                                <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px; color: var(--text-secondary);">เงื่อนไข 2:</strong>
+                                ${plan.framework.conditions.map(key => `<span class="badge-framework condition">${fwLabels.conditions[key] || key}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${(plan.framework.principles && plan.framework.principles.length > 0) ? `
+                            <div>
+                                <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px; color: var(--text-secondary);">หลักการ 3:</strong>
+                                ${plan.framework.principles.map(key => `<span class="badge-framework principle">${fwLabels.principles[key] || key}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${(plan.framework.dimensions && plan.framework.dimensions.length > 0) ? `
+                            <div>
+                                <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px; color: var(--text-secondary);">มิติ 4:</strong>
+                                ${plan.framework.dimensions.map(key => `<span class="badge-framework dimension">${fwLabels.dimensions[key] || key}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${(plan.framework.sciences && plan.framework.sciences.length > 0) ? `
+                            <div>
+                                <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px; color: var(--text-secondary);">ศาสตร์ 3:</strong>
+                                ${plan.framework.sciences.map(key => `<span class="badge-framework science">${fwLabels.sciences[key] || key}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                        ${(plan.framework.royalPolicies && plan.framework.royalPolicies.length > 0) ? `
+                            <div>
+                                <strong style="font-size: 0.88rem; display: block; margin-bottom: 6px; color: var(--text-secondary);">พระราโชบาย 4:</strong>
+                                ${plan.framework.royalPolicies.map(key => `<span class="badge-framework policy">${fwLabels.royalPolicies[key] || key}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
         container.innerHTML = `
             <div class="lesson-plan-detail-container animate-fade-in">
                 <!-- Header Card -->
@@ -11512,6 +11718,8 @@ generateDefaultRotationSchedule(customBases = null) {
                             <h3 class="section-title-sleek"><i class="fas fa-bullseye"></i> วัตถุประสงค์การเรียนรู้</h3>
                             <p class="pre-wrap">${plan.objectives || '-'}</p>
                         </div>
+
+                        ${frameworkHTML}
 
                         <!-- 3 ห่วง (Three Pillars) -->
                         <div class="card-sleek mb-4">
