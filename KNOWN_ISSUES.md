@@ -1,6 +1,6 @@
 # ⚠️ ปัญหาที่รู้จักและหนี้เทคนิค (Known Issues & Technical Debt)
 
-**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.2.0
+**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.3.1
 
 เอกสารนี้บันทึกปัญหาที่รู้จัก, ความเสี่ยงทางเทคนิค, และแผนการแก้ไขในอนาคต
 
@@ -18,6 +18,7 @@
 | 3 | Firestore Composite Indexes | กลาง | 🟡 Medium | 🟡 Partial |
 | 4 | Offline Merge Strategy | กลาง | 🟡 Medium | 🔴 Open |
 | 5 | Service Worker Cache | ต่ำ | 🟢 Low | 🔴 Open |
+| 6 | 1MB Document Limit Risk (lesson_plans) | สูง | 🔴 High | 🔴 Open |
 
 ---
 
@@ -28,7 +29,7 @@
 ### 🔴 1. God Class — `app.js`
 
 **คำอธิบาย:**
-`app.js` เป็นไฟล์เดียวที่มีโค้ดมากกว่า **11,900+ บรรทัด** โดยรวมทุก logic ไว้ด้วยกัน ทั้ง UI rendering, business logic, Firebase operations, chart generation, form handling, wizard flows และ utility functions ทำให้ยากต่อการบำรุงรักษา
+`app.js` เป็นไฟล์เดียวที่มีโค้ดมากกว่า **13,000+ บรรทัด** โดยรวมทุก logic ไว้ด้วยกัน ทั้ง UI rendering, business logic, Firebase operations, chart generation, form handling, wizard flows และ utility functions ทำให้ยากต่อการบำรุงรักษา
 
 **Impact:**
 - อ่านโค้ดยากมาก — หา function ใช้เวลานาน
@@ -166,12 +167,30 @@ self.addEventListener('activate', (event) => {
 });
 ```
 
+### 🔴 6. 1MB Document Limit Risk — `lesson_plans`
+
+**คำอธิบาย:**
+แผนกิจกรรมพอเพียง ถูกจัดเก็บเป็นอาร์เรย์ของวัตถุอยู่ภายใต้เอกสารเดี่ยว `/system_data/lesson_plans` ทำให้มีความเสี่ยงที่จะชนกับขีดจำกัดสูงสุด 1MB ของเอกสาร Firestore เมื่อครูทั้งโรงเรียนรวมกันสร้างแผนกิจกรรมเกิน 300 รายการ
+
+**Impact:**
+- ระบบจะบันทึกหรือส่งแผนกิจกรรมพอเพียงเพิ่มไม่ได้เมื่อเอกสารเต็ม
+- บล็อกการจัดการเรียนการสอนของโรงเรียนในช่วงครึ่งหลังของเทอม
+- ข้อมูลสูญหายระหว่างการบันทึกได้
+
+**Priority:** 🔴 High — ต้องดำเนินการปรับปรุงมาตรฐานฐานข้อมูลโดยเร็วที่สุด
+
+**แผนการแก้ไข:**
+ย้ายไปใช้โมเดลคอลเลกชันแยกในรูปแบบ `/lesson_plans/{planId}` ใน Sprint A3 (ดูเพิ่มเติมใน [DATABASE_STANDARD.md](./DATABASE_STANDARD.md))
+
 ---
 
 ## แผนการแก้ไขระยะยาว (Future Refactoring Roadmap)
 
 | Sprint | งาน | เป้าหมาย |
 |---|---|---|
+| **Sprint A1** | Database Architecture Standardization | กำหนดมาตรฐานสถาปัตยกรรมเอกสารและโมเดลข้อมูล (เสร็จสมบูรณ์) |
+| **Sprint A2** | teaching_logs Migration | ย้ายบันทึกการสอนเป็นคอลเลกชันแยก /teaching_logs |
+| **Sprint A3** | lesson_plans Migration | ย้ายแผนกิจกรรมพอเพียงเป็นคอลเลกชันแยก /lesson_plans |
 | **Sprint B1** | DOM XSS Sanitization | แก้ไขทุก innerHTML ที่มี user input |
 | **Sprint B2** | Service Worker Cache Versioning | เพิ่ม cache versioning ใน sw.js |
 | **Sprint R1** | God Class Refactoring | แบ่ง app.js เป็น modules แยกกัน |

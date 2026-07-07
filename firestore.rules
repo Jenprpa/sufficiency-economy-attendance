@@ -81,9 +81,16 @@ service cloud.firestore {
       allow read, write: if hasRole('admin');
     }
 
-    // ==========================================
-    // COLLECTION: system_data
-    // ==========================================
+    match /system_data/lesson_plans {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (hasRole('teacher') || hasRole('admin'));
+    }
+
+    match /system_data/teaching_logs {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && (hasRole('teacher') || hasRole('admin'));
+    }
+
     match /system_data/{docId} {
       // All authenticated staff members can read general system parameters (bases, schedules, semesters, classes)
       allow read: if isAuthenticated();
@@ -196,6 +203,35 @@ service cloud.firestore {
         (hasRole('teacher') && request.resource.data.teacherUid == request.auth.uid && (resource == null || resource.data.teacherUid == request.auth.uid)) ||
         hasRole('admin')
       );
+    }
+
+    // ==========================================
+    // COLLECTION: teaching_logs  [Sprint F1.2]
+    // ==========================================
+    // Dedicated collection — replaces system_data/teaching_logs array.
+    // RBAC:
+    //   read   — Teacher reads own logs only; Admin/Director/Supervisor read all.
+    //   create — Teacher creates own logs only (teacherUid must match auth.uid).
+    //   update — Teacher updates own logs only; Admin can update any.
+    //   delete — Admin only (teachers cannot delete permanent records).
+    match /teaching_logs/{logId} {
+      allow read: if isAuthenticated() && (
+        hasAnyRole(['admin', 'director', 'supervisor']) ||
+        (hasRole('teacher') && resource.data.teacherUid == request.auth.uid)
+      );
+      allow create: if isAuthenticated() && (
+        (hasRole('teacher') && request.resource.data.teacherUid == request.auth.uid) ||
+        hasRole('admin')
+      );
+      allow update: if isAuthenticated() && (
+        (hasRole('teacher') &&
+          resource.data.teacherUid == request.auth.uid &&
+          request.resource.data.teacherUid == request.auth.uid) ||
+        hasRole('admin')
+      );
+      // Teachers cannot permanently delete teaching records.
+      // Admin can delete (e.g. migration cleanup or admin correction).
+      allow delete: if hasRole('admin');
     }
 
     // ==========================================

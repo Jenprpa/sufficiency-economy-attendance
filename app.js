@@ -22,6 +22,10 @@ class AttendanceApp {
         this.lessonPlanFilter = { baseId: '', status: 'all', search: '' };
         this.currentLessonPlan = null;
         
+        this.teachingLogSubView = 'list';
+        this.currentTeachingLog = null;
+        this.teachingLogFilters = { year: '2569', semester: '1', status: 'All', searchQuery: '' };
+        
         // Active Charts
         this.dashChart = null;
         this.adminChart = null;
@@ -487,7 +491,9 @@ class AttendanceApp {
     async loadDatabase(timeoutMs = 20000) {
         if (this.useFirestore) {
             try {
-                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
+                // NOTE (v2.3.1 Sprint F1.2): teaching_logs is now a dedicated collection.
+                // It is fetched separately below, NOT from system_data.
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
                 const loadedDb = {};
                 let hasData = true;
 
@@ -504,6 +510,14 @@ class AttendanceApp {
                 // Parallel fetches for collections
                 const baseActPromise = this.getCollectionWithCacheFallback(this.firestore.collection('base_activity_logs'));
                 const stagingPromise = this.getCollectionWithCacheFallback(this.firestore.collection('staging_logs'));
+
+                // Fetch teaching_logs from dedicated collection (Sprint F1.2)
+                const activeUserForTL = this.pendingLoginUser || this.currentUser;
+                let tlQuery = this.firestore.collection('teaching_logs');
+                if (activeUserForTL && activeUserForTL.role === 'teacher') {
+                    tlQuery = tlQuery.where('teacherUid', '==', firebase.auth().currentUser ? firebase.auth().currentUser.uid : activeUserForTL.uid || '');
+                }
+                const teachingLogsPromise = this.getCollectionWithCacheFallback(tlQuery);
 
                 // Set up onSnapshot listener inside a Promise for the initial data
                 let initialLogsReceived = false;
@@ -557,14 +571,15 @@ class AttendanceApp {
                     Promise.all(docPromises),
                     baseActPromise,
                     stagingPromise,
-                    logsPromise
+                    logsPromise,
+                    teachingLogsPromise
                 ];
 
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error("Firestore fetch timeout")), timeoutMs)
                 );
 
-                const [docResults, baseActSnapshot, stagingSnapshot, logsSnapshot] = await Promise.race([
+                const [docResults, baseActSnapshot, stagingSnapshot, logsSnapshot, teachingLogsSnapshot] = await Promise.race([
                     Promise.all(allPromises),
                     timeoutPromise
                 ]);
@@ -578,8 +593,8 @@ class AttendanceApp {
                             loadedDb[collections[i]] = doc.data().data || [];
                         }
                     } else {
-                        if (collections[i] === 'schoolCalendar') {
-                            loadedDb['schoolCalendar'] = [];
+                        if (collections[i] === 'schoolCalendar' || collections[i] === 'lesson_plans') {
+                            loadedDb[collections[i]] = [];
                         } else {
                             hasData = false;
                             break;
@@ -591,6 +606,10 @@ class AttendanceApp {
                     loadedDb['attendance_logs'] = logsSnapshot ? logsSnapshot.docs.map(doc => doc.data()) : [];
                     loadedDb['base_activity_logs'] = baseActSnapshot ? baseActSnapshot.docs.map(doc => doc.data()) : [];
                     loadedDb['staging_logs'] = stagingSnapshot ? stagingSnapshot.docs.map(doc => doc.data()) : [];
+                    // Sprint F1.2: teaching_logs from dedicated collection
+                    loadedDb['teaching_logs'] = teachingLogsSnapshot ? teachingLogsSnapshot.docs.map(doc => doc.data()) : [];
+                    // Update LocalStorage cache
+                    localStorage.setItem('school_teaching_logs', JSON.stringify(loadedDb['teaching_logs']));
 
                     this.db = loadedDb;
                     this.isDemoData = false; // Real data loaded - clear demo flag
@@ -652,6 +671,9 @@ class AttendanceApp {
             const lessonPlans = localStorage.getItem('school_lesson_plans');
             this.db.lesson_plans = lessonPlans ? JSON.parse(lessonPlans) : [];
 
+            const teachingLogs = localStorage.getItem('school_teaching_logs');
+            this.db.teaching_logs = teachingLogs ? JSON.parse(teachingLogs) : [];
+
             this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
         }
@@ -691,7 +713,8 @@ class AttendanceApp {
             subjectCalendars: [],
             subjectCalendarLessons: [],
             schoolCalendar: [],
-            lesson_plans: []
+            lesson_plans: [],
+            teaching_logs: []
         };
         this.isDemoData = false;
         console.log("[DB Init] Empty database initialized. Students: 0. Awaiting real data import.");
@@ -702,6 +725,7 @@ class AttendanceApp {
         
         try {
             console.log("[Background Sync] Fetching database updates from Firestore...");
+            // NOTE (v2.3.1 Sprint F1.2): teaching_logs is a dedicated collection; not in system_data.
             const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
             const loadedDb = {};
             let hasData = true;
@@ -715,10 +739,19 @@ class AttendanceApp {
             const baseActPromise = this.getCollectionWithCacheFallback(this.firestore.collection('base_activity_logs'));
             const stagingPromise = this.getCollectionWithCacheFallback(this.firestore.collection('staging_logs'));
 
-            const [docResults, baseActSnapshot, stagingSnapshot] = await Promise.all([
+            // Sprint F1.2: Fetch teaching_logs from dedicated collection
+            const activeUserBG = this.pendingLoginUser || this.currentUser;
+            let tlQueryBG = this.firestore.collection('teaching_logs');
+            if (activeUserBG && activeUserBG.role === 'teacher') {
+                tlQueryBG = tlQueryBG.where('teacherUid', '==', firebase.auth().currentUser ? firebase.auth().currentUser.uid : activeUserBG.uid || '');
+            }
+            const teachingLogsBGPromise = this.getCollectionWithCacheFallback(tlQueryBG);
+
+            const [docResults, baseActSnapshot, stagingSnapshot, teachingLogsSnapshot] = await Promise.all([
                 Promise.all(docPromises),
                 baseActPromise,
-                stagingPromise
+                stagingPromise,
+                teachingLogsBGPromise
             ]);
 
             for (let i = 0; i < collections.length; i++) {
@@ -730,8 +763,8 @@ class AttendanceApp {
                         loadedDb[collections[i]] = doc.data().data || [];
                     }
                 } else {
-                    if (collections[i] === 'schoolCalendar') {
-                        loadedDb['schoolCalendar'] = [];
+                    if (collections[i] === 'schoolCalendar' || collections[i] === 'lesson_plans') {
+                        loadedDb[collections[i]] = [];
                     } else {
                         hasData = false;
                         break;
@@ -754,6 +787,8 @@ class AttendanceApp {
                 this.db.staging_logs = loadedDb.staging_logs;
                 this.db.schoolCalendar = loadedDb.schoolCalendar || [];
                 this.db.lesson_plans = loadedDb.lesson_plans || [];
+                // Sprint F1.2: teaching_logs from dedicated collection
+                this.db.teaching_logs = teachingLogsSnapshot ? teachingLogsSnapshot.docs.map(doc => doc.data()) : [];
 
                 // Sync and listen to attendance logs
                 if (this.logsUnsubscribe) {
@@ -789,6 +824,8 @@ class AttendanceApp {
                 localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs));
                 localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
                 localStorage.setItem('school_lesson_plans', JSON.stringify(this.db.lesson_plans || []));
+                // Sprint F1.2: Cache teaching_logs locally (from dedicated collection)
+                localStorage.setItem('school_teaching_logs', JSON.stringify(this.db.teaching_logs || []));
 
                 this.updateFirestoreConnectionStatus(true);
                 this.updateStagingBadgeCount();
@@ -815,13 +852,15 @@ class AttendanceApp {
         localStorage.setItem('school_staging_logs', JSON.stringify(this.db.staging_logs || []));
         localStorage.setItem('school_calendar', JSON.stringify(this.db.schoolCalendar || []));
         localStorage.setItem('school_lesson_plans', JSON.stringify(this.db.lesson_plans || []));
+        localStorage.setItem('school_teaching_logs', JSON.stringify(this.db.teaching_logs || []));
 
         if (this.useFirestore) {
             try {
-                // Determine collections to sync
+                // Determine collections to sync (teaching_logs excluded — handled by saveTeachingLog/deleteTeachingLog)
                 let syncCols = [];
                 if (collectionsToSync) {
-                    syncCols = collectionsToSync;
+                    // Silently drop 'teaching_logs' from system_data batch — it now lives in its own collection
+                    syncCols = collectionsToSync.filter(c => c !== 'teaching_logs');
                 } else if (saveLogsToFirestore) {
                     syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
                 }
@@ -1888,19 +1927,19 @@ class AttendanceApp {
             }
         } else if (this.currentUser.role === 'teacher') {
             // Teacher mode
-            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar', 'lesson-planner'];
+            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar', 'lesson-planner', 'teaching-log'];
             if (!teacherViews.includes(viewId)) {
                 viewId = 'checkin';
             }
         } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
             // Director/Supervisor mode
-            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar', 'lesson-planner'];
+            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar', 'lesson-planner', 'teaching-log'];
             if (!directorViews.includes(viewId)) {
                 viewId = 'admin';
             }
         } else if (this.currentUser.role === 'admin') {
             // Admin mode
-            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar', 'lesson-planner'];
+            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar', 'lesson-planner', 'teaching-log'];
             if (!adminViews.includes(viewId)) {
                 viewId = 'manage';
             }
@@ -1927,6 +1966,8 @@ class AttendanceApp {
             this.renderSubjectCalendarTab();
         } else if (viewId === 'lesson-planner') {
             this.renderLessonPlanner();
+        } else if (viewId === 'teaching-log') {
+            this.renderTeachingLog();
         }
 
         // Update top title if element exists
@@ -1941,7 +1982,8 @@ class AttendanceApp {
                 manage: 'ระบบจัดการข้อมูล (Admin Console)',
                 'teacher-history': 'ประวัติการเช็กชื่อเข้าเรียน (Attendance History)',
                 'subject-calendar': 'ระบบปฏิทินรายวิชา (Subject Calendar)',
-                'lesson-planner': 'แผนกิจกรรมพอเพียง (Sufficiency Activity Planner)'
+                'lesson-planner': 'แผนกิจกรรมพอเพียง (Sufficiency Activity Planner)',
+                'teaching-log': 'บันทึกผลการสอน (Teaching Log)'
             };
             viewTitleEl.textContent = titles[viewId] || 'ระบบเช็กชื่อ';
         }
@@ -2308,6 +2350,7 @@ class AttendanceApp {
         const menuAdmin = document.getElementById('menu-admin');
         const menuManage = document.getElementById('menu-manage');
         const menuLessonPlanner = document.getElementById('menu-lesson-planner');
+        const menuTeachingLog = document.getElementById('menu-teaching-log');
 
         if (this.currentUser) {
             if (nameLabel) nameLabel.textContent = this.currentUser.name;
@@ -2348,6 +2391,7 @@ class AttendanceApp {
                 if (menuAdmin) menuAdmin.style.display = 'block';
                 if (menuManage) menuManage.style.display = 'block';
                 if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
+                if (menuTeachingLog) menuTeachingLog.style.display = 'block';
             } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
                 if (roleLabel) roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเมิน";
                 if (menuDashboard) menuDashboard.style.display = 'block';
@@ -2362,6 +2406,7 @@ class AttendanceApp {
                 if (menuAdmin) menuAdmin.style.display = 'block';
                 if (menuManage) menuManage.style.display = 'none';
                 if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
+                if (menuTeachingLog) menuTeachingLog.style.display = 'block';
             } else {
                 // Teacher:
                 if (roleLabel) roleLabel.textContent = "ครูประจำฐานการเรียนรู้";
@@ -2377,6 +2422,7 @@ class AttendanceApp {
                 if (menuAdmin) menuAdmin.style.display = 'none';
                 if (menuManage) menuManage.style.display = 'none';
                 if (menuLessonPlanner) menuLessonPlanner.style.display = 'block';
+                if (menuTeachingLog) menuTeachingLog.style.display = 'block';
             }
         } else {
             if (nameLabel) nameLabel.textContent = "ไม่ได้เข้าสู่ระบบ";
@@ -2402,6 +2448,7 @@ class AttendanceApp {
             if (menuAdmin) menuAdmin.style.display = 'none';
             if (menuManage) menuManage.style.display = 'none';
             if (menuLessonPlanner) menuLessonPlanner.style.display = 'none';
+            if (menuTeachingLog) menuTeachingLog.style.display = 'none';
         }
 
         // Date simulator permission lock
@@ -2949,6 +2996,8 @@ class AttendanceApp {
             this.renderSearch();
         } else if (this.currentView === 'lesson-planner') {
             this.renderLessonPlanner();
+        } else if (this.currentView === 'teaching-log') {
+            this.renderTeachingLog();
         }
     }
 
@@ -11934,6 +11983,1088 @@ generateDefaultRotationSchedule(customBases = null) {
         document.body.appendChild(downloadAnchor);
         downloadAnchor.click();
         downloadAnchor.remove();
+    }
+
+    // --- Teaching Log Module ---
+    renderTeachingLog() {
+        const container = document.getElementById('view-teaching-log');
+        if (!container) return;
+
+        // Initialize sub-view state
+        if (!this.teachingLogSubView) {
+            this.teachingLogSubView = 'list';
+        }
+        if (!this.teachingLogFilters) {
+            this.teachingLogFilters = {
+                year: '2569',
+                semester: '1',
+                status: 'All',
+                searchQuery: ''
+            };
+        }
+
+        // Initialize DB array if somehow undefined
+        this.db.teaching_logs = this.db.teaching_logs || [];
+
+        if (this.teachingLogSubView === 'list') {
+            this.renderTeachingLogList(container);
+        } else if (this.teachingLogSubView === 'form') {
+            this.renderTeachingLogForm(container);
+        } else if (this.teachingLogSubView === 'detail') {
+            this.renderTeachingLogDetail(container);
+        }
+    }
+
+    renderTeachingLogList(container) {
+        // Role check
+        const visibleLogs = (this.db.teaching_logs || []).filter(log => {
+            if (this.currentUser && this.currentUser.role === 'teacher') {
+                return log.teacherUid === this.currentUser.uid || log.teacherId === this.currentUser.username;
+            }
+            return true;
+        });
+
+        // Apply filters
+        const yearFilter = this.teachingLogFilters.year;
+        const semFilter = this.teachingLogFilters.semester;
+        const statusFilter = this.teachingLogFilters.status;
+        const searchQuery = (this.teachingLogFilters.searchQuery || '').toLowerCase().trim();
+
+        const filteredLogs = visibleLogs.filter(log => {
+            if (yearFilter !== 'All' && log.academicYear !== yearFilter) return false;
+            if (semFilter !== 'All' && log.semester !== semFilter) return false;
+            if (statusFilter !== 'All' && log.teachingStatus !== statusFilter) return false;
+            if (searchQuery) {
+                const matchSubject = (log.subjectName || '').toLowerCase().includes(searchQuery);
+                const matchCode = (log.subjectCode || '').toLowerCase().includes(searchQuery);
+                const matchTeacher = (log.teacherName || '').toLowerCase().includes(searchQuery);
+                const matchBase = (log.baseName || '').toLowerCase().includes(searchQuery);
+                if (!matchSubject && !matchCode && !matchTeacher && !matchBase) return false;
+            }
+            return true;
+        });
+
+        // Compute metrics
+        const totalLogs = filteredLogs.length;
+        const taughtPlanned = filteredLogs.filter(log => log.teachingStatus === 'taught_as_planned').length;
+        const taughtAdjusted = filteredLogs.filter(log => log.teachingStatus !== 'taught_as_planned').length;
+
+        // Render HTML structure
+        const statusLabels = {
+            taught_as_planned: { text: 'สอนได้ตามแผน', class: 'approved' },
+            partially_taught: { text: 'สอนได้บางส่วน', class: 'pending' },
+            not_taught: { text: 'ไม่ได้สอน', class: 'draft' },
+            rescheduled: { text: 'ย้ายคาบ/ชดเชย', class: 'special' }
+        };
+
+        const canCreate = this.currentUser && (this.currentUser.role === 'teacher' || this.currentUser.role === 'admin');
+
+        container.innerHTML = `
+            <div class="lesson-planner-layout animate-fade-in">
+                <!-- Sidebar filters -->
+                <div class="planner-sidebar card-sleek">
+                    <div class="sidebar-header">
+                        <h3><i class="fas fa-filter"></i> ค้นหาและกรองข้อมูล</h3>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="filter-log-year"><i class="fas fa-calendar"></i> ปีการศึกษา</label>
+                        <select id="filter-log-year" class="form-control-sleek">
+                            <option value="All">ทุกปีการศึกษา</option>
+                            <option value="2569" ${yearFilter === '2569' ? 'selected' : ''}>2569</option>
+                            <option value="2568" ${yearFilter === '2568' ? 'selected' : ''}>2568</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="filter-log-semester"><i class="fas fa-graduation-cap"></i> ภาคเรียน</label>
+                        <select id="filter-log-semester" class="form-control-sleek">
+                            <option value="All">ทุกภาคเรียน</option>
+                            <option value="1" ${semFilter === '1' ? 'selected' : ''}>1</option>
+                            <option value="2" ${semFilter === '2' ? 'selected' : ''}>2</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="filter-log-search"><i class="fas fa-search"></i> คำค้นหา</label>
+                        <input type="text" id="filter-log-search" class="form-control-sleek" placeholder="วิชา, รหัส, ผู้สอน, ฐาน..." value="${this.teachingLogFilters.searchQuery}">
+                    </div>
+
+                    <div class="status-filters">
+                        <button class="status-filter-btn ${statusFilter === 'All' ? 'active' : ''}" data-status="All">
+                            <span>ทั้งหมด</span>
+                            <span class="count-badge">${totalLogs}</span>
+                        </button>
+                        <button class="status-filter-btn approved ${statusFilter === 'taught_as_planned' ? 'active' : ''}" data-status="taught_as_planned">
+                            <span>ตามแผน</span>
+                            <span class="count-badge">${filteredLogs.filter(l => l.teachingStatus === 'taught_as_planned').length}</span>
+                        </button>
+                        <button class="status-filter-btn pending ${statusFilter === 'partially_taught' ? 'active' : ''}" data-status="partially_taught">
+                            <span>บางส่วน</span>
+                            <span class="count-badge">${filteredLogs.filter(l => l.teachingStatus === 'partially_taught').length}</span>
+                        </button>
+                        <button class="status-filter-btn draft ${statusFilter === 'not_taught' ? 'active' : ''}" data-status="not_taught">
+                            <span>ไม่ได้สอน</span>
+                            <span class="count-badge">${filteredLogs.filter(l => l.teachingStatus === 'not_taught').length}</span>
+                        </button>
+                        <button class="status-filter-btn special ${statusFilter === 'rescheduled' ? 'active' : ''}" data-status="rescheduled">
+                            <span>ย้ายคาบ/ชดเชย</span>
+                            <span class="count-badge">${filteredLogs.filter(l => l.teachingStatus === 'rescheduled').length}</span>
+                        </button>
+                    </div>
+
+                    ${canCreate ? `
+                        <div class="sidebar-actions">
+                            <button id="btn-create-log" class="btn-primary-sleek w-100">
+                                <i class="fas fa-plus"></i> เขียนบันทึกใหม่
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+
+                <!-- Main plans grid -->
+                <div class="planner-main">
+                    <!-- Summary metrics top -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                        <div class="card-sleek" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-left: 4px solid var(--primary);">
+                            <div style="font-size: 28px; color: var(--primary);"><i class="fa-solid fa-clipboard-list"></i></div>
+                            <div>
+                                <div style="font-size: 12px; color: var(--text-light); font-weight: 600;">บันทึกการสอนสะสม</div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);">${totalLogs} บันทึก</div>
+                            </div>
+                        </div>
+                        <div class="card-sleek" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-left: 4px solid #2dcd73;">
+                            <div style="font-size: 28px; color: #2dcd73;"><i class="fa-solid fa-circle-check"></i></div>
+                            <div>
+                                <div style="font-size: 12px; color: var(--text-light); font-weight: 600;">สอนได้ตามแผน</div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);">${taughtPlanned} ครั้ง</div>
+                            </div>
+                        </div>
+                        <div class="card-sleek" style="padding: 16px; display: flex; align-items: center; gap: 16px; border-left: 4px solid #f39c12;">
+                            <div style="font-size: 28px; color: #f39c12;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            <div>
+                                <div style="font-size: 12px; color: var(--text-light); font-weight: 600;">ปรับปรุง / ไม่เป็นตามแผน</div>
+                                <div style="font-size: 24px; font-weight: 700; color: var(--text-dark);">${taughtAdjusted} ครั้ง</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="planner-main-header">
+                        <h2>บันทึกผลการจัดกิจกรรมการเรียนรู้</h2>
+                        <span class="text-muted">พบ ${filteredLogs.length} รายการ</span>
+                    </div>
+
+                    ${filteredLogs.length === 0 ? `
+                        <div class="empty-state-card card-sleek">
+                            <i class="fas fa-folder-open empty-icon" style="font-size: 3rem; margin-bottom: 15px; color: var(--text-muted);"></i>
+                            <h3>ไม่พบข้อมูลบันทึกผลการสอน</h3>
+                            <p>ไม่มีบันทึกการสอนที่ตรงกับเงื่อนไขการกรองหรือยังไม่มีการบันทึกในภาคเรียนนี้</p>
+                        </div>
+                    ` : `
+                        <div class="plans-grid">
+                            ${filteredLogs.map(log => {
+                                const statusInfo = statusLabels[log.teachingStatus] || { text: log.teachingStatus, class: 'special' };
+                                const dateStr = log.logDate ? new Date(log.logDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : 'ไม่ระบุ';
+                                const baseName = log.baseName || 'ไม่ใช่สอนประจำฐาน';
+                                
+                                const canEdit = this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.username === log.teacherId);
+                                
+                                return `
+                                    <div class="plan-card card-sleek animate-fade-in" data-id="${log.logId}">
+                                        <div>
+                                            <div class="plan-card-header">
+                                                <span class="badge-base" style="background: rgba(46, 125, 50, 0.08); color: #2E7D32;">${baseName}</span>
+                                                <span class="badge-status ${statusInfo.class}">${statusInfo.text}</span>
+                                            </div>
+                                            <div class="plan-card-body">
+                                                <h3 class="plan-title">${log.subjectName} ${log.subjectCode ? `(${log.subjectCode})` : ''}</h3>
+                                                <div class="plan-meta">
+                                                    <span><i class="fas fa-user-circle"></i> ครูผู้สอน: ${log.teacherName || log.teacherId}</span>
+                                                    <span><i class="fas fa-graduation-cap"></i> ชั้นเรียน: ${log.className || log.gradeLevel} (คาบที่ ${log.period || '-'})</span>
+                                                    <span><i class="fas fa-clock"></i> วันที่จัดกิจกรรม: ${dateStr} (สัปดาห์ที่ ${log.weekNumber || '-'})</span>
+                                                </div>
+                                                <p class="plan-objectives-preview">
+                                                    <strong>ผลการสอนย่อ:</strong> ${log.learningOutcome ? (log.learningOutcome.length > 100 ? log.learningOutcome.substring(0, 100) + '...' : log.learningOutcome) : '-'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="plan-card-actions">
+                                            <button class="btn-detail btn-action-secondary" data-id="${log.logId}">
+                                                <i class="fas fa-eye"></i> รายละเอียด
+                                            </button>
+                                            ${canEdit ? `
+                                                <button class="btn-edit btn-action-warning" data-id="${log.logId}">
+                                                    <i class="fas fa-edit"></i> แก้ไข
+                                                </button>
+                                                <button class="btn-delete btn-action-danger" data-id="${log.logId}">
+                                                    <i class="fas fa-trash"></i> ลบ
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        // Bind events
+        const yearSelect = container.querySelector('#filter-log-year');
+        if (yearSelect) {
+            yearSelect.addEventListener('change', (e) => {
+                this.teachingLogFilters.year = e.target.value;
+                this.renderTeachingLog();
+            });
+        }
+
+        const semSelect = container.querySelector('#filter-log-semester');
+        if (semSelect) {
+            semSelect.addEventListener('change', (e) => {
+                this.teachingLogFilters.semester = e.target.value;
+                this.renderTeachingLog();
+            });
+        }
+
+        const searchInput = container.querySelector('#filter-log-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.teachingLogFilters.searchQuery = e.target.value;
+                this.renderTeachingLog();
+            });
+        }
+
+        const statusBtns = container.querySelectorAll('.status-filter-btn');
+        statusBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                this.teachingLogFilters.status = btn.getAttribute('data-status');
+                this.renderTeachingLog();
+            });
+        });
+
+        const btnCreate = container.querySelector('#btn-create-log');
+        if (btnCreate) {
+            btnCreate.addEventListener('click', () => {
+                this.currentTeachingLog = null; // Create mode
+                this.teachingLogSubView = 'form';
+                this.renderTeachingLog();
+            });
+        }
+
+        // Action buttons bind
+        container.querySelectorAll('.btn-detail').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const logId = btn.getAttribute('data-id');
+                this.currentTeachingLog = this.db.teaching_logs.find(l => l.logId === logId);
+                this.teachingLogSubView = 'detail';
+                this.renderTeachingLog();
+            });
+        });
+
+        container.querySelectorAll('.btn-edit').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const logId = btn.getAttribute('data-id');
+                this.currentTeachingLog = this.db.teaching_logs.find(l => l.logId === logId);
+                this.teachingLogSubView = 'form';
+                this.renderTeachingLog();
+            });
+        });
+
+        container.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const logId = btn.getAttribute('data-id');
+                if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบบันทึกผลการสอนนี้?')) {
+                    // ── Sprint F1.2: Remove from in-memory array ──────────────
+                    this.db.teaching_logs = this.db.teaching_logs.filter(l => l.logId !== logId);
+
+                    // ── Sprint F1.2: Delete from dedicated Firestore collection
+                    if (this.useFirestore && this.firestore) {
+                        try {
+                            await this.firestore
+                                .collection('teaching_logs')
+                                .doc(logId)
+                                .delete();
+                            console.log(`[F1.2] Teaching log deleted: teaching_logs/${logId}`);
+                        } catch (e) {
+                            console.error('[F1.2] Failed to delete teaching log from Firestore:', e);
+                        }
+                    }
+
+                    // ── Sprint F1.2: Update localStorage cache ────────────────
+                    localStorage.setItem('school_teaching_logs', JSON.stringify(this.db.teaching_logs));
+
+                    this.renderTeachingLog();
+                }
+            });
+        });
+    }
+
+    renderTeachingLogForm(container) {
+        const log = this.currentTeachingLog || {
+            logId: '',
+            lessonPlanId: '',
+            academicYear: '2569',
+            semester: '1',
+            weekNumber: '',
+            logDate: new Date().toISOString().split('T')[0],
+            period: '',
+            subjectName: '',
+            subjectCode: '',
+            gradeLevel: 'ม.1',
+            className: '',
+            baseId: '',
+            teachingStatus: 'taught_as_planned',
+            taughtContent: '',
+            studentParticipation: '',
+            learningOutcome: '',
+            problems: '',
+            solutions: '',
+            nextPlan: '',
+            notes: '',
+            makeupRequired: false,
+            makeupDate: '',
+            linkedFramework: {
+                conditions: [],
+                principles: [],
+                dimensions: [],
+                sciences: [],
+                royalPolicies: []
+            }
+        };
+
+        const isNew = !this.currentTeachingLog;
+
+        // Fetch lesson plans for selection (filter by current user if teacher)
+        const myPlans = (this.db.lesson_plans || []).filter(plan => {
+            if (this.currentUser && this.currentUser.role === 'teacher') {
+                return plan.creator === this.currentUser.username;
+            }
+            return true;
+        });
+
+        const planOptions = myPlans.map(p => {
+            const isSelected = log.lessonPlanId === p.id ? 'selected' : '';
+            return `<option value="${p.id}" ${isSelected}>[แผนพอเพียง] ${p.title} (โดย ${p.creatorName || p.creator})</option>`;
+        }).join('');
+
+        // Fetch bases for selection
+        const baseOptions = (this.db.bases || []).map(b => {
+            const isSelected = log.baseId === b.id ? 'selected' : '';
+            return `<option value="${b.id}" ${isSelected}>${b.name}</option>`;
+        }).join('');
+
+        // Framework keys & labels mapping
+        const fwLabels = {
+            conditions: {
+                Knowledge: 'เงื่อนไขความรู้',
+                Morality: 'เงื่อนไขคุณธรรม'
+            },
+            principles: {
+                Moderation: 'ความพอประมาณ',
+                Reasonableness: 'ความมีเหตุผล',
+                'Self-Immunity': 'การมีภูมิคุ้มกันที่ดี'
+            },
+            dimensions: {
+                Economic: 'มิติวัตถุ/เศรษฐกิจ',
+                Social: 'มิติสังคม',
+                Environmental: 'มิติติ่งแวดล้อม/ธรรมชาติ',
+                Cultural: 'มิติวัฒนธรรม'
+            },
+            sciences: {
+                Royalศาสตร์: 'ศาสตร์พระราชา',
+                'Science & Technology': 'ศาสตร์สากล',
+                'Local Wisdom': 'ศาสตร์ภูมิปัญญา'
+            },
+            royalPolicies: {
+                '1': 'ทัศนคติที่ถูกต้องต่อบ้านเมือง',
+                '2': 'พื้นฐานชีวิตที่มั่นคง-มีคุณธรรม',
+                '3': 'มีงานทำ-มีอาชีพ',
+                '4': 'เป็นพลเมืองที่ดี'
+            }
+        };
+
+        container.innerHTML = `
+            <div class="lesson-plan-form-container animate-fade-in">
+                <div class="form-header card-sleek" style="background: linear-gradient(135deg, #1b5e20, #4caf50); color: white;">
+                    <h2><i class="fas fa-file-signature"></i> ${isNew ? 'เขียนบันทึกผลการสอนใหม่' : 'แก้ไขบันทึกผลการสอน'}</h2>
+                    <p>บันทึกผลสัมฤทธิ์ ผลการเรียนรู้ของนักเรียน ปัญหาอุปสรรค และการบูรณาการตามกรอบหลักปรัชญาของเศรษฐกิจพอเพียง</p>
+                </div>
+
+                <form id="teaching-log-form" class="mt-4">
+                    <!-- Step 1: Pre-fill from Lesson Plan -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-magic"></i> เชื่อมโยงแผนกิจกรรมพอเพียง</h3>
+                        <div class="form-group">
+                            <label for="log-form-lesson-plan">เลือกแผนกิจกรรมเพื่อดึงข้อมูลอัตโนมัติ (Optional)</label>
+                            <select id="log-form-lesson-plan" class="form-control-sleek">
+                                <option value="">-- ไม่ดึงข้อมูลจากแผนกิจกรรมพอเพียง --</option>
+                                ${planOptions}
+                            </select>
+                            <small class="text-muted" style="margin-top: 4px; display: block;">ระบบจะกรอกข้อมูลแผนการสอน และกรอบพอเพียงให้โดยอัตโนมัติเมื่อเลือกแผน</small>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Basic Information -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-info-circle"></i> ข้อมูลทั่วไป</h3>
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label for="log-form-subject-name">ชื่อวิชา / ชื่อกิจกรรม <span class="text-danger">*</span></label>
+                                <input type="text" id="log-form-subject-name" class="form-control-sleek" required value="${log.subjectName || ''}" placeholder="ระบุชื่อวิชาหรือหัวข้อที่จัดกิจกรรม...">
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label for="log-form-subject-code">รหัสวิชา / รหัสกิจกรรม</label>
+                                <input type="text" id="log-form-subject-code" class="form-control-sleek" value="${log.subjectCode || ''}" placeholder="ระบุรหัสวิชา (ถ้ามี)...">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-year">ปีการศึกษา <span class="text-danger">*</span></label>
+                                <select id="log-form-year" class="form-control-sleek" required>
+                                    <option value="2569" ${log.academicYear === '2569' ? 'selected' : ''}>2569</option>
+                                    <option value="2568" ${log.academicYear === '2568' ? 'selected' : ''}>2568</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-semester">ภาคเรียน <span class="text-danger">*</span></label>
+                                <select id="log-form-semester" class="form-control-sleek" required>
+                                    <option value="1" ${log.semester === '1' ? 'selected' : ''}>1</option>
+                                    <option value="2" ${log.semester === '2' ? 'selected' : ''}>2</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-grade-level">ระดับชั้น <span class="text-danger">*</span></label>
+                                <select id="log-form-grade-level" class="form-control-sleek" required>
+                                    <option value="ม.1" ${log.gradeLevel === 'ม.1' ? 'selected' : ''}>ม.1</option>
+                                    <option value="ม.2" ${log.gradeLevel === 'ม.2' ? 'selected' : ''}>ม.2</option>
+                                    <option value="ม.3" ${log.gradeLevel === 'ม.3' ? 'selected' : ''}>ม.3</option>
+                                    <option value="ม.4" ${log.gradeLevel === 'ม.4' ? 'selected' : ''}>ม.4</option>
+                                    <option value="ม.5" ${log.gradeLevel === 'ม.5' ? 'selected' : ''}>ม.5</option>
+                                    <option value="ม.6" ${log.gradeLevel === 'ม.6' ? 'selected' : ''}>ม.6</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-class-name">ห้องเรียนที่สอน <span class="text-danger">*</span></label>
+                                <input type="text" id="log-form-class-name" class="form-control-sleek" required value="${log.className || ''}" placeholder="เช่น ม.1/1 หรือ ม.ต้นคละห้อง...">
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-week">สัปดาห์ที่สอน <span class="text-danger">*</span></label>
+                                <input type="number" id="log-form-week" class="form-control-sleek" required min="1" max="52" value="${log.weekNumber || ''}" placeholder="เช่น 1, 2...">
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <label for="log-form-period">คาบที่สอน / จำนวนชั่วโมง <span class="text-danger">*</span></label>
+                                <input type="number" id="log-form-period" class="form-control-sleek" required min="1" max="10" value="${log.period || ''}" placeholder="คาบเรียนที่...">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label for="log-form-date">วันที่สอนจริง <span class="text-danger">*</span></label>
+                                <input type="date" id="log-form-date" class="form-control-sleek" required value="${log.logDate || ''}">
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label for="log-form-base">ฐานการเรียนรู้ที่บูรณาการ</label>
+                                <select id="log-form-base" class="form-control-sleek">
+                                    <option value="">-- ไม่ใช่การเรียนการสอนประจำฐาน --</option>
+                                    ${baseOptions}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Outcomes and Details -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-file-invoice"></i> ผลการจัดการเรียนรู้</h3>
+                        <div class="form-group">
+                            <label for="log-form-status">สถานะการจัดกิจกรรมจริง <span class="text-danger">*</span></label>
+                            <select id="log-form-status" class="form-control-sleek" required>
+                                <option value="taught_as_planned" ${log.teachingStatus === 'taught_as_planned' ? 'selected' : ''}>สอนได้ตามแผนการสอนทุกประการ</option>
+                                <option value="partially_taught" ${log.teachingStatus === 'partially_taught' ? 'selected' : ''}>สอนได้บางส่วน (เนื้อหาไม่ครบหรือกิจกรรมคลาดเคลื่อน)</option>
+                                <option value="not_taught" ${log.teachingStatus === 'not_taught' ? 'selected' : ''}>ไม่ได้ดำเนินการสอนตามคาบนี้</option>
+                                <option value="rescheduled" ${log.teachingStatus === 'rescheduled' ? 'selected' : ''}>ย้ายคาบจัดกิจกรรม / อยู่ระหว่างวางแผนสอนชดเชย</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-content">สรุปเนื้อหา / กิจกรรมที่สอนจริง <span class="text-danger">*</span></label>
+                            <textarea id="log-form-content" class="form-control-sleek" rows="3" required placeholder="ระบุสิ่งที่สอนจริง เช่น กิจกรรมการเรียนรู้ สื่อที่ใช้งานจริง">${log.taughtContent || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-participation">พฤติกรรมและการมีส่วนร่วมของนักเรียน</label>
+                            <textarea id="log-form-participation" class="form-control-sleek" rows="2" placeholder="นักเรียนตั้งใจ ปฏิบัติกิจกรรมกลุ่มได้เป็นอย่างดี หรือส่วนใหญ่ง่วงนอน...">${log.studentParticipation || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-outcomes">ผลสัมฤทธิ์ทางการเรียนรู้ / ผลสัมฤทธิ์ปลายทาง</label>
+                            <textarea id="log-form-outcomes" class="form-control-sleek" rows="2" placeholder="นักเรียนประเมินตนเองผ่านเกณฑ์ 80%, เข้าใจเรื่องการออม...">${log.learningOutcome || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-problems">ปัญหาและอุปสรรคที่พบ</label>
+                            <textarea id="log-form-problems" class="form-control-sleek" rows="2" placeholder="เช่น อุปกรณ์ไม่พอ, เวลาจัดกิจกรรมน้อยเกินไป, ฝนตก...">${log.problems || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-solutions">แนวทางแก้ไขปัญหา / ข้อเสนอแนะสำหรับการจัดกิจกรรมครั้งถัดไป</label>
+                            <textarea id="log-form-solutions" class="form-control-sleek" rows="2" placeholder="เช่น ปรับเวลาเป็นคาบคู่, จัดเตรียมอุปกรณ์ล่วงหน้า...">${log.solutions || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-next-plan">แผนการจัดกิจกรรมในชั่วโมงถัดไป</label>
+                            <textarea id="log-form-next-plan" class="form-control-sleek" rows="2" placeholder="เตรียมนำผลการทดลองมาสรุปต่อในชั่วโมงหน้า...">${log.nextPlan || ''}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="log-form-notes">บันทึกเพิ่มเติม</label>
+                            <textarea id="log-form-notes" class="form-control-sleek" rows="2" placeholder="บันทึกเรื่องอื่น ๆ ที่เกี่ยวข้อง...">${log.notes || ''}</textarea>
+                        </div>
+
+                        <!-- Makeup teaching Section -->
+                        <div id="makeup-section" style="${log.teachingStatus === 'taught_as_planned' ? 'display: none;' : 'display: block;'} background: rgba(243, 156, 18, 0.05); border: 1px solid rgba(243, 156, 18, 0.3); padding: 16px; border-radius: var(--radius-sm); margin-top: 15px;">
+                            <div class="form-group" style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="log-form-makeup-required" ${log.makeupRequired ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+                                <label for="log-form-makeup-required" style="cursor: pointer; font-weight: 600; margin: 0;">จำเป็นต้องจัดกิจกรรมการสอนชดเชย (Makeup Class Required)</label>
+                            </div>
+                            <div id="makeup-date-wrapper" style="${log.makeupRequired ? 'display: block;' : 'display: none;'} margin-top: 12px;">
+                                <label for="log-form-makeup-date">ระบุวันที่วางแผนสอนชดเชย</label>
+                                <input type="date" id="log-form-makeup-date" class="form-control-sleek" value="${log.makeupDate || ''}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Sufficiency Economy Integration -->
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek"><i class="fas fa-leaf"></i> กรอบการบูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง (2-3-4-3-4)</h3>
+                        <p class="text-muted" style="font-size: 13px; margin-bottom: 20px;">กรุณาติ๊กเลือกองค์ประกอบพอเพียงที่บูรณาการจริงในการจัดการเรียนรู้นี้</p>
+                        
+                        <div class="framework-grid">
+                            <!-- Conditions -->
+                            <div class="framework-card conditions">
+                                <h4>2 เงื่อนไข</h4>
+                                <div class="framework-checkboxes">
+                                    ${Object.keys(fwLabels.conditions).map(key => `
+                                        <div class="framework-checkbox-item">
+                                            <input type="checkbox" name="log-fw-conditions" value="${key}" id="log-fw-cond-${key}" ${log.linkedFramework.conditions.includes(key) ? 'checked' : ''}>
+                                            <label for="log-fw-cond-${key}">${fwLabels.conditions[key]}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- Principles -->
+                            <div class="framework-card principles">
+                                <h4>3 หลักการ</h4>
+                                <div class="framework-checkboxes">
+                                    ${Object.keys(fwLabels.principles).map(key => `
+                                        <div class="framework-checkbox-item">
+                                            <input type="checkbox" name="log-fw-principles" value="${key}" id="log-fw-prin-${key}" ${log.linkedFramework.principles.includes(key) ? 'checked' : ''}>
+                                            <label for="log-fw-prin-${key}">${fwLabels.principles[key]}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- Dimensions -->
+                            <div class="framework-card dimensions">
+                                <h4>4 มิติ</h4>
+                                <div class="framework-checkboxes">
+                                    ${Object.keys(fwLabels.dimensions).map(key => `
+                                        <div class="framework-checkbox-item">
+                                            <input type="checkbox" name="log-fw-dimensions" value="${key}" id="log-fw-dim-${key}" ${log.linkedFramework.dimensions.includes(key) ? 'checked' : ''}>
+                                            <label for="log-fw-dim-${key}">${fwLabels.dimensions[key]}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- Sciences -->
+                            <div class="framework-card sciences">
+                                <h4>3 ศาสตร์</h4>
+                                <div class="framework-checkboxes">
+                                    ${Object.keys(fwLabels.sciences).map(key => `
+                                        <div class="framework-checkbox-item">
+                                            <input type="checkbox" name="log-fw-sciences" value="${key}" id="log-fw-sci-${key}" ${log.linkedFramework.sciences.includes(key) ? 'checked' : ''}>
+                                            <label for="log-fw-sci-${key}">${fwLabels.sciences[key]}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- Royal Policies -->
+                            <div class="framework-card royal-policies">
+                                <h4>4 พระบรมราโชบาย</h4>
+                                <div class="framework-checkboxes">
+                                    ${Object.keys(fwLabels.royalPolicies).map(key => `
+                                        <div class="framework-checkbox-item">
+                                            <input type="checkbox" name="log-fw-royalPolicies" value="${key}" id="log-fw-pol-${key}" ${log.linkedFramework.royalPolicies.includes(key) ? 'checked' : ''}>
+                                            <label for="log-fw-pol-${key}">${fwLabels.royalPolicies[key]}</label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Action Buttons -->
+                    <div class="card-sleek mb-4" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button type="button" id="btn-cancel-log" class="btn btn-outline" style="min-width: 120px;">ยกเลิก</button>
+                        <button type="submit" class="btn btn-primary" style="min-width: 180px;"><i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลการสอน</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
+        // Bind interactive events
+        const statusSelect = container.querySelector('#log-form-status');
+        const makeupSection = container.querySelector('#makeup-section');
+        if (statusSelect && makeupSection) {
+            statusSelect.addEventListener('change', (e) => {
+                if (e.target.value === 'taught_as_planned') {
+                    makeupSection.style.display = 'none';
+                } else {
+                    makeupSection.style.display = 'block';
+                }
+            });
+        }
+
+        const makeupCheckbox = container.querySelector('#log-form-makeup-required');
+        const makeupDateWrapper = container.querySelector('#makeup-date-wrapper');
+        if (makeupCheckbox && makeupDateWrapper) {
+            makeupCheckbox.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    makeupDateWrapper.style.display = 'block';
+                } else {
+                    makeupDateWrapper.style.display = 'none';
+                }
+            });
+        }
+
+        const lessonPlanSelect = container.querySelector('#log-form-lesson-plan');
+        if (lessonPlanSelect) {
+            lessonPlanSelect.addEventListener('change', (e) => {
+                this.handleLessonPlanSelect(e.target.value);
+            });
+        }
+
+        const btnCancel = container.querySelector('#btn-cancel-log');
+        if (btnCancel) {
+            btnCancel.addEventListener('click', () => {
+                this.teachingLogSubView = 'list';
+                this.renderTeachingLog();
+            });
+        }
+
+        const form = container.querySelector('#teaching-log-form');
+        if (form) {
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.saveTeachingLog();
+            });
+        }
+    }
+
+    handleLessonPlanSelect(planId) {
+        if (!planId) return;
+        const plan = this.db.lesson_plans.find(p => p.id === planId);
+        if (!plan) return;
+
+        // Populate fields
+        const subjectNameInput = document.getElementById('log-form-subject-name');
+        if (subjectNameInput) subjectNameInput.value = plan.title || '';
+
+        const gradeLevelSelect = document.getElementById('log-form-grade-level');
+        if (gradeLevelSelect) gradeLevelSelect.value = plan.level || 'ม.1';
+
+        const baseSelect = document.getElementById('log-form-base');
+        if (baseSelect) baseSelect.value = plan.baseId || '';
+
+        // Reset all framework checkboxes first
+        const allFwCheckboxes = document.querySelectorAll('[name^="log-fw-"]');
+        allFwCheckboxes.forEach(cb => cb.checked = false);
+
+        // Prepopulate framework checkboxes if plan.framework exists
+        if (plan.framework) {
+            const fw = plan.framework;
+            if (fw.conditions) {
+                fw.conditions.forEach(val => {
+                    const cb = document.querySelector(`input[name="log-fw-conditions"][value="${val}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            if (fw.principles) {
+                fw.principles.forEach(val => {
+                    const cb = document.querySelector(`input[name="log-fw-principles"][value="${val}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            if (fw.dimensions) {
+                fw.dimensions.forEach(val => {
+                    const cb = document.querySelector(`input[name="log-fw-dimensions"][value="${val}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            if (fw.sciences) {
+                fw.sciences.forEach(val => {
+                    const cb = document.querySelector(`input[name="log-fw-sciences"][value="${val}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+            if (fw.royalPolicies) {
+                fw.royalPolicies.forEach(val => {
+                    const cb = document.querySelector(`input[name="log-fw-royalPolicies"][value="${val}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+        }
+    }
+
+    async saveTeachingLog() {
+        const form = document.getElementById('teaching-log-form');
+        if (!form) return;
+
+        const isNew = !this.currentTeachingLog;
+        const logId = isNew ? 'tl_' + Date.now() : this.currentTeachingLog.logId;
+
+        // Gather framework checkbox values
+        const getCheckedValues = (name) => {
+            const checked = form.querySelectorAll(`input[name="${name}"]:checked`);
+            return Array.from(checked).map(cb => cb.value);
+        };
+
+        const linkedFramework = {
+            conditions: getCheckedValues('log-fw-conditions'),
+            principles: getCheckedValues('log-fw-principles'),
+            dimensions: getCheckedValues('log-fw-dimensions'),
+            sciences: getCheckedValues('log-fw-sciences'),
+            royalPolicies: getCheckedValues('log-fw-royalPolicies')
+        };
+
+        const baseSelect = form.querySelector('#log-form-base');
+        const baseId = baseSelect ? baseSelect.value : '';
+        const base = baseId ? this.db.bases.find(b => b.id === baseId) : null;
+        const baseName = base ? base.name : 'ไม่ใช่การเรียนการสอนประจำฐาน';
+
+        const statusSelect = form.querySelector('#log-form-status');
+        const teachingStatus = statusSelect ? statusSelect.value : 'taught_as_planned';
+
+        const makeupCheckbox = form.querySelector('#log-form-makeup-required');
+        const makeupRequired = makeupCheckbox ? makeupCheckbox.checked : false;
+
+        const makeupDateInput = form.querySelector('#log-form-makeup-date');
+        const makeupDate = makeupRequired && makeupDateInput ? makeupDateInput.value : '';
+
+        const planSelect = form.querySelector('#log-form-lesson-plan');
+        const lessonPlanId = planSelect ? planSelect.value : '';
+
+        const logData = {
+            logId,
+            lessonPlanId: lessonPlanId || null,
+            attendanceLogId: isNew ? null : (this.currentTeachingLog.attendanceLogId || null),
+            
+            teacherUid: this.currentUser ? (this.currentUser.uid || '') : '',
+            teacherId: this.currentUser ? this.currentUser.username : '',
+            teacherName: this.currentUser ? this.currentUser.name : '',
+
+            academicYear: form.querySelector('#log-form-year').value,
+            semester: form.querySelector('#log-form-semester').value,
+            weekNumber: form.querySelector('#log-form-week').value.trim(),
+            logDate: form.querySelector('#log-form-date').value,
+
+            subjectName: form.querySelector('#log-form-subject-name').value.trim(),
+            subjectCode: form.querySelector('#log-form-subject-code').value.trim(),
+            gradeLevel: form.querySelector('#log-form-grade-level').value,
+            className: form.querySelector('#log-form-class-name').value.trim(),
+            baseId: baseId || null,
+            baseName: baseId ? baseName : null,
+
+            teachingStatus,
+            taughtContent: form.querySelector('#log-form-content').value.trim(),
+            studentParticipation: form.querySelector('#log-form-participation').value.trim(),
+            learningOutcome: form.querySelector('#log-form-outcomes').value.trim(),
+            problems: form.querySelector('#log-form-problems').value.trim(),
+            solutions: form.querySelector('#log-form-solutions').value.trim(),
+            nextPlan: form.querySelector('#log-form-next-plan').value.trim(),
+            makeupRequired,
+            makeupDate: makeupDate || null,
+            notes: form.querySelector('#log-form-notes').value.trim(),
+
+            linkedFramework,
+
+            createdAt: isNew ? new Date().toISOString() : this.currentTeachingLog.createdAt,
+            updatedAt: new Date().toISOString()
+        };
+
+        try {
+            this.showStatusModal('info', 'กำลังบันทึกข้อมูล...', 'กำลังบันทึกประวัติผลการจัดการเรียนรู้ขึ้นระบบคลาวด์');
+
+            // ── Sprint F1.2: Update in-memory state ────────────────────────────
+            this.db.teaching_logs = this.db.teaching_logs || [];
+            if (isNew) {
+                this.db.teaching_logs.push(logData);
+            } else {
+                const idx = this.db.teaching_logs.findIndex(l => l.logId === logId);
+                if (idx !== -1) {
+                    this.db.teaching_logs[idx] = logData;
+                } else {
+                    // Fallback: append if not found (edge case)
+                    this.db.teaching_logs.push(logData);
+                }
+            }
+
+            // ── Sprint F1.2: Write to dedicated Firestore collection ───────────
+            // teaching_logs/{logId} — individual document, NOT system_data array
+            if (this.useFirestore && this.firestore) {
+                await this.firestore
+                    .collection('teaching_logs')
+                    .doc(logId)
+                    .set(logData);
+                console.log(`[F1.2] Teaching log saved to teaching_logs/${logId}`);
+            }
+
+            // ── Sprint F1.2: Update localStorage cache (offline support) ──────
+            localStorage.setItem('school_teaching_logs', JSON.stringify(this.db.teaching_logs));
+
+            this.closeModal('status-modal');
+
+            // Success message
+            this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ', 'ระบบได้ทำการจัดเก็บผลการเรียนรู้เรียบร้อยแล้ว');
+            setTimeout(() => this.closeModal('status-modal'), 1500);
+
+            this.teachingLogSubView = 'list';
+            this.renderTeachingLog();
+        } catch (e) {
+            console.error("Failed to save teaching log:", e);
+            this.showStatusModal('error', 'บันทึกข้อมูลล้มเหลว', 'เกิดข้อผิดพลาดในการบันทึก: ' + e.message);
+        }
+    }
+
+    renderTeachingLogDetail(container) {
+        const log = this.currentTeachingLog;
+        if (!log) {
+            this.teachingLogSubView = 'list';
+            this.renderTeachingLog();
+            return;
+        }
+
+        const dateStr = log.logDate ? new Date(log.logDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ระบุ';
+        const createdDateStr = log.createdAt ? new Date(log.createdAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ระบุ';
+        const updatedDateStr = log.updatedAt ? new Date(log.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ไม่ระบุ';
+
+        const statusLabels = {
+            taught_as_planned: { text: 'สอนได้ตามแผนการสอนทุกประการ', class: 'approved' },
+            partially_taught: { text: 'สอนได้บางส่วน (เนื้อหาไม่ครบหรือกิจกรรมคลาดเคลื่อน)', class: 'pending' },
+            not_taught: { text: 'ไม่ได้ดำเนินการสอนตามคาบนี้', class: 'draft' },
+            rescheduled: { text: 'ย้ายคาบจัดกิจกรรม / สอนชดเชย', class: 'special' }
+        };
+
+        const statusInfo = statusLabels[log.teachingStatus] || { text: log.teachingStatus, class: 'special' };
+
+        const fwLabels = {
+            conditions: { Knowledge: 'เงื่อนไขความรู้', Morality: 'เงื่อนไขคุณธรรม' },
+            principles: { Moderation: 'ความพอประมาณ', Reasonableness: 'ความมีเหตุผล', 'Self-Immunity': 'การมีภูมิคุ้มกันที่ดี' },
+            dimensions: { Economic: 'วัตถุ/เศรษฐกิจ', Social: 'สังคม', Environmental: 'สิ่งแวดล้อม', Cultural: 'วัฒนธรรม' },
+            sciences: { Royalศาสตร์: 'ศาสตร์พระราชา', 'Science & Technology': 'ศาสตร์สากล', 'Local Wisdom': 'ศาสตร์ภูมิปัญญา' },
+            royalPolicies: {
+                '1': 'ทัศนคติที่ถูกต้องต่อบ้านเมือง',
+                '2': 'พื้นฐานชีวิตที่มั่นคง - มีคุณธรรม',
+                '3': 'มีงานทำ - มีอาชีพ',
+                '4': 'เป็นพลเมืองที่ดี'
+            }
+        };
+
+        const hasFramework = log.linkedFramework && (
+            (log.linkedFramework.conditions && log.linkedFramework.conditions.length > 0) ||
+            (log.linkedFramework.principles && log.linkedFramework.principles.length > 0) ||
+            (log.linkedFramework.dimensions && log.linkedFramework.dimensions.length > 0) ||
+            (log.linkedFramework.sciences && log.linkedFramework.sciences.length > 0) ||
+            (log.linkedFramework.royalPolicies && log.linkedFramework.royalPolicies.length > 0)
+        );
+
+        // Find linked lesson plan name
+        const linkedPlan = log.lessonPlanId ? this.db.lesson_plans.find(p => p.id === log.lessonPlanId) : null;
+
+        container.innerHTML = `
+            <div class="lesson-plan-detail-container animate-fade-in">
+                <div style="margin-bottom: 20px;">
+                    <button id="btn-back-to-list" class="btn btn-outline btn-sm">
+                        <i class="fas fa-arrow-left"></i> ย้อนกลับไปรายการบันทึก
+                    </button>
+                </div>
+
+                <div class="card-sleek mb-4" style="border-top: 5px solid #2E7D32;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                        <div>
+                            <span class="badge-status ${statusInfo.class}" style="margin-bottom: 8px; display: inline-block;">${statusInfo.text}</span>
+                            <h2 style="margin: 0; font-weight: 700; color: var(--primary-dark); font-size: 24px;">
+                                ${log.subjectName} ${log.subjectCode ? `(${log.subjectCode})` : ''}
+                            </h2>
+                            <p style="margin: 8px 0 0 0; color: var(--text-light); font-size: 14px;">
+                                <i class="fas fa-user-circle"></i> โดย: <strong>${log.teacherName || log.teacherId}</strong> | 
+                                <i class="fas fa-school"></i> ฐานเรียนรู้: <strong>${log.baseName || 'ไม่ใช่การจัดกิจกรรมประจำฐาน'}</strong>
+                            </p>
+                        </div>
+                        
+                        ${linkedPlan ? `
+                            <button id="btn-open-linked-plan" class="btn btn-outline btn-sm" style="border-color: #2E7D32; color: #2E7D32;">
+                                <i class="fas fa-book-open"></i> เปิดแผนพอเพียงที่เกี่ยวข้อง
+                            </button>
+                        ` : ''}
+                    </div>
+
+                    <hr style="margin: 20px 0; border: 0; border-top: 1px solid var(--border-color);">
+
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; background: rgba(0,0,0,0.02); padding: 16px; border-radius: var(--radius-sm);">
+                        <div>
+                            <div style="font-size: 11px; color: var(--text-light); font-weight: 600; text-transform: uppercase;">ปีการศึกษา/ภาคเรียน</div>
+                            <div style="font-weight: 700; color: var(--text-dark); margin-top: 4px;">ปี ${log.academicYear} / เทอม ${log.semester}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: var(--text-light); font-weight: 600; text-transform: uppercase;">ระดับชั้น / ห้องเรียน</div>
+                            <div style="font-weight: 700; color: var(--text-dark); margin-top: 4px;">ชั้น ${log.gradeLevel} (ห้อง ${log.className || '-'})</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: var(--text-light); font-weight: 600; text-transform: uppercase;">คาบเวลาจัดกิจกรรม</div>
+                            <div style="font-weight: 700; color: var(--text-dark); margin-top: 4px;">สัปดาห์ที่ ${log.weekNumber || '-'} / คาบที่ ${log.period || '-'}</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: var(--text-light); font-weight: 600; text-transform: uppercase;">วันที่จัดกิจกรรมจริง</div>
+                            <div style="font-weight: 700; color: var(--text-dark); margin-top: 4px;">${dateStr}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-sleek mb-4">
+                    <h3 class="section-title-sleek" style="border-bottom: 2px solid #2E7D32; padding-bottom: 6px; color: #2E7D32;"><i class="fas fa-list-check"></i> รายละเอียดผลสัมฤทธิ์และการจัดการเรียนรู้</h3>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">สรุปเนื้อหา / กิจกรรมที่จัดจริง:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6; background: rgba(0,0,0,0.01); padding: 12px; border-radius: var(--radius-sm); border-left: 3px solid #2E7D32;">${log.taughtContent || '-'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">พฤติกรรมและการมีส่วนร่วมของนักเรียน:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.studentParticipation || '-'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">ผลสัมฤทธิ์ทางการเรียนรู้ / ผลสัมฤทธิ์ปลายทาง:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.learningOutcome || '-'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">ปัญหาและอุปสรรคที่พบ:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.problems || '-'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">แนวทางการแก้ไขปัญหา / ข้อเสนอแนะ:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.solutions || '-'}</p>
+                    </div>
+
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">แผนการสอนครั้งถัดไป:</h4>
+                        <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.nextPlan || '-'}</p>
+                    </div>
+
+                    ${log.notes ? `
+                        <div style="margin-bottom: 20px;">
+                            <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">บันทึกเพิ่มเติม:</h4>
+                            <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6;">${log.notes}</p>
+                        </div>
+                    ` : ''}
+
+                    ${log.makeupRequired ? `
+                        <div style="background: rgba(243, 156, 18, 0.05); border-left: 4px solid #f39c12; padding: 12px 16px; border-radius: var(--radius-sm); margin-top: 20px;">
+                            <h4 style="font-weight: 700; color: #92400e; font-size: 14px; margin: 0;"><i class="fa-solid fa-triangle-exclamation"></i> บันทึกสอนชดเชย (Makeup Class Required)</h4>
+                            <p style="font-size: 13px; color: #92400e; margin: 4px 0 0 0;">
+                                วางแผนจัดการสอนชดเชยในวันที่: <strong>${log.makeupDate ? new Date(log.makeupDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' }) : 'ยังไม่ได้กำหนดวันที่แน่นอน'}</strong>
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+
+                ${hasFramework ? `
+                    <div class="card-sleek mb-4">
+                        <h3 class="section-title-sleek" style="border-bottom: 2px solid #2E7D32; padding-bottom: 6px; color: #2E7D32;"><i class="fas fa-leaf"></i> หลักปรัชญาของเศรษฐกิจพอเพียงที่เกิดขึ้นจริง</h3>
+                        <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 15px;">
+                            ${(log.linkedFramework.conditions && log.linkedFramework.conditions.length > 0) ? `
+                                <div>
+                                    <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">2 เงื่อนไข:</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${log.linkedFramework.conditions.map(key => `<span class="badge-framework condition">${fwLabels.conditions[key] || key}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            
+                            ${(log.linkedFramework.principles && log.linkedFramework.principles.length > 0) ? `
+                                <div>
+                                    <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">3 หลักการ:</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${log.linkedFramework.principles.map(key => `<span class="badge-framework principle">${fwLabels.principles[key] || key}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${(log.linkedFramework.dimensions && log.linkedFramework.dimensions.length > 0) ? `
+                                <div>
+                                    <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">4 มิติ:</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${log.linkedFramework.dimensions.map(key => `<span class="badge-framework dimension">${fwLabels.dimensions[key] || key}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${(log.linkedFramework.sciences && log.linkedFramework.sciences.length > 0) ? `
+                                <div>
+                                    <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">3 ศาสตร์:</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${log.linkedFramework.sciences.map(key => `<span class="badge-framework science">${fwLabels.sciences[key] || key}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            ${(log.linkedFramework.royalPolicies && log.linkedFramework.royalPolicies.length > 0) ? `
+                                <div>
+                                    <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">4 พระบรมราโชบาย:</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${log.linkedFramework.royalPolicies.map(key => `<span class="badge-framework policy">${fwLabels.royalPolicies[key] || key}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div class="card-sleek mb-4" style="background: #fafafa; font-size: 12px; color: var(--text-light); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                    <div>สร้างเมื่อ: ${createdDateStr}</div>
+                    <div>แก้ไขล่าสุดเมื่อ: ${updatedDateStr}</div>
+                </div>
+            </div>
+        `;
+
+        // Bind events
+        const btnBack = container.querySelector('#btn-back-to-list');
+        if (btnBack) {
+            btnBack.addEventListener('click', () => {
+                this.teachingLogSubView = 'list';
+                this.renderTeachingLog();
+            });
+        }
+
+        const btnOpenPlan = container.querySelector('#btn-open-linked-plan');
+        if (btnOpenPlan && linkedPlan) {
+            btnOpenPlan.addEventListener('click', () => {
+                this.currentLessonPlan = linkedPlan;
+                this.lessonPlanSubView = 'detail';
+                this.switchView('lesson-planner');
+            });
+        }
     }
 }
 

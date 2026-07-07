@@ -1,5 +1,5 @@
 # DATABASE — Academic Management Platform (AMP)
-**โรงเรียนไพวิทยาคาร** | Version: `v2.2.0` | Database: **Firebase Firestore**
+**โรงเรียนไพวิทยาคาร** | Version: `v2.3.1` | Database: **Firebase Firestore**
 
 ---
 
@@ -10,8 +10,9 @@
 | **Database Type** | Cloud Firestore (NoSQL Document Database) |
 | **Region** | `asia-southeast1` |
 | **โครงสร้าง** | Collection > Document > Fields |
+| **มาตรฐานระบบ** | ดูรายละเอียดโครงสร้างสถาปัตยกรรมที่ [DATABASE_STANDARD.md](./DATABASE_STANDARD.md) |
 
-ฐานข้อมูลใช้รูปแบบ NoSQL Document Database ซึ่งข้อมูลถูกจัดกลุ่มเป็น Collection แต่ละ Collection ประกอบด้วย Document และแต่ละ Document มี Fields เก็บข้อมูลจริง ไม่มี schema บังคับ แต่ระบบ AMP กำหนดโครงสร้าง Fields ให้สอดคล้องกันทั่วทั้งแอปพลิเคชัน
+ฐานข้อมูลใช้รูปแบบ NoSQL Document Database ซึ่งข้อมูลถูกจัดกลุ่มเป็น Collection แต่ละ Collection ประกอบด้วย Document และแต่ละ Document มี Fields เก็บข้อมูลจริง ไม่มี schema บังคับ แต่ระบบ AMP กำหนดโครงสร้าง Fields ให้สอดคล้องกันทั่วทั้งแอปพลิเคชันตามแนวปฏิบัติมาตรฐานเพื่อป้องกันปัญหาเอกสารขนาดเกิน 1MB และการควบคุมความปลอดภัยระดับบทบาทผู้ใช้งาน (RBAC)
 
 ### ความสัมพันธ์ระหว่าง Collections
 
@@ -206,28 +207,47 @@ Collection พิเศษที่เก็บการตั้งค่าร
 | `academicStartDate` | `string` | วันเปิดภาคเรียน (ISO date) |
 
 > [!NOTE]
-> เข้าถึง document เหล่านี้ด้วย path: `system_data/rotation_schedule` และ `system_data/settings`
+> เข้าถึง document เหล่านี้ด้วย path: `system_data/rotation_schedule`, `system_data/settings`, `system_data/lesson_plans` และ `system_data/teaching_logs`
+
+#### Document: `teaching_logs` *(v2.3)*
+
+เอกสารเก็บรายการประวัติผลการจัดการเรียนรู้ของครูแต่ละคาบ บูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง
+
+| Field | Type | คำอธิบาย |
+|---|---|---|
+| `logId` | `string` | ID บันทึก (รูปแบบ `tl_timestamp`) |
+| `lessonPlanId` | `string \| null` | อ้างอิงแผนกิจกรรมจาก `lesson_plans` |
+| `attendanceLogId` | `string \| null` | อ้างอิงบันทึกเช็กชื่อ |
+| `teacherUid` | `string` | UID ผู้เขียนบันทึก |
+| `teacherId` | `string` | Username ผู้เขียนบันทึก |
+| `teacherName` | `string` | ชื่อ-นามสกุลครูผู้บันทึก |
+| `academicYear` | `string` | ปีการศึกษา เช่น `"2569"` |
+| `semester` | `string` | ภาคเรียน เช่น `"1"` |
+| `weekNumber` | `string` | สัปดาห์การเรียนรู้ |
+| `logDate` | `string` | วันที่สอน (รูปแบบ `YYYY-MM-DD`) |
+| `subjectName` | `string` | ชื่อวิชาหรือหัวข้อที่จัดกิจกรรม |
+| `subjectCode` | `string` | รหัสวิชา (ถ้ามี) |
+| `gradeLevel` | `string` | ระดับชั้น ม.1 - ม.6 |
+| `className` | `string` | ห้องเรียน เช่น `"ม.1/1"` |
+| `baseId` | `string \| null` | อ้างอิงฐานการเรียนรู้ |
+| `baseName` | `string \| null` | ชื่อฐานการเรียนรู้ |
+| `teachingStatus` | `string` | สถานะ: `taught_as_planned` \| `partially_taught` \| `not_taught` \| `rescheduled` |
+| `taughtContent` | `string` | เนื้อหา/กิจกรรมที่สอนจริง |
+| `studentParticipation` | `string` | การมีส่วนร่วมของนักเรียน |
+| `learningOutcome` | `string` | ผลสัมฤทธิ์ทางการเรียนรู้ |
+| `problems` | `string` | ปัญหา/อุปสรรคที่พบ |
+| `solutions` | `string` | แนวทางการแก้ปัญหา |
+| `nextPlan` | `string` | แผนชั่วโมงถัดไป |
+| `makeupRequired` | `boolean` | ต้องสอนชดเชยหรือไม่ |
+| `makeupDate` | `string \| null` | วันที่สอนชดเชย |
+| `notes` | `string` | บันทึกเพิ่มเติม |
+| `linkedFramework` | `object` | กรอบบูรณาการเศรษฐกิจพอเพียง (โครงสร้างเช่นเดียวกับ `framework` ใน `lesson_plans`) |
+| `createdAt` | `string` | ISO timestamp วันที่สร้าง |
+| `updatedAt` | `string` | ISO timestamp วันที่แก้ไขล่าสุด |
 
 ---
 
 ## Future Collections *(โครงสร้างที่วางแผนไว้)*
-
-### `teaching_logs` *(v2.3)*
-
-บันทึกการสอนจริงหลังจากสอนเสร็จ เชื่อมกับ `lesson_plans`
-
-| Field | Type | คำอธิบาย |
-|---|---|---|
-| `lessonPlanId` | `string` | อ้างอิง Document ID จาก `lesson_plans` |
-| `teacherUid` | `string` | UID ครูผู้สอน |
-| `date` | `string` | วันที่สอน (ISO date) |
-| `actualTopic` | `string` | หัวข้อที่สอนจริง |
-| `method` | `string` | วิธีการสอนที่ใช้ |
-| `mediaUsed` | `string` | สื่อที่ใช้จริง |
-| `note` | `string` | หมายเหตุเพิ่มเติม |
-| `attendanceCount` | `number` | จำนวนนักเรียนที่เข้าเรียน |
-
----
 
 ### `resources` *(v2.4)*
 

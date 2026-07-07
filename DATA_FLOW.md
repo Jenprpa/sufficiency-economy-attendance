@@ -1,6 +1,6 @@
 # 🔄 การไหลของข้อมูล (Data Flow)
 
-**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.2.0
+**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.3.0
 
 เอกสารนี้อธิบายการเคลื่อนย้ายข้อมูลผ่านระบบในทุก scenario หลัก
 
@@ -139,15 +139,27 @@ sequenceDiagram
 
 ---
 
-## 7. 📝 Teaching Log Data Flow (วางแผน v2.3)
+## 7. 📝 Teaching Log Data Flow (บันทึกผลการสอน)
 
 ```mermaid
-graph LR
-    A[Teacher เลือก lesson_plan] --> B[กรอกรายละเอียดการสอนจริง]
-    B --> C[Firestore: teaching_logs]
-    C --> D[เชื่อมกับ subject_calendars]
-    D --> E[Dashboard แสดงสถิติ]
-    E --> F[Analytics v2.5]
+sequenceDiagram
+    actor Teacher
+    participant App as app.js
+    participant FS as Firestore
+    participant LS as LocalStorage
+
+    Teacher->>App: เลือกแผนกิจกรรมพอเพียงที่ได้รับการอนุมัติ (Optional)
+    App->>App: Autofill รายละเอียดวิชา, ชั้นเรียน, ฐานเรียนรู้ และกรอบเศรษฐกิจพอเพียง
+    Teacher->>App: ระบุสถานะการสอนจริง & บันทึกรายละเอียดการเรียนรู้ ปัญหา แนวทางแก้ไข
+    alt ไม่ได้สอนตามแผน (Partially/Not Taught/Rescheduled)
+        Teacher->>App: ระบุความต้องการสอนชดเชย & วันที่วางแผนสอนชดเชย
+    end
+
+    App->>App: validateLogData()
+    App->>LS: save to LocalStorage school_teaching_logs
+    App->>FS: set system_data/teaching_logs { data: [...] }
+    FS-->>App: ✅ success
+    App-->>Teacher: แสดง toast "บันทึกผลสำเร็จ" และนำกลับหน้าสถิติ/รายการบันทึก
 ```
 
 ---
@@ -220,5 +232,6 @@ graph TD
 | Academic Calendar | `subject_calendars` | ❌ | ❌ |
 | Sufficiency Planner | `lesson_plans` | ❌ | ❌ |
 | Rotation Schedule | `system_data/rotation_schedule` | `rotationCache` | ❌ |
-| Dashboard | `attendance_logs`, `lesson_plans` | ❌ | ❌ |
+| Teaching Log | `system_data/teaching_logs` | `school_teaching_logs` | ❌ |
+| Dashboard | `attendance_logs`, `lesson_plans`, `system_data/teaching_logs` | ❌ | ❌ |
 | Settings | `system_data/settings` | `appSettings` | ❌ |

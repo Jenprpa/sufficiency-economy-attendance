@@ -1,6 +1,6 @@
 # 🔐 ตารางสิทธิ์การเข้าถึง (Role Permission Matrix)
 
-**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.2.0
+**Academic Management Platform (AMP)** — โรงเรียนไพวิทยาคาร | Version: v2.3.0
 
 เอกสารนี้กำหนดสิทธิ์การเข้าถึงของแต่ละ Role ในทุก Module ของระบบ
 
@@ -81,7 +81,6 @@
 
 | Module | Guest | Teacher | Supervisor | Director | Admin | Sprint |
 |---|:---:|:---:|:---:|:---:|:---:|---|
-| **Teaching Log** | ❌ | ✏️ เขียนเฉพาะตน | 👁️ อ่าน | 👁️ อ่าน | ✏️ เต็ม | v2.3 |
 | **Resource Center** | ❌ | ✏️ อัปโหลด+แชร์ | 👁️ อ่าน | 👁️ อ่าน | ✏️ เต็ม | v2.4 |
 | **Analytics** | ❌ | 👁️ เฉพาะตน | 👁️ อ่าน | 👁️ อ่าน | ✏️ เต็ม | v2.5 |
 | **Student Portfolio** | ❌ | ✏️ บันทึก | 👁️ อ่าน | 👁️ อ่าน | ✏️ เต็ม | v2.8 |
@@ -93,13 +92,14 @@
 
 สิทธิ์ในตารางนี้ถูกบังคับใช้ผ่าน Firestore Security Rules ใน [firestore.rules](./firestore.rules)
 
-| Collection | Teacher Rule | Director/Supervisor Rule | Admin Rule |
+| Collection / Path | Teacher Rule | Director/Supervisor Rule | Admin Rule |
 |---|---|---|---|
 | `users` | อ่านได้ทุกคน, เขียนเฉพาะ admin | อ่าน | อ่าน+เขียน |
 | `attendance_logs` | `teacherUid == request.auth.uid` | อ่านทั้งหมด | อ่าน+เขียน |
 | `lesson_plans` | `teacherUid == request.auth.uid` | อ่าน + update status | อ่าน+เขียน |
 | `subject_calendars` | `teacherUid == request.auth.uid` | อ่าน | อ่าน+เขียน |
-| `system_data` | ❌ | ❌ | อ่าน+เขียน |
+| `system_data/teaching_logs` | อ่านทั้งหมด, เขียนเฉพาะ admin/teacher | อ่านทั้งหมด | อ่าน+เขียน |
+| `system_data/` | ❌ | ❌ | อ่าน+เขียน |
 
 > [!NOTE]
 > ดูรายละเอียด Firestore Rules เต็มได้ใน [SECURITY.md](./SECURITY.md) และไฟล์ [firestore.rules](./firestore.rules)

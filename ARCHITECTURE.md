@@ -1,5 +1,5 @@
 # ARCHITECTURE — Academic Management Platform (AMP)
-### โรงเรียนไพวิทยาคาร | Version: v2.2.0
+### โรงเรียนไพวิทยาคาร | Version: v2.3.1
 
 ---
 
@@ -12,6 +12,7 @@
 | **Frontend** | HTML5, Vanilla CSS, Vanilla JavaScript |
 | **File Structure** | Single file architecture: `index.html`, `style.css`, `app.js` |
 | **Backend** | Firebase Firestore (NoSQL), Firebase Authentication |
+| **Database Topology** | จัดประเภทเอกสารรวม `system_data` กับคอลเลกชันแยกตาม [DATABASE_STANDARD.md](./DATABASE_STANDARD.md) |
 | **Offline Support** | Service Worker (`sw.js`) + LocalStorage cache |
 | **Build Tool** | ไม่มี — No build step, no bundler, no framework |
 
@@ -195,14 +196,16 @@ Module จัดการตารางการหมุนเวียนฐ�
 
 ---
 
-## Future: Teaching Log (วางแผนสำหรับ v2.3)
+## Teaching Log Module (บันทึกผลการสอน)
 
-> [!NOTE]
-> Feature นี้อยู่ในแผนพัฒนา **v2.3** และยังไม่ได้ implement ใน v2.2.0
+Module บันทึกผลการจัดการเรียนรู้ การประเมินผลสัมฤทธิ์ และความคืบหน้าของการสอนจริงเทียบกับแผนกิจกรรมพอเพียง
 
-- Collection ใหม่: **`teaching_logs`**
-- จะเชื่อมโยงข้อมูลระหว่าง **`subject_calendars`** และ **`lesson_plans`** เข้าด้วยกัน
-- ช่วยให้ครูบันทึกผลการสอนจริงเทียบกับแผนที่วางไว้ได้อย่างครบถ้วน
+- **การซิงค์คลาวด์:** เก็บเป็นอาเรย์ของออบเจกต์บันทึกภายใน document: `system_data/teaching_logs` พร้อม LocalStorage fallback `school_teaching_logs`
+- **ฟังก์ชันสำคัญ:**
+  - **Autofill จากแผนพอเพียง:** ครูสามารถดึงชื่อวิชา ชั้นเรียน ฐานเรียนรู้ และกรอบหลักปรัชญาของเศรษฐกิจพอเพียง (2-3-4-3-4) จากแผนกิจกรรมที่ได้รับการอนุมัติแล้ว
+  - **สถานะและประเมินผลสัมฤทธิ์:** บันทึกเนื้อหาที่สอนจริง พฤติกรรมของนักเรียน และสรุปผลสัมฤทธิ์รายชั่วโมง
+  - **Makeup teaching & status:** รองรับสถานะการสอน 4 รูปแบบ หากครูไม่ได้สอนตามแผนหรือสอนได้บางส่วน สามารถระบุความต้องการในการจัดกิจกรรมสอนชดเชยพร้อมกำหนดเวลาที่คาดว่าจะสอนชดเชยได้
+  - **การข้ามสิทธิ์และมุมมองผู้ใช้:** แบ่งการกรองและการจำกัดสิทธิ์ (RBAC) เป็นไปตามเงื่อนไขที่กำหนด
 
 ---
 
@@ -215,4 +218,4 @@ Module จัดการตารางการหมุนเวียนฐ�
 
 ---
 
-*เอกสารนี้อัปเดตล่าสุดสำหรับ AMP v2.2.0 — โรงเรียนไพวิทยาคาร*
+*เอกสารนี้อัปเดตล่าสุดสำหรับ AMP v2.3.1 — โรงเรียนไพวิทยาคาร*
