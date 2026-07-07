@@ -164,6 +164,11 @@ sufficiency-economy-attendance/
 ├── 🗄️  DATABASE.md              # โครงสร้าง Firestore Collections และ Schema
 ├── 🔒 SECURITY.md               # นโยบายความปลอดภัยและการรายงานช่องโหว่
 ├── 🚀 RELEASE.md                # กระบวนการ Release และ Versioning
+├── 🏗️  ARCHITECTURE_REFACTOR_PLAN.md # แผนการปรับปรุงและแยก ES Modules 8 เฟส
+├── 🗺️  MODULE_DEPENDENCY_MAP.md      # แผนผังการไหลของข้อมูลเชิงลึกและความเชื่อมโยง
+├── ⚠️ TECHNICAL_DEBT.md            # รายการหนี้เทคนิคและความเสี่ยงของระบบ
+├── ⚡ PERFORMANCE_REVIEW.md         # บทประเมินประสิทธิภาพการทำงานและขีดจำกัด
+├── 🗂️ APPJS_FUNCTION_INDEX.md        # ดัชนีฟังก์ชัน 224 เมธอดใน app.js และแผนงาน
 └── 📖 walkthrough.md            # บันทึกการพัฒนาและการทดสอบล่าสุด
 ```
 

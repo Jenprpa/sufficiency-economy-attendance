@@ -196,5 +196,16 @@ self.addEventListener('activate', (event) => {
 **แผนการแก้ไข:** [วิธีแก้ไขที่แนะนำ]
 ```
 
+---
+
+## 🔍 เอกสารการวิเคราะห์หนี้เทคนิคระดับลึก (Deep Architectural Audits)
+
+เพื่อเตรียมความพร้อมสำหรับการพัฒนาระบบระยะยาว รายละเอียดเชิงลึกของหนี้เทคนิคและคอขวดประสิทธิภาพถูกจัดทำแยกในเอกสารดังนี้:
+- **บทวิเคราะห์หนี้เทคนิคและความเสี่ยงทั้งหมด:** ดูได้ที่ [TECHNICAL_DEBT.md](./TECHNICAL_DEBT.md) (วิเคราะห์หัวเรื่อง God Class, DOM XSS, Spacing, Event Handling, และ Mobile Responsiveness)
+- **บทประเมินประสิทธิภาพการทำงานและขีดจำกัด:** ดูได้ที่ [PERFORMANCE_REVIEW.md](./PERFORMANCE_REVIEW.md) (วิเคราะห์ขนาดไฟล์, DOM Queries, Firestore Reads, loops $O(N^2)$ และขีดจำกัด LocalStorage)
+- **ดัชนีช่วงบรรทัดฟังก์ชัน app.js:** ดูได้ที่ [APPJS_FUNCTION_INDEX.md](./APPJS_FUNCTION_INDEX.md)
+
+---
+
 > [!TIP]
-> ใช้ AI_PROMPTS.md ส่วน "Security Audit Prompt" และ "Architecture Review Prompt" เพื่อค้นหาปัญหาใหม่
+> ใช้ [AI_PROMPTS.md](./AI_PROMPTS.md) ส่วน "Security Audit Prompt" และ "Architecture Review Prompt" เพื่อค้นหาปัญหาใหม่
