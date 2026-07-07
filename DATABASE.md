@@ -207,11 +207,15 @@ Collection พิเศษที่เก็บการตั้งค่าร
 | `academicStartDate` | `string` | วันเปิดภาคเรียน (ISO date) |
 
 > [!NOTE]
-> เข้าถึง document เหล่านี้ด้วย path: `system_data/rotation_schedule`, `system_data/settings`, `system_data/lesson_plans` และ `system_data/teaching_logs`
+> เข้าถึง document เหล่านี้ด้วย path: `system_data/rotation_schedule`, `system_data/settings` และ `system_data/lesson_plans`
 
-#### Document: `teaching_logs` *(v2.3)*
+---
 
-เอกสารเก็บรายการประวัติผลการจัดการเรียนรู้ของครูแต่ละคาบ บูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง
+### `teaching_logs` *(v2.3)*
+
+คอลเลกชันเก็บประวัติผลการจัดการเรียนรู้ของครูแต่ละคาบ แยกรายเอกสารเพื่อรองรับการเติบโตของข้อมูลและความปลอดภัยระดับแถว (Row-Level Security) บูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง
+
+- **Document ID**: auto-generated หรือกำหนดเป็น `tl_timestamp`
 
 | Field | Type | คำอธิบาย |
 |---|---|---|

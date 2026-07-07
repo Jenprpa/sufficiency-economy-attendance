@@ -366,3 +366,50 @@ Below is the checklist for verifying the new functionality in the application.
 ---
 
 **All features have been merged, pushed, and tagged under v2.2.0 successfully!**
+
+---
+
+## V2.4 Sprint F2 - Attendance to Teaching Log Integration
+
+### 21. Attendance Save Prompt
+- [ ] Log in as a **Teacher** (e.g., `teacher1`).
+- [ ] Navigate to **"เช็กชื่อเข้าฐาน"** (Attendance).
+- [ ] Select a classroom and fill out student attendance statuses.
+- [ ] Click **"บันทึกข้อมูลหลัก (Live)"** to save.
+- [ ] Verify that a status modal pops up with two buttons:
+  - **"บันทึกผลการสอน"** (primary, green/success style).
+  - **"ไว้ภายหลัง"** (secondary, outline/neutral style).
+- [ ] Click **"ไว้ภายหลัง"**. Verify that the modal closes and redirects you to the Dashboard.
+
+### 22. Auto-Prefill & Lesson Plan Matching
+- [ ] Repeat the attendance check-in process for a new base/classroom.
+- [ ] Click **"บันทึกผลการสอน"** in the success modal.
+- [ ] Verify that you are redirected to the **"บันทึกผลการสอน"** form view.
+- [ ] Verify the success notice card is shown at the top:
+  - *"สร้างบันทึกการสอนจากการเช็กชื่อแล้ว ระบบดึงข้อมูลจากการเช็กชื่อมาให้บางส่วนแล้ว..."*
+- [ ] Verify that the attendance statistics (Present, Absent, Late, Leave) are displayed in the notice card.
+- [ ] Verify that the following fields are pre-populated:
+  - วันที่สอน (logDate), สัปดาห์การเรียนรู้ (weekNumber), ปีการศึกษา (academicYear), ภาคเรียน (semester).
+  - ระดับชั้น (gradeLevel), ห้องเรียน (className), ฐานเรียนรู้ (baseId / baseName).
+- [ ] Verify that the **Lesson Plan** dropdown has automatically selected the correct approved plan matching the teacher, week, and base/grade.
+- [ ] Verify that the **Subject Code**, **Subject Name**, and all **Framework (2-3-4-3-4) Checkboxes** are auto-filled from the matched plan.
+
+### 23. Duplicate Prevention
+- [ ] Click **"ยกเลิก"** or navigate away.
+- [ ] Re-run the attendance check-in for the same class/base/date and save it again.
+- [ ] Click **"บันทึกผลการสอน"** in the success modal.
+- [ ] Verify that the system detects a duplicate.
+- [ ] Verify that a confirmation dialog appears:
+  - *"พบประวัติบันทึกผลการสอนสำหรับวิชานี้และห้องเรียนนี้ในระบบแล้ว ต้องการเปิดดูข้อมูลเดิมหรือไม่?"*
+- [ ] Click **"ตกลง"** (OK). Verify that the system opens the existing log's detail view instead of opening the create form.
+
+### 24. Navigation Guard & State Cleanup
+- [ ] Start a check-in and click **"บันทึกผลการสอน"** to open the prefilled form.
+- [ ] Do not save; click **"ยกเลิก"** or select **"หน้าหลัก"** from the sidebar navigation.
+- [ ] Navigate back to **"บันทึกผลการสอน"** from the sidebar.
+- [ ] Verify that the form is empty (or shows the list of logs) and the prefilled state has been safely cleared (preventing stale prefill leakages).
+
+---
+
+**All features have been merged, pushed, and tagged under v2.4.0 successfully!**
+

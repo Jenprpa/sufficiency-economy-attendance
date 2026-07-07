@@ -1947,6 +1947,11 @@ class AttendanceApp {
 
         this.currentView = viewId;
 
+        // Reset teaching log prefill cache if navigating away
+        if (viewId !== 'teaching-log') {
+            this.teachingLogPrefillFromAttendance = null;
+        }
+
         // Close hamburger menu on view switch
         const navBar = document.querySelector('.top-nav-bar');
         if (navBar) navBar.classList.remove('menu-open');
@@ -4121,11 +4126,342 @@ class AttendanceApp {
             }
 
             this.saveDatabase(false);
-            this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ (Live)', `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
-            const redirectView = (this.currentUser && this.currentUser.role === 'teacher') ? 'checkin' : 'dashboard';
-            this.switchView(redirectView);
+
+            // ── Sprint F2: Prompt teacher/admin to create Teaching Log ─────────
+            const canCreateLog = this.currentUser &&
+                (this.currentUser.role === 'teacher' || this.currentUser.role === 'admin');
+
+            if (canCreateLog) {
+                // Build attendance summary for prefill context
+                const attCtx = this._buildAttendanceContext({
+                    activityLogId,
+                    scheduleRow,
+                    todayDate,
+                    week,
+                    selectedClass: this.selectedCheckinClass,
+                    studentAttendanceList,
+                    semesterId: this.db.activeSemesterId || '1-2569'
+                });
+                // Show "บันทึกผลการสอน" prompt (keeps modal open with action buttons)
+                this._promptTeachingLogAfterAttendance(attCtx);
+            } else {
+                this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ (Live)', `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
+                this.switchView('dashboard');
+            }
         }
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Sprint F2 — Attendance → Teaching Log Integration Helpers
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Build a compact attendance context object from the just-saved live attendance.
+     * This object is passed around to the other F2 helpers and stored as
+     * this.pendingAttendanceContext to prefill the Teaching Log form.
+     *
+     * @param {object} opts
+     * @param {string} opts.activityLogId   - Composite ID: date_baseId_classId
+     * @param {object} opts.scheduleRow     - Current rotation schedule row
+     * @param {string} opts.todayDate       - ISO date string (YYYY-MM-DD)
+     * @param {number} opts.week            - Academic week number
+     * @param {string} opts.selectedClass   - e.g. "ม.1/1"
+     * @param {Array}  opts.studentAttendanceList - [{studentId, status}, …]
+     * @param {string} opts.semesterId      - e.g. "1-2569"
+     * @returns {object} attendanceContext
+     */
+    _buildAttendanceContext({ activityLogId, scheduleRow, todayDate, week, selectedClass, studentAttendanceList, semesterId }) {
+        // Derive academicYear & semester from semesterId ("1-2569" → semester=1, year="2569")
+        const semParts = (semesterId || '1-2569').split('-');
+        const semester = semParts[0] || '1';
+        const academicYear = semParts[1] || '2569';
+
+        // Resolve base name from db.bases
+        const baseObj = (this.db.bases || []).find(b => b.id === scheduleRow.baseId);
+        const baseName = baseObj ? baseObj.name : (scheduleRow.baseId || '');
+
+        // Grade level: derive from className ("ม.1/1" → "ม.1")
+        const gradeLevel = selectedClass ? selectedClass.replace(/\/\d+$/, '') : '';
+
+        // Attendance summary counts (do NOT store full student list in teaching log)
+        const total = studentAttendanceList.length;
+        const present = studentAttendanceList.filter(s => s.status === 'present').length;
+        const absent  = studentAttendanceList.filter(s => s.status === 'absent').length;
+        const late    = studentAttendanceList.filter(s => s.status === 'late').length;
+        const leave   = studentAttendanceList.filter(s => s.status === 'leave').length;
+
+        return {
+            // Link back to the base_activity_log document (used as attendanceLogId)
+            attendanceLogId: activityLogId,
+            attendanceSummary: { total, present, absent, late, leave },
+
+            // Teacher info
+            teacherUid:  (firebase.auth().currentUser && firebase.auth().currentUser.uid) || '',
+            teacherId:   (this.currentUser && this.currentUser.username) || '',
+            teacherName: (this.currentUser && this.currentUser.name) || '',
+
+            // Academic context
+            academicYear,
+            semester,
+            weekNumber: String(week),
+            logDate: todayDate,
+
+            // Base / class context
+            baseId:     scheduleRow.baseId || '',
+            baseName,
+            gradeLevel,
+            className:  selectedClass || '',
+            semesterId
+        };
+    }
+
+    /**
+     * Show the post-attendance-save modal with two action buttons:
+     *  "บันทึกผลการสอน" → openTeachingLogFromAttendance(ctx)
+     *  "ไว้ภายหลัง"     → switchView('checkin')
+     *
+     * @param {object} ctx - attendanceContext from _buildAttendanceContext
+     */
+    _promptTeachingLogAfterAttendance(ctx) {
+        // Store context on instance so the modal's inline onclick can reach it
+        this.pendingAttendanceContext = ctx;
+
+        const successMsg = `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${ctx.className}</strong> เรียบร้อยแล้ว!`;
+        const summaryLine = ctx.attendanceSummary
+            ? `<div style="margin:8px 0 4px;font-size:13px;color:var(--text-secondary);">
+                มา <strong>${ctx.attendanceSummary.present}</strong> /
+                ขาด <strong>${ctx.attendanceSummary.absent}</strong> /
+                สาย <strong>${ctx.attendanceSummary.late}</strong> /
+                ลา <strong>${ctx.attendanceSummary.leave}</strong>
+                (รวม ${ctx.attendanceSummary.total} คน)
+               </div>`
+            : '';
+        const promptMsg  = `ต้องการบันทึกผลการสอนต่อหรือไม่`;
+
+        const buttonsHtml = `
+            <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
+                <button class="btn btn-primary" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                    onclick="app.closeModal('status-modal');app.openTeachingLogFromAttendance(app.pendingAttendanceContext);">
+                    <i class="fa-solid fa-book-open-reader" style="margin-right:6px;"></i>บันทึกผลการสอน
+                </button>
+                <button class="btn btn-outline" style="padding:9px 20px;font-size:14px;border-radius:8px;"
+                    onclick="app.closeModal('status-modal');app.switchView('checkin');">
+                    ไว้ภายหลัง
+                </button>
+            </div>`;
+
+        this.showStatusModal(
+            'success',
+            'บันทึกการเช็กชื่อสำเร็จ',
+            `${successMsg}${summaryLine}<hr style="margin:10px 0;opacity:0.2;"><p style="margin:6px 0 0;font-size:14px;">${promptMsg}</p>`,
+            buttonsHtml
+        );
+    }
+
+    /**
+     * Check if a Teaching Log already exists for the given attendance context.
+     * Priority: match by attendanceLogId, fallback to compound key.
+     *
+     * @param {object} ctx - attendanceContext
+     * @returns {object|null} existing teaching log or null
+     */
+    _findExistingTeachingLogForAttendance(ctx) {
+        const logs = this.db.teaching_logs || [];
+
+        // Priority 1: exact attendanceLogId match
+        if (ctx.attendanceLogId) {
+            const byId = logs.find(l => l.attendanceLogId === ctx.attendanceLogId);
+            if (byId) return byId;
+        }
+
+        // Priority 2: compound key match
+        return logs.find(l =>
+            l.teacherUid  === ctx.teacherUid  &&
+            l.logDate     === ctx.logDate     &&
+            l.baseId      === ctx.baseId      &&
+            l.className   === ctx.className   &&
+            l.weekNumber  === ctx.weekNumber
+        ) || null;
+    }
+
+    /**
+     * Find the best matching lesson plan for the given attendance context.
+     * Scoring: +1 per matching field.
+     *
+     * @param {object} ctx - attendanceContext
+     * @returns {object|null} best matching lesson_plan or null
+     */
+    _findMatchingLessonPlanForAttendance(ctx) {
+        const plans = (this.db.lesson_plans || []).filter(p => {
+            // Only approved plans; teacher sees only own plans
+            if (p.status && p.status !== 'approved') return false;
+            if (this.currentUser && this.currentUser.role === 'teacher') {
+                return p.creator === this.currentUser.username ||
+                       p.teacherUid === ctx.teacherUid;
+            }
+            return true;
+        });
+
+        if (!plans.length) return null;
+
+        let best = null;
+        let bestScore = 0;
+
+        plans.forEach(p => {
+            let score = 0;
+            if (p.teacherUid === ctx.teacherUid)           score += 3;
+            if (String(p.academicYear) === ctx.academicYear) score += 2;
+            if (String(p.semester)     === ctx.semester)     score += 2;
+            if (String(p.week)         === ctx.weekNumber)   score += 3;
+            if (p.baseId               === ctx.baseId)       score += 3;
+            if (p.baseName             === ctx.baseName)     score += 2;
+            if (p.grade                === ctx.gradeLevel)   score += 2;
+            if (p.className            === ctx.className)    score += 2;
+            if (score > bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        });
+
+        // Require minimum score threshold to avoid spurious matches
+        return bestScore >= 4 ? best : null;
+    }
+
+    /**
+     * Main orchestrator called when teacher clicks "บันทึกผลการสอน".
+     * Checks for duplicates → shows options or opens form with prefill.
+     *
+     * @param {object} ctx - attendanceContext from _buildAttendanceContext
+     */
+    openTeachingLogFromAttendance(ctx) {
+        if (!ctx) { this.switchView('teaching-log'); return; }
+
+        const existing = this._findExistingTeachingLogForAttendance(ctx);
+
+        if (existing) {
+            // ── Duplicate found: offer to open existing or create new ──────────
+            const dupButtons = `
+                <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
+                    <button class="btn btn-primary" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                        onclick="app.closeModal('status-modal');app._openExistingTeachingLog('${existing.logId}');">
+                        <i class="fa-solid fa-folder-open" style="margin-right:6px;"></i>เปิดบันทึกเดิม
+                    </button>
+                    <button class="btn btn-outline" style="padding:9px 20px;font-size:14px;border-radius:8px;"
+                        onclick="app.closeModal('status-modal');app._openNewTeachingLogWithContext(app.pendingAttendanceContext);">
+                        <i class="fa-solid fa-plus" style="margin-right:6px;"></i>สร้างใหม่อีกฉบับ
+                    </button>
+                    <button class="btn btn-ghost" style="padding:7px 20px;font-size:13px;color:var(--text-secondary);"
+                        onclick="app.closeModal('status-modal');app.switchView('checkin');">
+                        ยกเลิก
+                    </button>
+                </div>`;
+
+            this.showStatusModal(
+                'warning',
+                'พบบันทึกผลการสอนที่มีอยู่แล้ว',
+                `พบบันทึกผลการสอนที่บันทึกไว้แล้วสำหรับชั้น <strong>${ctx.className}</strong> ฐาน <strong>${ctx.baseName}</strong> วันที่ <strong>${ctx.logDate}</strong><br><small style="color:var(--text-secondary);">ต้องการเปิดบันทึกเดิมหรือสร้างใหม่?</small>`,
+                dupButtons
+            );
+            return;
+        }
+
+        // No duplicate — open new form with prefilled context
+        this._openNewTeachingLogWithContext(ctx);
+    }
+
+    /**
+     * Open an existing Teaching Log in detail view.
+     * @param {string} logId
+     */
+    _openExistingTeachingLog(logId) {
+        const log = (this.db.teaching_logs || []).find(l => l.logId === logId);
+        if (!log) { this.switchView('teaching-log'); return; }
+        this.currentTeachingLog = log;
+        this.teachingLogSubView = 'detail';
+        this.switchView('teaching-log');
+    }
+
+    /**
+     * Prefill Teaching Log form from attendance context, auto-select matching plan.
+     * Marks log with syncStatus:'pending' for offline safety.
+     *
+     * @param {object} ctx - attendanceContext
+     */
+    _openNewTeachingLogWithContext(ctx) {
+        const matchedPlan = this._findMatchingLessonPlanForAttendance(ctx);
+
+        // Build prefilled log object (new, no logId yet)
+        const prefilled = {
+            logId: '',           // Will be generated on save
+            attendanceLogId:  ctx.attendanceLogId  || '',
+            attendanceSummary: ctx.attendanceSummary || null,
+
+            teacherUid:   ctx.teacherUid   || '',
+            teacherId:    ctx.teacherId    || '',
+            teacherName:  ctx.teacherName  || '',
+
+            academicYear: ctx.academicYear || '2569',
+            semester:     ctx.semester     || '1',
+            weekNumber:   ctx.weekNumber   || '',
+            logDate:      ctx.logDate      || new Date().toISOString().split('T')[0],
+
+            baseId:       ctx.baseId       || '',
+            baseName:     ctx.baseName     || '',
+            gradeLevel:   ctx.gradeLevel   || '',
+            className:    ctx.className    || '',
+
+            // Auto-fill from matched plan (or leave empty for manual entry)
+            lessonPlanId:  matchedPlan ? (matchedPlan.id || '') : '',
+            subjectName:   matchedPlan ? (matchedPlan.subject || matchedPlan.title || '') : '',
+            subjectCode:   matchedPlan ? (matchedPlan.subjectCode || '') : '',
+            linkedFramework: matchedPlan && matchedPlan.framework
+                ? { ...matchedPlan.framework }
+                : { conditions: [], principles: [], dimensions: [], sciences: [], royalPolicies: [] },
+
+            // Teaching details (blank — teacher fills in)
+            period: '',
+            teachingStatus:       'taught_as_planned',
+            taughtContent:        '',
+            studentParticipation: '',
+            learningOutcome:      '',
+            problems:             '',
+            solutions:            '',
+            nextPlan:             '',
+            notes:                '',
+            makeupRequired:       false,
+            makeupDate:           '',
+
+            // Offline safety flag
+            syncStatus: 'pending'
+        };
+
+        // Store prefill hint so renderTeachingLogForm can show a notice
+        prefilled._fromAttendance = true;
+        prefilled._matchedPlanFound = !!matchedPlan;
+
+        this.teachingLogPrefillFromAttendance = {
+            attendanceLogId: ctx.attendanceLogId,
+            summaryHtml: ctx.attendanceSummary ? `
+              <div class="attendance-summary-badge" style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
+                สถิติการเช็กชื่อห้อง <strong>${ctx.className}</strong>: 
+                มา <strong style="color:var(--success);">${ctx.attendanceSummary.present}</strong> | 
+                ขาด <strong style="color:var(--danger);">${ctx.attendanceSummary.absent}</strong> | 
+                สาย <strong style="color:var(--warning);">${ctx.attendanceSummary.late}</strong> | 
+                ลา <strong style="color:var(--primary);">${ctx.attendanceSummary.leave}</strong>
+                (รวม ${ctx.attendanceSummary.total} คน)
+              </div>
+            ` : ''
+        };
+
+        this.pendingAttendanceContext = null; // consumed
+        this.currentTeachingLog = prefilled;
+        this.teachingLogSubView = 'form';
+        this.switchView('teaching-log');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // End Sprint F2 helpers
+    // ════════════════════════════════════════════════════════════════════════
 
     async syncStagingBatch(batchId) {
         const log = this.db.staging_logs.find(x => x.batchId === batchId);
@@ -12384,12 +12720,27 @@ generateDefaultRotationSchedule(customBases = null) {
             }
         };
 
+        const attendancePrefill = this.teachingLogPrefillFromAttendance;
+        const attendanceNoticeHtml = attendancePrefill ? `
+            <div class="notice-card success" style="margin-top: 15px; border-left: 4px solid var(--success); padding: 15px; border-radius: 8px; background: rgba(46, 125, 50, 0.05);">
+                <div class="notice-title" style="font-weight: bold; font-size: 16px; color: var(--success); display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-circle-check"></i> สร้างบันทึกการสอนจากการเช็กชื่อแล้ว
+                </div>
+                <div class="notice-text" style="margin-top: 6px; font-size: 14px; color: var(--text-primary);">
+                    ระบบดึงข้อมูลจากการเช็กชื่อมาให้บางส่วนแล้ว กรุณาตรวจสอบและเติมรายละเอียดการสอนให้ครบ
+                </div>
+                ${attendancePrefill.summaryHtml || ''}
+            </div>
+        ` : '';
+
         container.innerHTML = `
             <div class="lesson-plan-form-container animate-fade-in">
                 <div class="form-header card-sleek" style="background: linear-gradient(135deg, #1b5e20, #4caf50); color: white;">
                     <h2><i class="fas fa-file-signature"></i> ${isNew ? 'เขียนบันทึกผลการสอนใหม่' : 'แก้ไขบันทึกผลการสอน'}</h2>
                     <p>บันทึกผลสัมฤทธิ์ ผลการเรียนรู้ของนักเรียน ปัญหาอุปสรรค และการบูรณาการตามกรอบหลักปรัชญาของเศรษฐกิจพอเพียง</p>
                 </div>
+
+                ${attendanceNoticeHtml}
 
                 <form id="teaching-log-form" class="mt-4">
                     <!-- Step 1: Pre-fill from Lesson Plan -->
@@ -12655,6 +13006,7 @@ generateDefaultRotationSchedule(customBases = null) {
         const btnCancel = container.querySelector('#btn-cancel-log');
         if (btnCancel) {
             btnCancel.addEventListener('click', () => {
+                this.teachingLogPrefillFromAttendance = null;
                 this.teachingLogSubView = 'list';
                 this.renderTeachingLog();
             });
@@ -12728,8 +13080,10 @@ generateDefaultRotationSchedule(customBases = null) {
         const form = document.getElementById('teaching-log-form');
         if (!form) return;
 
-        const isNew = !this.currentTeachingLog;
-        const logId = isNew ? 'tl_' + Date.now() : this.currentTeachingLog.logId;
+        const isNew = !this.currentTeachingLog || 
+                      !this.currentTeachingLog.logId || 
+                      !(this.db.teaching_logs || []).some(l => l.logId === this.currentTeachingLog.logId);
+        const logId = isNew ? (this.currentTeachingLog && this.currentTeachingLog.logId ? this.currentTeachingLog.logId : 'tl_' + Date.now()) : this.currentTeachingLog.logId;
 
         // Gather framework checkbox values
         const getCheckedValues = (name) => {
@@ -12765,7 +13119,8 @@ generateDefaultRotationSchedule(customBases = null) {
         const logData = {
             logId,
             lessonPlanId: lessonPlanId || null,
-            attendanceLogId: isNew ? null : (this.currentTeachingLog.attendanceLogId || null),
+            attendanceLogId: this.currentTeachingLog ? (this.currentTeachingLog.attendanceLogId || null) : null,
+            attendanceSummary: this.currentTeachingLog ? (this.currentTeachingLog.attendanceSummary || null) : null,
             
             teacherUid: this.currentUser ? (this.currentUser.uid || '') : '',
             teacherId: this.currentUser ? this.currentUser.username : '',
@@ -12836,6 +13191,7 @@ generateDefaultRotationSchedule(customBases = null) {
             this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ', 'ระบบได้ทำการจัดเก็บผลการเรียนรู้เรียบร้อยแล้ว');
             setTimeout(() => this.closeModal('status-modal'), 1500);
 
+            this.teachingLogPrefillFromAttendance = null;
             this.teachingLogSubView = 'list';
             this.renderTeachingLog();
         } catch (e) {
