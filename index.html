@@ -167,6 +167,9 @@
                     </div>
                 </div>
 
+                <!-- Missing Attendance Warning (Admin Only) -->
+                <div id="dash-missing-attendance-container"></div>
+
                 <!-- Main Dashboard Grid -->
                 <div class="main-grid">
                     <!-- Column 1: Active Bases Today -->
@@ -307,6 +310,12 @@
             <section class="view-container" id="view-checkin">
                 <!-- Holiday Banner -->
                 <div id="checkin-holiday-banner" class="alert-banner" style="display: none; background-color: rgba(239, 68, 68, 0.08); border-color: var(--accent); color: var(--accent); margin-bottom: 20px;">
+                </div>
+
+                <!-- Duplicate Warning Banner -->
+                <div id="checkin-duplicate-warning-banner" class="alert-banner animate-fade-in" style="display: none; background-color: rgba(245, 158, 11, 0.08); border-color: #F59E0B; color: #D97706; margin-bottom: 20px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 18px; margin-right: 10px;"></i>
+                    <div id="checkin-duplicate-warning-text"></div>
                 </div>
 
                 <!-- Check-in header status -->

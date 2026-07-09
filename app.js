@@ -3242,6 +3242,14 @@ class AttendanceApp {
             });
         }
         this.renderExecutiveCards('dash-executives-container');
+
+        // Sprint F3: render missing-attendance warning card for admin/director roles
+        if (this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.role === 'director')) {
+            this._renderMissingAttendanceWarning();
+        } else {
+            const missingEl = document.getElementById('dash-missing-attendance-container');
+            if (missingEl) missingEl.innerHTML = '';
+        }
     }
 
     renderExecutiveCards(containerId) {
@@ -3365,6 +3373,10 @@ class AttendanceApp {
         const selectorCard = document.getElementById('checkin-class-selector-card');
         const buttonsContainer = document.getElementById('checkin-class-buttons-container');
         if (selectorCard) selectorCard.style.display = 'none';
+        
+        // Hide duplicate warning banner by default
+        const warningBanner = document.getElementById('checkin-duplicate-warning-banner');
+        if (warningBanner) warningBanner.style.display = 'none';
 
         // Permissions Guard: Must be teacher or admin
         if (!this.currentUser || (this.currentUser.role !== 'teacher' && this.currentUser.role !== 'admin')) {
@@ -3787,6 +3799,27 @@ class AttendanceApp {
         document.getElementById('btn-reset-checkin').disabled = false;
         document.getElementById('btn-save-attendance').disabled = false;
 
+        // Duplicate attendance check & warning banner for teacher UI
+        const week = this.currentWeekInfo ? this.currentWeekInfo.week : 1;
+        const todayDate = this.systemDate;
+        const baseId = this.currentCheckinSchedule ? this.currentCheckinSchedule.baseId : '';
+        const teacherId = this.currentUser ? this.currentUser.username : '';
+        
+        const hasDupToday = this._checkDuplicateAttendance(week, baseId, clsName, todayDate, teacherId);
+        const warningBanner = document.getElementById('checkin-duplicate-warning-banner');
+        const warningText = document.getElementById('checkin-duplicate-warning-text');
+        
+        if (hasDupToday) {
+            if (warningBanner && warningText) {
+                warningText.innerHTML = `<strong>แจ้งเตือน:</strong> ห้อง <strong>${clsName}</strong> มีการบันทึกการเช็กชื่อของวันนี้ในระบบแล้ว หากทำการบันทึกข้อมูลอีกครั้งระบบจะทำการบันทึกทับข้อมูลเดิม`;
+                warningBanner.style.display = 'flex';
+            }
+        } else {
+            if (warningBanner) {
+                warningBanner.style.display = 'none';
+            }
+        }
+
         // Reset search input value
         document.getElementById('checkin-student-search').value = '';
 
@@ -3951,7 +3984,7 @@ class AttendanceApp {
         await this.saveCurrentAttendanceWithOptions(false);
     }
 
-    async saveCurrentAttendanceWithOptions(isStaging) {
+    async saveCurrentAttendanceWithOptions(isStaging, forceSave = false) {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
         const scheduleRow = this.currentCheckinSchedule;
@@ -4005,6 +4038,51 @@ class AttendanceApp {
                 });
             }
         });
+
+        // Sprint F3: Duplicate attendance verification for live check-in
+        if (!isStaging && !forceSave) {
+            const teacherId = this.currentUser ? this.currentUser.username : '';
+            const hasDupToday = this._checkDuplicateAttendance(week, scheduleRow.baseId, this.selectedCheckinClass, todayDate, teacherId);
+            if (hasDupToday) {
+                const activityLogId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
+                const tempCtx = this._buildAttendanceContext({
+                    activityLogId,
+                    scheduleRow,
+                    todayDate,
+                    week,
+                    selectedClass: this.selectedCheckinClass,
+                    studentAttendanceList,
+                    semesterId: this.db.activeSemesterId || '1-2569'
+                });
+                
+                this.pendingAttendanceContext = tempCtx;
+                
+                const dupButtonsHtml = `
+                    <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
+                        <button class="btn btn-primary" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                            onclick="app.closeModal('status-modal'); app._handleEditTeachingLogFromDuplicatePrompt();">
+                            <i class="fa-solid fa-file-pen" style="margin-right:6px;"></i>แก้ไข/ดูผลการสอนเดิม
+                        </button>
+                        <button class="btn btn-outline" style="padding:9px 20px;font-size:14px;border-radius:8px;border-color:var(--danger);color:var(--danger);"
+                            onclick="app.closeModal('status-modal'); app.saveCurrentAttendanceWithOptions(false, true);">
+                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>บันทึกทับข้อมูลเดิม
+                        </button>
+                        <button class="btn btn-ghost" style="padding:7px 20px;font-size:13px;color:var(--text-secondary);"
+                            onclick="app.closeModal('status-modal');">
+                            ยกเลิก
+                        </button>
+                    </div>
+                `;
+                
+                this.showStatusModal(
+                    'warning',
+                    'พบบันทึกเช็กชื่อซ้ำ',
+                    `ห้อง <strong>${this.selectedCheckinClass}</strong> มีการบันทึกการเช็กชื่อของวันนี้ในระบบแล้ว คุณต้องการดำเนินการอย่างไร?`,
+                    dupButtonsHtml
+                );
+                return;
+            }
+        }
 
         if (isStaging) {
             const batchId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
@@ -4259,6 +4337,20 @@ class AttendanceApp {
     }
 
     /**
+     * Handle editing or creating a teaching log from the duplicate attendance confirmation dialog.
+     */
+    _handleEditTeachingLogFromDuplicatePrompt() {
+        const ctx = this.pendingAttendanceContext;
+        if (!ctx) return;
+        const existingLog = this._findExistingTeachingLogForAttendance(ctx);
+        if (existingLog) {
+            this._openExistingTeachingLog(existingLog.logId);
+        } else {
+            this._openNewTeachingLogWithContext(ctx);
+        }
+    }
+
+    /**
      * Check if a Teaching Log already exists for the given attendance context.
      * Priority: match by attendanceLogId, fallback to compound key.
      *
@@ -4466,6 +4558,210 @@ class AttendanceApp {
 
     // ════════════════════════════════════════════════════════════════════════
     // End Sprint F2 helpers
+    // ════════════════════════════════════════════════════════════════════════
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Sprint F3 — Attendance Validation & Missing Attendance Helpers
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Check if a duplicate attendance record already exists.
+     * Checks both live (base_activity_logs) and staging drafts (staging_logs).
+     */
+    _checkDuplicateAttendance(week, baseId, classId, date, teacherId) {
+        const liveLogs = this.db.base_activity_logs || [];
+        const isLiveDup = liveLogs.some(log => 
+            String(log.week) === String(week) &&
+            log.baseId === baseId &&
+            log.classId === classId &&
+            log.date === date &&
+            (log.checkedBy === teacherId || (log.teachers && log.teachers.includes(teacherId)))
+        );
+        if (isLiveDup) return true;
+
+        const draftLogs = this.db.staging_logs || [];
+        const isDraftDup = draftLogs.some(log => 
+            String(log.week) === String(week) &&
+            log.baseId === baseId &&
+            log.classId === classId &&
+            log.date === date &&
+            (log.checkedBy === teacherId || (log.teachers && log.teachers.includes(teacherId)))
+        );
+        return isDraftDup;
+    }
+
+    /**
+     * Get all expected attendance slots based on rotation_schedule.
+     */
+    getExpectedAttendanceSlots() {
+        const expected = [];
+        const schedule = this.db.rotation_schedule || [];
+        schedule.forEach(row => {
+            if (row.isEmpty || row.isSpecial) return;
+            const attending = row.attendingClasses || [];
+            attending.forEach(cls => {
+                expected.push({
+                    week: row.week,
+                    baseId: row.baseId,
+                    baseName: row.baseName,
+                    roomId: cls, // class name e.g. "ม.1/1"
+                    roomName: row.classRooms ? (row.classRooms[cls] || row.room || "-") : (row.room || "-")
+                });
+            });
+        });
+        return expected;
+    }
+
+    /**
+     * Get completed attendance slots from attendance_logs, grouped by week, base, class, and date.
+     */
+    getCompletedAttendanceSlots() {
+        const completed = [];
+        const logs = this.db.attendance_logs || [];
+        const seen = new Set();
+        
+        logs.forEach(log => {
+            const week = log.week;
+            const baseId = log.baseId;
+            const roomId = log.classId; // classId is roomId
+            const date = log.date;
+            
+            const key = this._normalizeSlotKey(week, baseId, roomId, date);
+            if (!seen.has(key)) {
+                seen.add(key);
+                completed.push({
+                    week: week,
+                    baseId: baseId,
+                    roomId: roomId,
+                    date: date,
+                    checkedBy: log.checkedBy || '',
+                    teacherName: log.teacherName || ''
+                });
+            }
+        });
+        return completed;
+    }
+
+    /**
+     * Return slots that should have attendance but have no saved logs.
+     * Can filter by targetWeek (defaults to current week if null, or 'all' for all weeks up to now).
+     */
+    getMissingAttendanceSlots(targetWeek = null) {
+        const expected = this.getExpectedAttendanceSlots();
+        const completed = this.getCompletedAttendanceSlots();
+        
+        // Build map/set of completed week_baseId_roomId slots (ignoring date to determine if completed at all for that week)
+        const completedKeys = new Set(completed.map(c => `${c.week}_${c.baseId}_${c.roomId}`));
+        
+        let targetWeeks = [];
+        const currentWeek = this.currentWeekInfo ? this.currentWeekInfo.week : 1;
+        
+        if (targetWeek === 'all') {
+            for (let w = 1; w <= currentWeek; w++) {
+                targetWeeks.push(w);
+            }
+        } else if (targetWeek !== null) {
+            targetWeeks.push(Number(targetWeek));
+        } else {
+            targetWeeks.push(currentWeek);
+        }
+        
+        const missing = [];
+        expected.forEach(exp => {
+            if (targetWeeks.includes(exp.week)) {
+                const key = `${exp.week}_${exp.baseId}_${exp.roomId}`;
+                if (!completedKeys.has(key)) {
+                    missing.push({
+                        week: exp.week,
+                        baseId: exp.baseId,
+                        baseName: exp.baseName,
+                        roomId: exp.roomId,
+                        roomName: exp.roomName,
+                        status: 'ยังไม่ได้เช็กชื่อ'
+                    });
+                }
+            }
+        });
+        return missing;
+    }
+
+    /**
+     * Normalize slot key to avoid display name reliance.
+     */
+    _normalizeSlotKey(weekNumber, baseId, roomId, date) {
+        const w = weekNumber || '0';
+        const b = baseId || 'unknown_base';
+        const r = roomId || 'unknown_room';
+        const d = date || 'unknown_date';
+        return `${w}_${b}_${r}_${d}`;
+    }
+
+    /**
+     * Sprint F3: Render missing-attendance warning card inside #dash-missing-attendance-container.
+     * Shows a table of all base+class slots for current week that have no attendance record.
+     * Admin/director only — called from renderDashboard.
+     */
+    _renderMissingAttendanceWarning() {
+        const container = document.getElementById('dash-missing-attendance-container');
+        if (!container) return;
+
+        const currentWeek = this.currentWeekInfo ? this.currentWeekInfo.week : null;
+        const missing = this.getMissingAttendanceSlots(currentWeek);
+
+        if (!missing || missing.length === 0) {
+            container.innerHTML = `
+                <div class="alert-banner" style="background:var(--success-bg,#f0fdf4);border-left:4px solid var(--success,#16a34a);padding:12px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                    <i class="fa-solid fa-circle-check" style="color:var(--success,#16a34a);font-size:18px;"></i>
+                    <span style="font-size:14px;color:var(--success-dark,#15803d);font-weight:600;">เช็กชื่อครบทุกฐานสัปดาห์นี้แล้ว</span>
+                </div>`;
+            return;
+        }
+
+        // Group by baseName for compact display
+        const byBase = {};
+        missing.forEach(m => {
+            const key = m.baseName || m.baseId;
+            if (!byBase[key]) byBase[key] = [];
+            byBase[key].push(m.roomId);
+        });
+
+        const rowsHtml = Object.entries(byBase).map(([baseName, rooms]) => `
+            <tr>
+                <td style="font-weight:600;color:var(--primary-dark);padding:8px 12px;">${baseName}</td>
+                <td style="padding:8px 12px;">
+                    ${rooms.map(r => `<span style="display:inline-block;background:var(--warning-bg,#fffbeb);color:var(--warning-dark,#92400e);border:1px solid var(--warning,#d97706);border-radius:6px;padding:2px 8px;font-size:12px;margin:2px;">${r}</span>`).join('')}
+                </td>
+                <td style="padding:8px 12px;text-align:center;">
+                    <span class="status-badge pending" style="font-size:12px;"><i class="fa-solid fa-clock"></i> ยังไม่เช็ก</span>
+                </td>
+            </tr>`).join('');
+
+        container.innerHTML = `
+            <div class="card" style="margin-bottom:16px;border-left:4px solid var(--warning,#d97706);">
+                <div class="card-header" style="background:var(--warning-bg,#fffbeb);border-bottom:1px solid var(--warning-light,#fde68a);">
+                    <h3 style="color:var(--warning-dark,#92400e);font-size:15px;">
+                        <i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>
+                        ฐานที่ยังไม่ได้เช็กชื่อสัปดาห์นี้ (สัปดาห์ที่ ${currentWeek})
+                        <span style="background:var(--warning,#d97706);color:#fff;border-radius:12px;padding:2px 10px;font-size:12px;font-weight:700;margin-left:8px;">${missing.length} ห้อง</span>
+                    </h3>
+                </div>
+                <div class="table-responsive">
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:var(--bg-subtle,#f9fafb);">
+                                <th style="padding:8px 12px;text-align:left;font-size:13px;color:var(--text-secondary);">ฐานการเรียนรู้</th>
+                                <th style="padding:8px 12px;text-align:left;font-size:13px;color:var(--text-secondary);">ห้องเรียน</th>
+                                <th style="padding:8px 12px;text-align:center;font-size:13px;color:var(--text-secondary);">สถานะ</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // End Sprint F3 helpers
     // ════════════════════════════════════════════════════════════════════════
 
     async syncStagingBatch(batchId) {
