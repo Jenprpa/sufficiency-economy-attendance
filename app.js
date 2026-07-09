@@ -4268,9 +4268,12 @@ class AttendanceApp {
     _findExistingTeachingLogForAttendance(ctx) {
         const logs = this.db.teaching_logs || [];
 
-        // Priority 1: exact attendanceLogId match
+        // Priority 1: exact attendanceLogId or sourceAttendanceLogId match
         if (ctx.attendanceLogId) {
-            const byId = logs.find(l => l.attendanceLogId === ctx.attendanceLogId);
+            const byId = logs.find(l => 
+                l.attendanceLogId === ctx.attendanceLogId || 
+                l.sourceAttendanceLogId === ctx.attendanceLogId
+            );
             if (byId) return byId;
         }
 
@@ -4394,6 +4397,8 @@ class AttendanceApp {
         const prefilled = {
             logId: '',           // Will be generated on save
             attendanceLogId:  ctx.attendanceLogId  || '',
+            sourceAttendanceLogId: ctx.attendanceLogId || '',
+            sourceType: ctx.attendanceLogId ? 'attendance' : '',
             attendanceSummary: ctx.attendanceSummary || null,
 
             teacherUid:   ctx.teacherUid   || '',
@@ -13120,6 +13125,8 @@ generateDefaultRotationSchedule(customBases = null) {
             logId,
             lessonPlanId: lessonPlanId || null,
             attendanceLogId: this.currentTeachingLog ? (this.currentTeachingLog.attendanceLogId || null) : null,
+            sourceAttendanceLogId: this.currentTeachingLog ? (this.currentTeachingLog.sourceAttendanceLogId || this.currentTeachingLog.attendanceLogId || null) : null,
+            sourceType: this.currentTeachingLog ? (this.currentTeachingLog.sourceType || (this.currentTeachingLog.attendanceLogId ? 'attendance' : null)) : null,
             attendanceSummary: this.currentTeachingLog ? (this.currentTeachingLog.attendanceSummary || null) : null,
             
             teacherUid: this.currentUser ? (this.currentUser.uid || '') : '',
