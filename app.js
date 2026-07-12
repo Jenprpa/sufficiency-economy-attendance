@@ -34,6 +34,8 @@ class AttendanceApp {
         this.useFirestore = false;
         this.firestore = null;
         this.firestoreNetworkError = false;
+        this.isSavingAttendance = false;
+        this.lastPromptedDraftKey = null;
 
         // Initialize App
         this.init();
@@ -2080,6 +2082,9 @@ class AttendanceApp {
 
     closeModal(modalId) {
         document.getElementById(modalId).classList.remove('active');
+        if (modalId === 'status-modal') {
+            this._currentDraftToRestore = null;
+        }
     }
 
     togglePasswordVisibility(inputId, btn) {
@@ -3592,6 +3597,8 @@ class AttendanceApp {
         document.getElementById('checkin-classes-label').textContent = scheduleRow.classes;
 
         this.currentCheckinSchedule = scheduleRow;
+        this.lastPromptedDraftKey = null;
+        this._currentDraftToRestore = null;
 
         // Load all students under this rotation group
         this.allRotationStudents = this.db.students.filter(
@@ -3727,7 +3734,7 @@ class AttendanceApp {
     // Toggle button state
     setStudentStatus(studentId, status) {
         this.attendanceState[studentId] = status;
-        
+        this._autoSaveAttendanceDraft();
         // Update checkin UI without full re-render to make it fast
         this.renderCheckinStudentList(document.getElementById('checkin-student-search').value);
     }
@@ -3737,6 +3744,7 @@ class AttendanceApp {
         this.currentCheckinStudents.forEach(st => {
             this.attendanceState[st.studentId] = 'present';
         });
+        this._autoSaveAttendanceDraft();
         this.renderCheckinStudentList(document.getElementById('checkin-student-search').value);
     }
 
@@ -3753,6 +3761,10 @@ class AttendanceApp {
     // Update counters in check-in bar
     // Select specific class room to teach and check-in
     selectCheckinClass(clsName, clickedBtn) {
+        if (this.selectedCheckinClass !== clsName) {
+            this.lastPromptedDraftKey = null;
+            this._currentDraftToRestore = null;
+        }
         this.selectedCheckinClass = clsName;
         
         // Update active class button styles
@@ -3822,6 +3834,9 @@ class AttendanceApp {
 
         // Reset search input value
         document.getElementById('checkin-student-search').value = '';
+
+        // Prompt restore
+        this._promptRestoreAttendanceDraft();
 
         // Build list
         this.renderCheckinStudentList();
@@ -3985,7 +4000,7 @@ class AttendanceApp {
     }
 
     async saveCurrentAttendanceWithOptions(isStaging, forceSave = false) {
-        const week = this.currentWeekInfo.week;
+        const week = this.currentWeekInfo ? this.currentWeekInfo.week : 1;
         const todayDate = this.systemDate;
         const scheduleRow = this.currentCheckinSchedule;
 
@@ -4084,100 +4099,126 @@ class AttendanceApp {
             }
         }
 
-        if (isStaging) {
-            const batchId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
-            const stagingLogObj = {
-                batchId: batchId,
-                date: todayDate,
-                week: week,
-                baseId: scheduleRow.baseId,
-                classId: this.selectedCheckinClass,
-                checkedBy: this.currentUser.username,
-                teacherUid: firebase.auth().currentUser ? firebase.auth().currentUser.uid : "",
-                teacherName: this.currentUser.name || "",
-                timestamp: timestamp,
-                createdAt: timestamp,
-                updatedAt: timestamp,
-                teachers: checkedTeachers,
-                rating: rating,
-                notes: notes,
-                photo: this.currentCheckinPhotoBase64 || null,
-                photoName: this.currentCheckinPhotoName || '',
-                doc: this.currentCheckinDocBase64 || null,
-                docName: this.currentCheckinDocName || '',
-                docType: this.currentCheckinDocType || '',
-                students: studentAttendanceList,
-                semesterId: this.db.activeSemesterId || "1-2569"
-            };
+        // 1. Save lock
+        if (this.isSavingAttendance) return;
+        this.isSavingAttendance = true;
 
-            this.db.staging_logs = this.db.staging_logs || [];
-            this.db.staging_logs = this.db.staging_logs.filter(log => log.batchId !== batchId);
-            this.db.staging_logs.push(stagingLogObj);
-            
-            if (this.useFirestore) {
-                try {
-                    await this.firestore.collection('staging_logs').doc(batchId).set(stagingLogObj);
-                } catch (e) {
-                    console.error("Failed to sync staging log to Firestore:", e);
-                }
-            }
+        const saveStagingBtn = document.getElementById('btn-save-attendance-staging');
+        const saveLiveBtn = document.getElementById('btn-save-attendance');
+        const originalStagingHtml = saveStagingBtn ? saveStagingBtn.innerHTML : '';
+        const originalLiveHtml = saveLiveBtn ? saveLiveBtn.innerHTML : '';
 
-            this.saveDatabase(false);
-            this.showStatusModal('success', 'บันทึกแบบร่างสำเร็จ', `บันทึกร่างข้อมูลเช็กชื่อห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว! ข้อมูลจะอยู่ในกล่องพักข้อมูลเพื่อรออนุมัติ`);
-            const redirectView = (this.currentUser && this.currentUser.role === 'teacher') ? 'checkin' : 'dashboard';
-            this.switchView(redirectView);
-        } else {
-            this.db.attendance_logs = this.db.attendance_logs.filter(
-                log => !(log.date === todayDate && log.baseId === scheduleRow.baseId && studentIdsToSave.includes(log.studentId) && log.semesterId === this.db.activeSemesterId)
-            );
+        if (saveStagingBtn) {
+            saveStagingBtn.disabled = true;
+        }
+        if (saveLiveBtn) {
+            saveLiveBtn.disabled = true;
+        }
 
-            const newAttendanceLogs = [];
-            studentAttendanceList.forEach(item => {
-                const logObj = {
+        if (isStaging && saveStagingBtn) {
+            saveStagingBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+        } else if (!isStaging && saveLiveBtn) {
+            saveLiveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+        }
+
+        let draftKey = '';
+        try {
+            // 2. Draft backup before write
+            draftKey = this._backupAttendanceDraft(isStaging);
+
+            if (isStaging) {
+                const batchId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
+                const stagingLogObj = {
+                    batchId: batchId,
                     date: todayDate,
                     week: week,
                     baseId: scheduleRow.baseId,
                     classId: this.selectedCheckinClass,
-                    studentId: item.studentId,
-                    status: item.status,
                     checkedBy: this.currentUser.username,
                     teacherUid: firebase.auth().currentUser ? firebase.auth().currentUser.uid : "",
                     teacherName: this.currentUser.name || "",
                     timestamp: timestamp,
                     createdAt: timestamp,
                     updatedAt: timestamp,
+                    teachers: checkedTeachers,
+                    rating: rating,
+                    notes: notes,
+                    photo: this.currentCheckinPhotoBase64 || null,
+                    photoName: this.currentCheckinPhotoName || '',
+                    doc: this.currentCheckinDocBase64 || null,
+                    docName: this.currentCheckinDocName || '',
+                    docType: this.currentCheckinDocType || '',
+                    students: studentAttendanceList,
                     semesterId: this.db.activeSemesterId || "1-2569"
                 };
-                this.db.attendance_logs.push(logObj);
-                newAttendanceLogs.push(logObj);
-            });
 
-            const activityLogId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
-            const baseActivityLogObj = {
-                id: activityLogId,
-                date: todayDate,
-                week: week,
-                baseId: scheduleRow.baseId,
-                classId: this.selectedCheckinClass,
-                checkedBy: this.currentUser.username,
-                timestamp: timestamp,
-                teachers: checkedTeachers,
-                rating: rating,
-                notes: notes,
-                photo: this.currentCheckinPhotoBase64 || null,
-                photoName: this.currentCheckinPhotoName || '',
-                doc: this.currentCheckinDocBase64 || null,
-                docName: this.currentCheckinDocName || '',
-                docType: this.currentCheckinDocType || '',
-                semesterId: this.db.activeSemesterId || "1-2569"
-            };
+                this.db.staging_logs = this.db.staging_logs || [];
+                this.db.staging_logs = this.db.staging_logs.filter(log => log.batchId !== batchId);
+                this.db.staging_logs.push(stagingLogObj);
 
-            this.db.base_activity_logs = this.db.base_activity_logs || [];
-            this.db.base_activity_logs = this.db.base_activity_logs.filter(log => log.id !== activityLogId);
-            this.db.base_activity_logs.push(baseActivityLogObj);
+                if (this.useFirestore) {
+                    await this.firestore.collection('staging_logs').doc(batchId).set(stagingLogObj);
+                }
 
-            if (this.useFirestore) {
-                try {
+                this.saveDatabase(false);
+
+                // 3. Clear draft after successful save
+                this._clearAllCurrentDrafts();
+
+                this.showStatusModal('success', 'บันทึกแบบร่างสำเร็จ', `บันทึกร่างข้อมูลเช็กชื่อห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว! ข้อมูลจะอยู่ในกล่องพักข้อมูลเพื่อรออนุมัติ`);
+                const redirectView = (this.currentUser && this.currentUser.role === 'teacher') ? 'checkin' : 'dashboard';
+                this.switchView(redirectView);
+            } else {
+                this.db.attendance_logs = this.db.attendance_logs.filter(
+                    log => !(log.date === todayDate && log.baseId === scheduleRow.baseId && studentIdsToSave.includes(log.studentId) && log.semesterId === this.db.activeSemesterId)
+                );
+
+                const newAttendanceLogs = [];
+                studentAttendanceList.forEach(item => {
+                    const logObj = {
+                        date: todayDate,
+                        week: week,
+                        baseId: scheduleRow.baseId,
+                        classId: this.selectedCheckinClass,
+                        studentId: item.studentId,
+                        status: item.status,
+                        checkedBy: this.currentUser.username,
+                        teacherUid: firebase.auth().currentUser ? firebase.auth().currentUser.uid : "",
+                        teacherName: this.currentUser.name || "",
+                        timestamp: timestamp,
+                        createdAt: timestamp,
+                        updatedAt: timestamp,
+                        semesterId: this.db.activeSemesterId || "1-2569"
+                    };
+                    this.db.attendance_logs.push(logObj);
+                    newAttendanceLogs.push(logObj);
+                });
+
+                const activityLogId = `${todayDate}_${scheduleRow.baseId}_${this.selectedCheckinClass}`.replace(/\//g, '-');
+                const baseActivityLogObj = {
+                    id: activityLogId,
+                    date: todayDate,
+                    week: week,
+                    baseId: scheduleRow.baseId,
+                    classId: this.selectedCheckinClass,
+                    checkedBy: this.currentUser.username,
+                    timestamp: timestamp,
+                    teachers: checkedTeachers,
+                    rating: rating,
+                    notes: notes,
+                    photo: this.currentCheckinPhotoBase64 || null,
+                    photoName: this.currentCheckinPhotoName || '',
+                    doc: this.currentCheckinDocBase64 || null,
+                    docName: this.currentCheckinDocName || '',
+                    docType: this.currentCheckinDocType || '',
+                    semesterId: this.db.activeSemesterId || "1-2569"
+                };
+
+                this.db.base_activity_logs = this.db.base_activity_logs || [];
+                this.db.base_activity_logs = this.db.base_activity_logs.filter(log => log.id !== activityLogId);
+                this.db.base_activity_logs.push(baseActivityLogObj);
+
+                if (this.useFirestore) {
                     const batch = this.firestore.batch();
                     
                     if (this.currentUser && this.currentUser.role === 'admin') {
@@ -4198,34 +4239,78 @@ class AttendanceApp {
                     batch.set(actDocRef, baseActivityLogObj);
 
                     await batch.commit();
-                } catch (e) {
-                    console.error("Failed to sync live check-in logs to Firestore:", e);
+                }
+
+                this.saveDatabase(false);
+
+                // 3. Clear draft after successful save
+                this._clearAllCurrentDrafts();
+
+                // ── Sprint F2: Prompt teacher/admin to create Teaching Log ─────────
+                const canCreateLog = this.currentUser &&
+                    (this.currentUser.role === 'teacher' || this.currentUser.role === 'admin');
+
+                if (canCreateLog) {
+                    // Build attendance summary for prefill context
+                    const attCtx = this._buildAttendanceContext({
+                        activityLogId,
+                        scheduleRow,
+                        todayDate,
+                        week,
+                        selectedClass: this.selectedCheckinClass,
+                        studentAttendanceList,
+                        semesterId: this.db.activeSemesterId || '1-2569'
+                    });
+                    // Show "บันทึกผลการสอน" prompt (keeps modal open with action buttons)
+                    this._promptTeachingLogAfterAttendance(attCtx);
+                } else {
+                    this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ (Live)', `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
+                    this.switchView('dashboard');
                 }
             }
+        } catch (error) {
+            console.error("Failed to save attendance:", error);
 
-            this.saveDatabase(false);
-
-            // ── Sprint F2: Prompt teacher/admin to create Teaching Log ─────────
-            const canCreateLog = this.currentUser &&
-                (this.currentUser.role === 'teacher' || this.currentUser.role === 'admin');
-
-            if (canCreateLog) {
-                // Build attendance summary for prefill context
-                const attCtx = this._buildAttendanceContext({
-                    activityLogId,
-                    scheduleRow,
-                    todayDate,
-                    week,
-                    selectedClass: this.selectedCheckinClass,
-                    studentAttendanceList,
-                    semesterId: this.db.activeSemesterId || '1-2569'
-                });
-                // Show "บันทึกผลการสอน" prompt (keeps modal open with action buttons)
-                this._promptTeachingLogAfterAttendance(attCtx);
-            } else {
-                this.showStatusModal('success', 'บันทึกข้อมูลสำเร็จ (Live)', `เช็กชื่อและบันทึกข้อมูลหลักห้อง <strong>${this.selectedCheckinClass}</strong> เรียบร้อยแล้ว!`);
-                this.switchView('dashboard');
+            // 4. Failure modal + Retry
+            let retryButtonsHtml = `
+                <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
+                    <button class="btn btn-primary" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                        onclick="app.closeModal('status-modal'); app.saveCurrentAttendanceWithOptions(${isStaging}, ${forceSave});">
+                        <i class="fa-solid fa-rotate-right" style="margin-right:6px;"></i>ลองใหม่อีกครั้ง
+                    </button>
+            `;
+            if (!isStaging) {
+                retryButtonsHtml += `
+                    <button class="btn btn-warning" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                        onclick="app.closeModal('status-modal'); app.saveCurrentAttendanceWithOptions(true, ${forceSave});">
+                        <i class="fa-solid fa-file-shield" style="margin-right:6px;"></i>บันทึกลงเครื่องเพื่อรออนุมัติ
+                    </button>
+                `;
             }
+            retryButtonsHtml += `
+                    <button class="btn btn-ghost" style="padding:7px 20px;font-size:13px;color:var(--text-secondary);"
+                        onclick="app.closeModal('status-modal');">
+                        ปิด
+                    </button>
+                </div>
+            `;
+
+            this.showStatusModal(
+                'error',
+                'บันทึกข้อมูลไม่สำเร็จ',
+                `เกิดข้อผิดพลาด: <span style="color:var(--danger);font-weight:600;">${error.message || 'การเชื่อมต่อคลาวด์ขัดข้อง'}</span><br><br>บันทึกไม่สำเร็จ แต่ข้อมูลเช็กชื่อยังถูกเก็บไว้ในเครื่อง`,
+                retryButtonsHtml
+            );
+        } finally {
+            if (saveStagingBtn) {
+                saveStagingBtn.disabled = false;
+                saveStagingBtn.innerHTML = originalStagingHtml;
+            }
+            if (saveLiveBtn) {
+                saveLiveBtn.disabled = false;
+                saveLiveBtn.innerHTML = originalLiveHtml;
+            }
+            this.isSavingAttendance = false;
         }
     }
 
@@ -4763,6 +4848,233 @@ class AttendanceApp {
     // ════════════════════════════════════════════════════════════════════════
     // End Sprint F3 helpers
     // ════════════════════════════════════════════════════════════════════════
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Sprint F5.1A — Attendance Save Reliability Core Helpers
+    // ════════════════════════════════════════════════════════════════════════
+
+    _getAttendanceDraftKey(isStaging) {
+        const week = this.currentWeekInfo?.week;
+        if (!week) return '';
+        const todayDate = this.systemDate;
+        const scheduleRow = this.currentCheckinSchedule;
+        if (!scheduleRow || !this.selectedCheckinClass) return '';
+        const baseId = scheduleRow.baseId;
+        const classId = this.selectedCheckinClass;
+        const teacherId = this.currentUser ? this.currentUser.username : '';
+        const mode = isStaging ? 'staging' : 'live';
+        return `school_attendance_draft_${todayDate}_w${week}_b${baseId}_c${classId}_t${teacherId}_m${mode}`;
+    }
+
+    _backupAttendanceDraft(isStaging) {
+        const draftKey = this._getAttendanceDraftKey(isStaging);
+        if (!draftKey) return '';
+
+        const week = this.currentWeekInfo?.week;
+        if (!week) return '';
+        const todayDate = this.systemDate;
+        const scheduleRow = this.currentCheckinSchedule;
+        const classId = this.selectedCheckinClass;
+        const teacherId = this.currentUser ? this.currentUser.username : '';
+
+        // Extract attendanceState for the current class's students only
+        const classStudentIds = this.currentCheckinStudents.map(st => st.studentId);
+        const classAttendanceState = {};
+        classStudentIds.forEach(id => {
+            if (this.attendanceState[id] !== undefined && this.attendanceState[id] !== null) {
+                classAttendanceState[id] = this.attendanceState[id];
+            }
+        });
+
+        const draftPayload = {
+            version: '1.0',
+            savedAt: new Date().toISOString(),
+            date: todayDate,
+            week: week,
+            baseId: scheduleRow.baseId,
+            classId: classId,
+            teacherId: teacherId,
+            isStaging: isStaging,
+            attendanceState: classAttendanceState
+        };
+
+        try {
+            localStorage.setItem(draftKey, JSON.stringify(draftPayload));
+        } catch (e) {
+            console.error("Failed to backup attendance draft to localStorage:", e);
+        }
+
+        return draftKey;
+    }
+
+    _clearAttendanceDraft(draftKey) {
+        if (draftKey) {
+            try {
+                localStorage.removeItem(draftKey);
+            } catch (e) {
+                console.error("Failed to clear attendance draft from localStorage:", e);
+            }
+        }
+    }
+
+    _autoSaveAttendanceDraft() {
+        this._backupAttendanceDraft(true);
+        this._backupAttendanceDraft(false);
+    }
+
+    _clearAllCurrentDrafts() {
+        const keyStaging = this._getAttendanceDraftKey(true);
+        const keyLive = this._getAttendanceDraftKey(false);
+        if (keyStaging) this._clearAttendanceDraft(keyStaging);
+        if (keyLive) this._clearAttendanceDraft(keyLive);
+    }
+
+    _findMatchingAttendanceDraft(context) {
+        // Run cleanup first
+        this._cleanupOldAttendanceDrafts();
+
+        const { date, week, baseId, classId, teacherId } = context;
+        if (!date || !week || !baseId || !classId || !teacherId) return null;
+
+        let matchingDrafts = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('school_attendance_draft_')) {
+                try {
+                    const val = localStorage.getItem(key);
+                    if (!val) continue;
+                    const draftObj = JSON.parse(val);
+                    if (!draftObj) continue;
+
+                    // Ignore draft with missing required fields
+                    if (!draftObj.date || !draftObj.week || !draftObj.baseId || !draftObj.classId || !draftObj.teacherId || !draftObj.attendanceState || !draftObj.savedAt) {
+                        continue;
+                    }
+
+                    // Match: date, week, baseId, classId, teacherId
+                    if (draftObj.date === date &&
+                        String(draftObj.week) === String(week) &&
+                        draftObj.baseId === baseId &&
+                        draftObj.classId === classId &&
+                        draftObj.teacherId === teacherId) {
+
+                        matchingDrafts.push({ key, draft: draftObj });
+                    }
+                } catch (e) {
+                    console.warn("Ignoring malformed JSON draft:", key, e);
+                }
+            }
+        }
+
+        if (matchingDrafts.length === 0) return null;
+
+        // Return newest matching draft by savedAt
+        matchingDrafts.sort((a, b) => new Date(b.draft.savedAt) - new Date(a.draft.savedAt));
+        return matchingDrafts[0];
+    }
+
+    _restoreAttendanceDraft(draft) {
+        if (!draft || !draft.attendanceState) return;
+        const supportedStatuses = ['present', 'absent', 'leave', 'late', 'activity'];
+        const studentIds = (this.currentCheckinStudents || []).map(st => st.studentId);
+
+        studentIds.forEach(id => {
+            const draftStatus = draft.attendanceState[id];
+            if (draftStatus !== undefined && draftStatus !== null) {
+                if (supportedStatuses.includes(draftStatus)) {
+                    this.attendanceState[id] = draftStatus;
+                }
+            }
+        });
+
+        this.renderCheckinStudentList(document.getElementById('checkin-student-search').value || '');
+        this.updateCheckinCounters();
+
+        this.showStatusModal('success', 'กู้คืนข้อมูลสำเร็จ', 'กู้คืนข้อมูลเช็กชื่อที่บันทึกไว้ในเครื่องแล้ว');
+        setTimeout(() => this.closeModal('status-modal'), 1200);
+    }
+
+    _promptRestoreAttendanceDraft() {
+        const week = this.currentWeekInfo?.week;
+        if (!week) return;
+        const todayDate = this.systemDate;
+        const scheduleRow = this.currentCheckinSchedule;
+        if (!scheduleRow || !this.selectedCheckinClass) return;
+        const baseId = scheduleRow.baseId;
+        const classId = this.selectedCheckinClass;
+        const teacherId = this.currentUser ? this.currentUser.username : '';
+
+        const context = { date: todayDate, week, baseId, classId, teacherId };
+        const match = this._findMatchingAttendanceDraft(context);
+        if (!match) return;
+
+        const trackingKey = `${match.key}_${match.draft.savedAt}`;
+        if (this.lastPromptedDraftKey === trackingKey) {
+            return; // Avoid prompting repeatedly for the same draft state
+        }
+
+        // Set tracking key
+        this.lastPromptedDraftKey = trackingKey;
+
+        // Open modal
+        this.showStatusModal(
+            'warning',
+            'พบข้อมูลเช็กชื่อที่ยังบันทึกไม่สำเร็จ ต้องการกู้คืนหรือไม่',
+            `พบข้อมูลการเช็กชื่อของห้อง <strong>${classId}</strong> ที่ร่างค้างไว้ (เมื่อ ${new Date(match.draft.savedAt).toLocaleTimeString('th-TH')})`,
+            `
+            <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
+                <button class="btn btn-warning" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
+                    onclick="app._handleRestoreClick(); app.closeModal('status-modal');">
+                    <i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>กู้คืนข้อมูล
+                </button>
+                <button class="btn btn-ghost" style="padding:7px 20px;font-size:13px;color:var(--text-secondary);"
+                    onclick="app.closeModal('status-modal');">
+                    ไม่ใช้ข้อมูลนี้
+                </button>
+            </div>
+            `
+        );
+
+        // Store match.draft temporarily so the click handler can access it
+        this._currentDraftToRestore = match.draft;
+    }
+
+    _handleRestoreClick() {
+        if (this._currentDraftToRestore) {
+            this._restoreAttendanceDraft(this._currentDraftToRestore);
+            this._currentDraftToRestore = null;
+        }
+    }
+
+    _cleanupOldAttendanceDrafts(maxAgeDays = 7) {
+        const now = new Date();
+        const limitMs = maxAgeDays * 24 * 60 * 60 * 1000;
+
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('school_attendance_draft_')) {
+                try {
+                    const val = localStorage.getItem(key);
+                    if (!val) {
+                        localStorage.removeItem(key);
+                        continue;
+                    }
+                    const draftObj = JSON.parse(val);
+                    if (!draftObj || !draftObj.savedAt) {
+                        localStorage.removeItem(key);
+                        continue;
+                    }
+                    const ageMs = now - new Date(draftObj.savedAt);
+                    if (ageMs > limitMs) {
+                        localStorage.removeItem(key);
+                    }
+                } catch (e) {
+                    console.warn("Cleaning up malformed key:", key, e);
+                    localStorage.removeItem(key);
+                }
+            }
+        }
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // Sprint F4.2 — Teaching Log Report Helpers
