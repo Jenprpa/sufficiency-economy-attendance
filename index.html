@@ -550,6 +550,8 @@
                             <option value="base">รายงานรายฐานการเรียนรู้</option>
                             <option value="grade">รายงานรายชั้นเรียน (ม.1 - ม.6)</option>
                             <option value="class">รายงานรายห้องเรียนรายบุคคล</option>
+                            <option value="teaching-summary">สรุปบันทึกการสอนรายครู</option>
+                            <option value="teaching-framework">สรุปการเชื่อมโยงหลักปรัชญาของเศรษฐกิจพอเพียง</option>
                         </select>
                     </div>
                     
@@ -572,6 +574,13 @@
                         <label for="report-class-select">เลือกห้องเรียน</label>
                         <select id="report-class-select">
                             <!-- JS loads rooms -->
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group" id="report-teacher-group" style="display: none;">
+                        <label for="report-teacher-select">เลือกครูผู้สอน</label>
+                        <select id="report-teacher-select">
+                            <!-- JS loads teachers -->
                         </select>
                     </div>
                     

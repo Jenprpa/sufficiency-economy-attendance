@@ -4764,6 +4764,33 @@ class AttendanceApp {
     // End Sprint F3 helpers
     // ════════════════════════════════════════════════════════════════════════
 
+    // ════════════════════════════════════════════════════════════════════════
+    // Sprint F4.2 — Teaching Log Report Helpers
+    // ════════════════════════════════════════════════════════════════════════
+
+    _aggregateTeachingLogs(filters = {}) {
+        let logs = this.db.teaching_logs || [];
+        
+        const { teacherId, semesterId } = filters;
+
+        if (semesterId) {
+            logs = logs.filter(l => l.semesterId === semesterId || l.semester === semesterId);
+        }
+
+        // Role-based filtering
+        const isAdminOrDirector = this.currentUser && ['admin', 'director'].includes(this.currentUser.role);
+        
+        if (!isAdminOrDirector && this.currentUser) {
+            // Force teacher to only see their own logs
+            logs = logs.filter(l => l.teacherId === this.currentUser.username);
+        } else if (teacherId && teacherId !== 'all') {
+            // Admin/Director explicit filter
+            logs = logs.filter(l => l.teacherId === teacherId);
+        }
+
+        return logs;
+    }
+
     async syncStagingBatch(batchId) {
         const log = this.db.staging_logs.find(x => x.batchId === batchId);
         if (!log) return;
@@ -5360,7 +5387,7 @@ class AttendanceApp {
 
         // Populate class selector if not already done
         const classSelect = document.getElementById('report-class-select');
-        if (classSelect.children.length === 0) {
+        if (classSelect && classSelect.children.length === 0) {
             // Get unique classes sorted
             const classrooms = [...new Set(this.db.students.map(s => `${s.grade}/${s.room}`))].sort();
             classrooms.forEach(c => {
@@ -5371,6 +5398,35 @@ class AttendanceApp {
             });
         }
 
+        // Populate teacher selector if not already done
+        const teacherSelect = document.getElementById('report-teacher-select');
+        if (teacherSelect && teacherSelect.children.length === 0) {
+            const isAdminOrDirector = this.currentUser && ['admin', 'director'].includes(this.currentUser.role);
+            if (isAdminOrDirector) {
+                const optAll = document.createElement('option');
+                optAll.value = 'all';
+                optAll.textContent = 'ทุกครูผู้สอน';
+                teacherSelect.appendChild(optAll);
+                
+                const teachersList = this.db.teachers || [];
+                teachersList.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.username;
+                    opt.textContent = t.name;
+                    teacherSelect.appendChild(opt);
+                });
+                teacherSelect.disabled = false;
+            } else if (this.currentUser) {
+                // Teacher role
+                const opt = document.createElement('option');
+                opt.value = this.currentUser.username;
+                opt.textContent = this.currentUser.name || this.currentUser.username;
+                teacherSelect.appendChild(opt);
+                teacherSelect.value = this.currentUser.username;
+                teacherSelect.disabled = true; // Lock to their own identity
+            }
+        }
+
         this.generateReport();
     }
 
@@ -5379,22 +5435,26 @@ class AttendanceApp {
         const weekGroup = document.getElementById('report-week-group');
         const baseGroup = document.getElementById('report-base-group');
         const classGroup = document.getElementById('report-class-group');
+        const teacherGroup = document.getElementById('report-teacher-group');
 
         // Hide all
-        weekGroup.style.display = 'none';
-        baseGroup.style.display = 'none';
-        classGroup.style.display = 'none';
+        if (weekGroup) weekGroup.style.display = 'none';
+        if (baseGroup) baseGroup.style.display = 'none';
+        if (classGroup) classGroup.style.display = 'none';
+        if (teacherGroup) teacherGroup.style.display = 'none';
 
         if (type === 'daily') {
             // Uses systemDate simulator automatically
         } else if (type === 'weekly') {
-            weekGroup.style.display = 'flex';
+            if (weekGroup) weekGroup.style.display = 'flex';
         } else if (type === 'base') {
-            baseGroup.style.display = 'flex';
+            if (baseGroup) baseGroup.style.display = 'flex';
         } else if (type === 'grade') {
             // General school grade breakdown
         } else if (type === 'class') {
-            classGroup.style.display = 'flex';
+            if (classGroup) classGroup.style.display = 'flex';
+        } else if (type === 'teaching-summary' || type === 'teaching-framework') {
+            if (teacherGroup) teacherGroup.style.display = 'flex';
         }
     }
 
@@ -5731,6 +5791,182 @@ class AttendanceApp {
                 <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>จำนวนนักเรียนทั้งหมด</h3><p style="color:var(--primary)">${classStudents.length} คน</p></div></div>
                 <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>ร้อยละมาเรียนห้องเฉลี่ย</h3><p style="color:var(--success)">${percent}%</p></div></div>
             `;
+        } else if (type === 'teaching-summary') {
+            const selectedTeacher = document.getElementById('report-teacher-select') ? document.getElementById('report-teacher-select').value : 'all';
+            const logs = this._aggregateTeachingLogs({ teacherId: selectedTeacher });
+
+            let teacherDisplay = 'ทุกครูผู้สอน';
+            if (selectedTeacher !== 'all') {
+                const tObj = (this.db.teachers || []).find(t => t.username === selectedTeacher);
+                if (tObj) teacherDisplay = tObj.name;
+                else if (this.currentUser && this.currentUser.username === selectedTeacher) teacherDisplay = this.currentUser.name || selectedTeacher;
+            }
+
+            headerTitle.textContent = `รายงานสรุปบันทึกการสอนรายบุคคล`;
+            headerSubtitle.textContent = `ครูผู้สอน: ${teacherDisplay}`;
+
+            tableHeader.innerHTML = `
+                <th>วันที่</th>
+                <th>สัปดาห์</th>
+                <th>ครูผู้สอน</th>
+                <th>ชั้น/ห้อง</th>
+                <th>ฐาน</th>
+                <th>สถานะการสอน</th>
+                <th>เนื้อหาที่สอน</th>
+                <th>ผลการเรียนรู้</th>
+            `;
+
+            if (logs.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="8" style="text-align:center; padding: 24px; color: var(--text-secondary);">ยังไม่มีข้อมูลบันทึกการสอนในเงื่อนไขนี้</td>`;
+                tableBody.appendChild(tr);
+                summaryStatsDiv.innerHTML = '';
+            } else {
+                let taughtAsPlannedCount = 0;
+                let rescheduledCount = 0;
+
+                // Sort logs by date descending
+                logs.sort((a, b) => new Date(b.logDate || b.createdAt) - new Date(a.logDate || a.createdAt));
+
+                logs.forEach(l => {
+                    if (l.teachingStatus === 'taught_as_planned') taughtAsPlannedCount++;
+                    if (l.teachingStatus === 'rescheduled') rescheduledCount++;
+
+                    const tr = document.createElement('tr');
+                    
+                    const statusLabels = {
+                        taught_as_planned: '<span class="status-badge approved">สอนได้ตามแผนฯ</span>',
+                        partially_taught: '<span class="status-badge pending">สอนได้บางส่วน</span>',
+                        not_taught: '<span class="status-badge draft">ไม่ได้สอน</span>',
+                        rescheduled: '<span class="status-badge special">ชดเชย/ย้ายคาบ</span>'
+                    };
+                    const statusBadge = statusLabels[l.teachingStatus] || `<span class="status-badge">${l.teachingStatus}</span>`;
+
+                    tr.innerHTML = `
+                        <td>${l.logDate ? this.formatThaiDate(l.logDate) : '-'}</td>
+                        <td>${l.weekNumber || '-'}</td>
+                        <td>${l.teacherName || l.teacherId || '-'}</td>
+                        <td>${l.className || '-'}</td>
+                        <td>${l.baseName || '-'}</td>
+                        <td>${statusBadge}</td>
+                        <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${l.taughtContent || ''}">${l.taughtContent || '-'}</td>
+                        <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${l.learningOutcome || ''}">${l.learningOutcome || '-'}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+
+                const percentTaught = Math.round((taughtAsPlannedCount / logs.length) * 100);
+
+                summaryStatsDiv.innerHTML = `
+                    <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>จำนวนบันทึกทั้งหมด</h3><p style="color:var(--primary)">${logs.length} รายการ</p></div></div>
+                    <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>สอนได้ตามแผน</h3><p style="color:var(--success)">${percentTaught}%</p></div></div>
+                    <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>ชดเชย/ย้ายคาบ</h3><p style="color:var(--warning)">${rescheduledCount} ครั้ง</p></div></div>
+                `;
+            }
+
+        } else if (type === 'teaching-framework') {
+            const selectedTeacher = document.getElementById('report-teacher-select') ? document.getElementById('report-teacher-select').value : 'all';
+            const logs = this._aggregateTeachingLogs({ teacherId: selectedTeacher });
+
+            headerTitle.textContent = `รายงานสรุปการเชื่อมโยงหลักปรัชญาของเศรษฐกิจพอเพียง (SEP)`;
+            
+            let teacherDisplay = 'ทุกครูผู้สอน';
+            if (selectedTeacher !== 'all') {
+                const tObj = (this.db.teachers || []).find(t => t.username === selectedTeacher);
+                if (tObj) teacherDisplay = tObj.name;
+                else if (this.currentUser && this.currentUser.username === selectedTeacher) teacherDisplay = this.currentUser.name || selectedTeacher;
+            }
+            headerSubtitle.textContent = `ข้อมูลอ้างอิงจากบันทึกการสอน | ครูผู้สอน: ${teacherDisplay}`;
+
+            tableHeader.innerHTML = `
+                <th>หมวดหมู่ SEP</th>
+                <th>หลักการ / เงื่อนไข / มิติ</th>
+                <th>จำนวนครั้งที่เชื่อมโยง</th>
+                <th>คิดเป็นสัดส่วน (จากทั้งหมด)</th>
+            `;
+
+            if (logs.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="4" style="text-align:center; padding: 24px; color: var(--text-secondary);">ยังไม่มีข้อมูลบันทึกการสอนในเงื่อนไขนี้</td>`;
+                tableBody.appendChild(tr);
+                summaryStatsDiv.innerHTML = '';
+            } else {
+                const fwCounts = {
+                    conditions: { Knowledge: 0, Morality: 0 },
+                    principles: { Moderation: 0, Reasonableness: 0, 'Self-Immunity': 0 },
+                    dimensions: { Economic: 0, Social: 0, Environmental: 0, Cultural: 0 }
+                };
+
+                let totalLogsWithFramework = 0;
+
+                logs.forEach(l => {
+                    let hasFw = false;
+                    if (l.linkedFramework) {
+                        ['conditions', 'principles', 'dimensions'].forEach(cat => {
+                            if (Array.isArray(l.linkedFramework[cat])) {
+                                l.linkedFramework[cat].forEach(val => {
+                                    if (fwCounts[cat] && fwCounts[cat][val] !== undefined) {
+                                        fwCounts[cat][val]++;
+                                        hasFw = true;
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    if (hasFw) totalLogsWithFramework++;
+                });
+
+                const fwLabels = {
+                    conditions: { label: 'เงื่อนไข (Conditions)', keys: { Knowledge: 'เงื่อนไขความรู้', Morality: 'เงื่อนไขคุณธรรม' } },
+                    principles: { label: 'หลักการ (Principles)', keys: { Moderation: 'ความพอประมาณ', Reasonableness: 'ความมีเหตุผล', 'Self-Immunity': 'การมีภูมิคุ้มกัน' } },
+                    dimensions: { label: 'มิติ (Dimensions)', keys: { Economic: 'มิติวัตถุ/เศรษฐกิจ', Social: 'มิติสังคม', Environmental: 'มิติสิ่งแวดล้อม', Cultural: 'มิติวัฒนธรรม' } }
+                };
+
+                // Determine most used principle
+                let maxPrinName = '-';
+                let maxPrinCount = -1;
+                Object.entries(fwCounts.principles).forEach(([k, v]) => {
+                    if (v > maxPrinCount) { maxPrinCount = v; maxPrinName = fwLabels.principles.keys[k]; }
+                });
+
+                ['conditions', 'principles', 'dimensions'].forEach(cat => {
+                    const catData = fwCounts[cat];
+                    const catLabel = fwLabels[cat].label;
+                    const keysMap = fwLabels[cat].keys;
+
+                    Object.entries(catData).forEach(([key, count], index) => {
+                        const tr = document.createElement('tr');
+                        
+                        let categoryCell = '';
+                        if (index === 0) {
+                            const rowSpan = Object.keys(catData).length;
+                            categoryCell = `<td rowspan="${rowSpan}" style="font-weight:700; vertical-align:top; background:var(--bg-subtle);">${catLabel}</td>`;
+                        }
+
+                        const percent = totalLogsWithFramework > 0 ? Math.round((count / totalLogsWithFramework) * 100) : 0;
+                        
+                        tr.innerHTML = `
+                            ${categoryCell}
+                            <td style="font-weight:600;">${keysMap[key] || key}</td>
+                            <td>${count} ครั้ง</td>
+                            <td>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <div style="flex:1; background:var(--border-color); height:8px; border-radius:4px; overflow:hidden;">
+                                        <div style="width:${percent}%; background:var(--primary); height:100%;"></div>
+                                    </div>
+                                    <span style="font-size:12px; font-weight:700; width:40px;">${percent}%</span>
+                                </div>
+                            </td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                });
+
+                summaryStatsDiv.innerHTML = `
+                    <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>บันทึกที่มีการเชื่อมโยง</h3><p style="color:var(--success)">${totalLogsWithFramework} จาก ${logs.length} รายการ</p></div></div>
+                    <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>หลักการที่ใช้บ่อยสุด</h3><p style="color:var(--primary); font-size:18px;">${maxPrinName}</p></div></div>
+                `;
+            }
         }
     }
 
