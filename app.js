@@ -7,7 +7,7 @@ class AttendanceApp {
         this.currentUser = null;
         this.currentView = 'dashboard';
         this.manageTab = 'students';
-        
+
         // Initialize simulated system date to current real local date dynamically
         const today = new Date();
         const year = today.getFullYear();
@@ -21,11 +21,11 @@ class AttendanceApp {
         this.selectedTeachers = [];
         this.lessonPlanFilter = { baseId: '', status: 'all', search: '' };
         this.currentLessonPlan = null;
-        
+
         this.teachingLogSubView = 'list';
         this.currentTeachingLog = null;
         this.teachingLogFilters = { year: '2569', semester: '1', status: 'All', searchQuery: '' };
-        
+
         // Active Charts
         this.dashChart = null;
         this.adminChart = null;
@@ -184,6 +184,7 @@ class AttendanceApp {
             const username = user.email.split('@')[0];
             const dbUser = this.db.teachers.find(t => t.username === username);
             if (dbUser) {
+                dbUser.uid = user.uid; // Map Firebase Auth UID
                 const prevUser = this.currentUser;
                 this.currentUser = dbUser;
                 sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
@@ -217,14 +218,14 @@ class AttendanceApp {
             const textEl = badge.querySelector('span');
             const btn = badge.querySelector('button');
             const iconEl = badge.querySelector('i');
-            
+
             const isOffline = !navigator.onLine;
             const isNetworkError = this.firestoreNetworkError;
             const isNotConnected = !this.useFirestore;
 
             if (hasPending || isOffline || isNetworkError || isNotConnected) {
                 badge.style.display = 'flex';
-                
+
                 if (isOffline) {
                     // Orange offline style
                     badge.style.background = 'linear-gradient(135deg, #FF8C00 0%, #FF6F00 100%)';
@@ -270,23 +271,23 @@ class AttendanceApp {
             if (!this.firestore && typeof firebase !== 'undefined') {
                 this.initFirestore();
             }
-            
+
             if (this.firestore) {
                 this.useFirestore = true;
-                
+
                 // Force a query to Firestore to check if it actually connects (timeout in 3.5 seconds)
                 const checkPromise = this.firestore.collection('system_data').doc('bases').get();
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Connection timeout")), 3500)
                 );
-                
+
                 await Promise.race([checkPromise, timeoutPromise]);
-                
+
                 // Connection successful! Reload database
                 await this.loadDatabase();
                 this.updateFirestoreConnectionStatus(true);
                 this.render();
-                
+
                 // Show success notification
                 this.showStatusModal('success', 'เชื่อมต่อคลาวด์สำเร็จ', 'ระบบเชื่อมต่อกับ Firebase Firestore เรียบร้อยแล้ว ข้อมูลจะอัปเดตแบบเรียลไทม์!');
             } else {
@@ -305,29 +306,29 @@ class AttendanceApp {
 
     async tryReconnectCloudFromLogin(event) {
         if (event) event.preventDefault();
-        
+
         try {
             console.log("Login Modal: Reconnect attempt initiated...");
             if (!this.firestore && typeof firebase !== 'undefined') {
                 this.initFirestore();
             }
-            
+
             if (this.firestore) {
                 this.useFirestore = true;
-                
+
                 // Force a query to Firestore to check if it actually connects (timeout in 6 seconds)
                 const checkPromise = this.firestore.collection('system_data').doc('bases').get();
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Connection timeout")), 6000)
                 );
-                
+
                 await Promise.race([checkPromise, timeoutPromise]);
-                
+
                 // Connection successful! Reload database with a 15-second timeout
                 await this.loadDatabase(20000);
                 this.updateFirestoreConnectionStatus(true);
                 this.render();
-                
+
                 alert("เชื่อมต่อคลาวด์สำเร็จ! ฐานข้อมูลอัปเดตเป็นปัจจุบันเรียบร้อยแล้ว");
             } else {
                 throw new Error("Firebase SDK not loaded");
@@ -342,15 +343,15 @@ class AttendanceApp {
 
     clearSystemCache(event) {
         if (event) event.preventDefault();
-        
+
         const confirmClear = confirm("คุณต้องการล้างแคชระบบใช่หรือไม่?\nการล้างแคชจะทำการเคลียร์ข้อมูลชั่วคราวในเครื่อง และรีโหลดหน้าเว็บใหม่เพื่อดาวน์โหลดระบบล่าสุดจากเซิร์ฟเวอร์");
         if (!confirmClear) return;
-        
+
         try {
             // 1. Clear storage
             localStorage.clear();
             sessionStorage.clear();
-            
+
             // 2. Unregister service workers
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(registrations => {
@@ -368,7 +369,7 @@ class AttendanceApp {
                     }
                 }).catch(err => console.error("Error clearing cache storage:", err));
             }
-            
+
             alert("ล้างแคชระบบสำเร็จ! ระบบจะทำการรีโหลดหน้าเว็บใหม่");
             window.location.reload(true); // Force reload from server
         } catch (e) {
@@ -454,7 +455,7 @@ class AttendanceApp {
         try {
             // Try fetching from server first with a 3-second timeout
             const serverPromise = docRef.get({ source: 'server' });
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Server timeout")), 3000)
             );
             return await Promise.race([serverPromise, timeoutPromise]);
@@ -473,7 +474,7 @@ class AttendanceApp {
         try {
             // Try fetching from server first with a 3-second timeout
             const serverPromise = colRef.get({ source: 'server' });
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Server timeout")), 3000)
             );
             return await Promise.race([serverPromise, timeoutPromise]);
@@ -493,9 +494,7 @@ class AttendanceApp {
     async loadDatabase(timeoutMs = 20000) {
         if (this.useFirestore) {
             try {
-                // NOTE (v2.3.1 Sprint F1.2): teaching_logs is now a dedicated collection.
-                // It is fetched separately below, NOT from system_data.
-                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
+                const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
                 const loadedDb = {};
                 let hasData = true;
 
@@ -521,6 +520,14 @@ class AttendanceApp {
                 }
                 const teachingLogsPromise = this.getCollectionWithCacheFallback(tlQuery);
 
+                // Fetch lesson_plans from dedicated collection (Sprint RC1.1)
+                const activeUserForLP = this.pendingLoginUser || this.currentUser;
+                let lpQuery = this.firestore.collection('lesson_plans');
+                if (activeUserForLP && activeUserForLP.role === 'teacher') {
+                    lpQuery = lpQuery.where('teacherUid', '==', firebase.auth().currentUser ? firebase.auth().currentUser.uid : activeUserForLP.uid || '');
+                }
+                const lessonPlansPromise = this.getCollectionWithCacheFallback(lpQuery);
+
                 // Set up onSnapshot listener inside a Promise for the initial data
                 let initialLogsReceived = false;
                 let logsResolve;
@@ -542,13 +549,13 @@ class AttendanceApp {
                     if (this.db) {
                         this.db.attendance_logs = updatedLogs;
                         localStorage.setItem('school_attendance_logs', JSON.stringify(updatedLogs));
-                        
+
                         if (initialLogsReceived) {
                             console.log("Real-time attendance logs updated from Firestore!");
                             this.render();
                         }
                     }
-                    
+
                     const hasPending = snapshot.metadata.hasPendingWrites;
                     this.firestoreNetworkError = false;
                     this.updateOfflineSyncWarning(hasPending);
@@ -574,14 +581,15 @@ class AttendanceApp {
                     baseActPromise,
                     stagingPromise,
                     logsPromise,
-                    teachingLogsPromise
+                    teachingLogsPromise,
+                    lessonPlansPromise
                 ];
 
-                const timeoutPromise = new Promise((_, reject) => 
+                const timeoutPromise = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error("Firestore fetch timeout")), timeoutMs)
                 );
 
-                const [docResults, baseActSnapshot, stagingSnapshot, logsSnapshot, teachingLogsSnapshot] = await Promise.race([
+                const [docResults, baseActSnapshot, stagingSnapshot, logsSnapshot, teachingLogsSnapshot, lessonPlansSnapshot] = await Promise.race([
                     Promise.all(allPromises),
                     timeoutPromise
                 ]);
@@ -595,7 +603,7 @@ class AttendanceApp {
                             loadedDb[collections[i]] = doc.data().data || [];
                         }
                     } else {
-                        if (collections[i] === 'schoolCalendar' || collections[i] === 'lesson_plans') {
+                        if (collections[i] === 'schoolCalendar') {
                             loadedDb[collections[i]] = [];
                         } else {
                             hasData = false;
@@ -613,7 +621,16 @@ class AttendanceApp {
                     // Update LocalStorage cache
                     localStorage.setItem('school_teaching_logs', JSON.stringify(loadedDb['teaching_logs']));
 
+                    // Sprint RC1.1: lesson_plans from dedicated collection
+                    loadedDb['lesson_plans'] = lessonPlansSnapshot ? lessonPlansSnapshot.docs.map(doc => doc.data()) : [];
+                    localStorage.setItem('school_lesson_plans', JSON.stringify(loadedDb['lesson_plans']));
+
+                    // Preserve local-only calendar data
+                    const cachedSubjectCalendars = this.db?.subjectCalendars || [];
+                    const cachedSubjectCalendarLessons = this.db?.subjectCalendarLessons || [];
                     this.db = loadedDb;
+                    this.db.subjectCalendars = cachedSubjectCalendars;
+                    this.db.subjectCalendarLessons = cachedSubjectCalendarLessons;
                     this.isDemoData = false; // Real data loaded - clear demo flag
                     this.updateFirestoreConnectionStatus(true);
                     this.runMigrationChecks();
@@ -630,7 +647,7 @@ class AttendanceApp {
                 this.updateFirestoreConnectionStatus(false);
             }
         }
-        
+
         this.loadDatabaseFromLocalStorage();
         this.populateLoginSuggestions();
     }
@@ -661,12 +678,12 @@ class AttendanceApp {
             this.db.activeSemesterId = activeSemesterId || "1-2569";
             this.db.base_activity_logs = baseActivityLogs ? JSON.parse(baseActivityLogs) : [];
             this.db.staging_logs = stagingLogs ? JSON.parse(stagingLogs) : [];
-            
+
             const subjectCalendars = localStorage.getItem('school_subject_calendars');
             const subjectCalendarLessons = localStorage.getItem('school_subject_calendar_lessons');
             this.db.subjectCalendars = subjectCalendars ? JSON.parse(subjectCalendars) : [];
             this.db.subjectCalendarLessons = subjectCalendarLessons ? JSON.parse(subjectCalendarLessons) : [];
-            
+
             const schoolCalendar = localStorage.getItem('school_calendar');
             this.db.schoolCalendar = schoolCalendar ? JSON.parse(schoolCalendar) : [];
 
@@ -685,8 +702,8 @@ class AttendanceApp {
     // Initialize a minimal empty database structure without demo students
     // Only call this when real data is unavailable - NEVER auto-seed fake students
     initializeEmptyDatabase() {
-        const existingTeachers = this.db && this.db.teachers && this.db.teachers.length > 0 
-            ? this.db.teachers 
+        const existingTeachers = this.db && this.db.teachers && this.db.teachers.length > 0
+            ? this.db.teachers
             : [
                 { username: "director", name: "นายปุรเชษฐ์ มธุรส", role: "director" },
                 { username: "deputy1", name: "นางสาวกษมา อุดทาเรือน", role: "director" },
@@ -724,11 +741,11 @@ class AttendanceApp {
 
     async loadDatabaseFromCloudInBackground() {
         if (!this.useFirestore) return;
-        
+
         try {
             console.log("[Background Sync] Fetching database updates from Firestore...");
             // NOTE (v2.3.1 Sprint F1.2): teaching_logs is a dedicated collection; not in system_data.
-            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
+            const collections = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
             const loadedDb = {};
             let hasData = true;
 
@@ -749,11 +766,19 @@ class AttendanceApp {
             }
             const teachingLogsBGPromise = this.getCollectionWithCacheFallback(tlQueryBG);
 
-            const [docResults, baseActSnapshot, stagingSnapshot, teachingLogsSnapshot] = await Promise.all([
+            // Sprint RC1.1: Fetch lesson_plans from dedicated collection
+            let lpQueryBG = this.firestore.collection('lesson_plans');
+            if (activeUserBG && activeUserBG.role === 'teacher') {
+                lpQueryBG = lpQueryBG.where('teacherUid', '==', firebase.auth().currentUser ? firebase.auth().currentUser.uid : activeUserBG.uid || '');
+            }
+            const lessonPlansBGPromise = this.getCollectionWithCacheFallback(lpQueryBG);
+
+            const [docResults, baseActSnapshot, stagingSnapshot, teachingLogsSnapshot, lessonPlansSnapshot] = await Promise.all([
                 Promise.all(docPromises),
                 baseActPromise,
                 stagingPromise,
-                teachingLogsBGPromise
+                teachingLogsBGPromise,
+                lessonPlansBGPromise
             ]);
 
             for (let i = 0; i < collections.length; i++) {
@@ -765,7 +790,7 @@ class AttendanceApp {
                         loadedDb[collections[i]] = doc.data().data || [];
                     }
                 } else {
-                    if (collections[i] === 'schoolCalendar' || collections[i] === 'lesson_plans') {
+                    if (collections[i] === 'schoolCalendar') {
                         loadedDb[collections[i]] = [];
                     } else {
                         hasData = false;
@@ -788,7 +813,8 @@ class AttendanceApp {
                 this.db.base_activity_logs = loadedDb.base_activity_logs;
                 this.db.staging_logs = loadedDb.staging_logs;
                 this.db.schoolCalendar = loadedDb.schoolCalendar || [];
-                this.db.lesson_plans = loadedDb.lesson_plans || [];
+                // Sprint RC1.1: lesson_plans from dedicated collection
+                this.db.lesson_plans = lessonPlansSnapshot ? lessonPlansSnapshot.docs.map(doc => doc.data()) : [];
                 // Sprint F1.2: teaching_logs from dedicated collection
                 this.db.teaching_logs = teachingLogsSnapshot ? teachingLogsSnapshot.docs.map(doc => doc.data()) : [];
 
@@ -858,13 +884,13 @@ class AttendanceApp {
 
         if (this.useFirestore) {
             try {
-                // Determine collections to sync (teaching_logs excluded — handled by saveTeachingLog/deleteTeachingLog)
+                // Determine collections to sync (teaching_logs and lesson_plans excluded — handled dedicatedly)
                 let syncCols = [];
                 if (collectionsToSync) {
-                    // Silently drop 'teaching_logs' from system_data batch — it now lives in its own collection
-                    syncCols = collectionsToSync.filter(c => c !== 'teaching_logs');
+                    // Silently drop 'teaching_logs' and 'lesson_plans' from system_data batch
+                    syncCols = collectionsToSync.filter(c => c !== 'teaching_logs' && c !== 'lesson_plans');
                 } else if (saveLogsToFirestore) {
-                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar', 'lesson_plans'];
+                    syncCols = ['students', 'teachers', 'bases', 'rotation_schedule', 'semesters', 'activeSemesterId', 'schoolCalendar'];
                 }
 
                 if (syncCols.length > 0) {
@@ -888,11 +914,29 @@ class AttendanceApp {
                     await batch.commit();
                 }
 
+                // Sprint RC1.1: If collectionsToSync contains 'lesson_plans', or if full save requested, save lesson plans
+                if (collectionsToSync && collectionsToSync.includes('lesson_plans')) {
+                    if (this.db.lesson_plans) {
+                        const batch = this.firestore.batch();
+                        this.db.lesson_plans.forEach(plan => {
+                            if (plan.id) {
+                                // Ensure teacherUid is set properly to allow write permission by rules
+                                if (!plan.teacherUid && this.currentUser && this.currentUser.uid) {
+                                    plan.teacherUid = this.currentUser.uid;
+                                }
+                                const docRef = this.firestore.collection('lesson_plans').doc(plan.id);
+                                batch.set(docRef, plan);
+                            }
+                        });
+                        await batch.commit();
+                    }
+                }
+
                 // Save logs fully if requested (e.g. seed or full restore)
                 if (saveLogsToFirestore) {
                     // Sync attendance logs
                     await this.syncCollectionFully('attendance_logs', this.db.attendance_logs, (log) => `${log.date}_${log.baseId}_${log.studentId}`);
-                    
+
                     // Sync base activity logs
                     if (this.db.base_activity_logs) {
                         await this.syncCollectionFully('base_activity_logs', this.db.base_activity_logs, (log) => log.id);
@@ -901,6 +945,16 @@ class AttendanceApp {
                     // Sync staging logs
                     if (this.db.staging_logs) {
                         await this.syncCollectionFully('staging_logs', this.db.staging_logs, (log) => log.batchId);
+                    }
+
+                    // Sprint RC1.1: Sync lesson plans fully (if lesson_plans exists)
+                    if (this.db.lesson_plans) {
+                        await this.syncCollectionFully('lesson_plans', this.db.lesson_plans.map(plan => {
+                            if (!plan.teacherUid && this.currentUser && this.currentUser.uid) {
+                                plan.teacherUid = this.currentUser.uid;
+                            }
+                            return plan;
+                        }), (plan) => plan.id);
                     }
                 }
 
@@ -916,12 +970,12 @@ class AttendanceApp {
     // Helper to delete old docs and write new docs in chunks of 400
     async syncCollectionFully(collectionName, dataArray, getDocIdFn) {
         const oldDocsSnapshot = await this.firestore.collection(collectionName).get();
-        
+
         // Delete in chunks of 400
         const deleteBatches = [];
         let currentDeleteBatch = this.firestore.batch();
         let opCount = 0;
-        
+
         oldDocsSnapshot.docs.forEach(doc => {
             currentDeleteBatch.delete(doc.ref);
             opCount++;
@@ -934,7 +988,7 @@ class AttendanceApp {
         if (opCount > 0) {
             deleteBatches.push(currentDeleteBatch);
         }
-        
+
         for (const b of deleteBatches) {
             await b.commit();
         }
@@ -999,7 +1053,7 @@ class AttendanceApp {
                 .orderBy('timestamp', 'desc')
                 .limit(1)
                 .get();
-            
+
             let needNightly = true;
             if (!query.empty) {
                 const latest = query.docs[0].data();
@@ -1009,7 +1063,7 @@ class AttendanceApp {
                     needNightly = false;
                 }
             }
-            
+
             if (needNightly) {
                 console.log("Triggering nightly cloud backup...");
                 await this.triggerAutoBackup(true);
@@ -1027,7 +1081,7 @@ class AttendanceApp {
                 .orderBy('timestamp', 'desc')
                 .limit(20)
                 .get();
-            
+
             const tbody = document.getElementById('cloud-backups-table-body');
             if (!tbody) return;
 
@@ -1042,7 +1096,7 @@ class AttendanceApp {
                 const ts = data.timestamp ? data.timestamp.toDate() : new Date();
                 const timeStr = ts.toLocaleString('th-TH');
                 const isNightlyTag = data.isNightly ? ' <span class="status-badge" style="background-color: var(--primary); font-size:10px;">Nightly</span>' : '';
-                
+
                 html += `
                     <tr>
                         <td><code>${data.id}</code>${isNightlyTag}</td>
@@ -1134,7 +1188,7 @@ class AttendanceApp {
                 .orderBy('timestamp', 'desc')
                 .limit(50)
                 .get();
-            
+
             const tbody = document.getElementById('audit-logs-table-body');
             if (!tbody) return;
 
@@ -1294,8 +1348,8 @@ class AttendanceApp {
 
         // Splicing old demo accounts
         const oldDemoUsernames = [
-            "teacher1", "teacher1_2", "teacher2", "teacher2_2", 
-            "teacher3", "teacher3_2", "teacher4", "teacher4_2", 
+            "teacher1", "teacher1_2", "teacher2", "teacher2_2",
+            "teacher3", "teacher3_2", "teacher4", "teacher4_2",
             "teacher6", "teacher6_2", "teacher7", "teacher7_2"
         ];
         oldDemoUsernames.forEach(username => {
@@ -1415,7 +1469,7 @@ class AttendanceApp {
             if (!this.db.staging_logs) {
                 this.db.staging_logs = [];
             }
-            
+
             // Add semesterId to existing database records
             if (this.db.students) {
                 this.db.students.forEach(st => {
@@ -1567,7 +1621,7 @@ class AttendanceApp {
         // 3. Students Generator (realistic Thai names and classrooms)
         const firstNames = ["สมชาย", "วิชัย", "กิตติ", "พงศ์ธร", "ธีรพงษ์", "อภิสิทธิ์", "ณัฐพล", "เกียรติศักดิ์", "สิทธิพล", "จิรายุ", "วรรณนา", "นงนุช", "วิไล", "สุภาภรณ์", "นภา", "สิริพร", "รัตนา", "จิราภรณ์", "พัชรา", "ยลดา", "มาลี", "กัญญารัตน์", "ธัญญารัตน์", "เปรมิกา", "สุจิตรา", "วรัญญา", "ชลลดา", "ศิริวรรณ", "นันทนา", "ลัดดา"];
         const lastNames = ["ใจดี", "รักชาติ", "มั่งคั่ง", "รุ่งเรือง", "ดีเลิศ", "แก้วมณี", "ยิ้มแย้ม", "สุขใจ", "เกื้อกูล", "เงาดี", "ประเสริฐ", "ชูใจ", "แสนดี", "โชคดี", "วงศ์วิริยะ", "ศรีสุข", "เลิศอนันต์", "ดวงแก้ว", "สุขแสน", "ทองคำ", "เจริญศรี", "พัฒนา", "ภักดี", "สิงห์โต", "พิทักษ์", "บำรุง", "จิตรดี", "มั่นเหมาะ", "ชื่นบาน", "ธรรมรักษา"];
-        
+
         const studentClasses = [
             { grade: "ม.1", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
             { grade: "ม.2", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
@@ -1586,7 +1640,7 @@ class AttendanceApp {
                 for (let i = 1; i <= 40; i++) {
                     const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
                     const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
-                    
+
                     // Boy/Girl prefix for lower grades, Mr/Miss for higher grades
                     let prefix = "";
                     const isJunior = (g.grade === "ม.1" || g.grade === "ม.2" || g.grade === "ม.3");
@@ -1624,13 +1678,13 @@ class AttendanceApp {
         // 5. Pre-seed logs (Weeks 4 and 5 active, Week 6 partially checked)
         const attendance_logs = [];
         const statuses = ['present', 'present', 'present', 'present', 'present', 'present', 'present', 'present', 'present', 'absent', 'leave', 'late'];
-        
+
         for (let wk = 4; wk <= 5; wk++) {
             const wSchedule = rotation_schedule.filter(s => s.week === wk && !s.isSpecial && !s.isEmpty);
             wSchedule.forEach(sch => {
                 const dateKey = sch.startDate;
                 const schedStudents = students.filter(st => sch.attendingClasses.includes(`${st.grade}/${st.room}`));
-                
+
                 schedStudents.forEach(st => {
                     attendance_logs.push({
                         date: dateKey,
@@ -1647,7 +1701,7 @@ class AttendanceApp {
 
         // Today is June 20, 2026 (Week 6). Let's pre-check Base 1 (ไฟเบอร์ ทรงพลัง) and Base 2 (อาณาจักรอักษร)
         const w6Schedule = rotation_schedule.filter(s => s.week === 6 && !s.isSpecial && !s.isEmpty);
-        
+
         // Base 1 pre-checked
         const schB1 = w6Schedule.find(s => s.baseId === 'base1');
         if (schB1) {
@@ -1744,7 +1798,7 @@ class AttendanceApp {
 
         this.showStatusModal('success', 'ล้างข้อมูลระบบสำเร็จ', 'ระบบอยู่ในสภาวะว่างสำหรับการกรอกข้อมูลจริงเรียบร้อยแล้ว<br><small style="color:var(--text-secondary);">กรุณาเข้าสู่ระบบด้วยบัญชีแอดมินเพื่อนำเข้าข้อมูลนักเรียนและตารางสอน</small>');
         this.switchView('dashboard');
-        
+
         // Hide demo notification banner if visible
         const notification = document.getElementById('demo-notification');
         if (notification) {
@@ -1759,7 +1813,7 @@ class AttendanceApp {
         }
 
         this.db.students = [];
-        
+
         try {
             await this.saveDatabase(false, ['students']);
             this.showStatusModal('success', 'ล้างข้อมูลนักเรียนสำเร็จ', 'รายชื่อนักเรียนทั้งหมดถูกลบออกจากระบบแล้ว');
@@ -1923,25 +1977,25 @@ class AttendanceApp {
         // Navigation Guard based on user role
         if (!this.currentUser) {
             // Guest mode
-            const guestViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search'];
+            const guestViews = ['dashboard', 'bases', 'rotation', 'search'];
             if (!guestViews.includes(viewId)) {
                 viewId = 'dashboard';
             }
         } else if (this.currentUser.role === 'teacher') {
             // Teacher mode
-            const teacherViews = ['checkin', 'teacher-history', 'subject-calendar', 'lesson-planner', 'teaching-log'];
+            const teacherViews = ['checkin', 'teacher-history', 'lesson-planner', 'teaching-log'];
             if (!teacherViews.includes(viewId)) {
                 viewId = 'checkin';
             }
         } else if (this.currentUser.role === 'director' || this.currentUser.role === 'supervisor') {
             // Director/Supervisor mode
-            const directorViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'reports', 'admin', 'subject-calendar', 'lesson-planner', 'teaching-log'];
+            const directorViews = ['dashboard', 'bases', 'rotation', 'search', 'reports', 'admin', 'lesson-planner', 'teaching-log'];
             if (!directorViews.includes(viewId)) {
                 viewId = 'admin';
             }
         } else if (this.currentUser.role === 'admin') {
             // Admin mode
-            const adminViews = ['dashboard', 'calendar', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'subject-calendar', 'lesson-planner', 'teaching-log'];
+            const adminViews = ['dashboard', 'bases', 'rotation', 'search', 'checkin', 'reports', 'admin', 'manage', 'lesson-planner', 'teaching-log'];
             if (!adminViews.includes(viewId)) {
                 viewId = 'manage';
             }
@@ -1957,7 +2011,7 @@ class AttendanceApp {
         // Close hamburger menu on view switch
         const navBar = document.querySelector('.top-nav-bar');
         if (navBar) navBar.classList.remove('menu-open');
-        
+
         // Update active class on Top Bar menu items
         const menuItems = document.querySelectorAll('.nav-menu .nav-item');
         menuItems.forEach(item => {
@@ -2011,7 +2065,7 @@ class AttendanceApp {
     // Modal Control
     openModal(modalId) {
         document.getElementById(modalId).classList.add('active');
-        
+
         // Specific modal preparations
         if (modalId === 'login-modal') {
             const pwdInput = document.getElementById('login-password');
@@ -2021,9 +2075,9 @@ class AttendanceApp {
                 const teachersList = this.db.teachers.filter(t => t.role === 'teacher');
                 const directorsList = this.db.teachers.filter(t => t.role === 'director');
                 const adminsList = this.db.teachers.filter(t => t.role === 'admin');
-                
+
                 let html = '<option value="" disabled selected>-- เลือกสิทธิ์การใช้งาน --</option>';
-                
+
                 html += '<optgroup label="ผู้บริหารโรงเรียน (Executive)">';
                 directorsList.forEach(t => {
                     let roleTitle = 'ผู้บริหาร';
@@ -2050,7 +2104,7 @@ class AttendanceApp {
                     html += `<option value="${t.username}">${t.name} (แอดมิน)</option>`;
                 });
                 html += '</optgroup>';
-                
+
                 select.innerHTML = html;
             }
         }
@@ -2073,7 +2127,7 @@ class AttendanceApp {
             // Populate bases dropdown
             const baseSelect = document.getElementById('schedule-form-base');
             baseSelect.innerHTML = this.db.bases.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-            
+
             // Populate teachers dropdown
             const teacherSelect = document.getElementById('schedule-form-teacher');
             teacherSelect.innerHTML = this.db.teachers.map(t => `<option value="${t.name}">${t.name}</option>`).join('');
@@ -2090,7 +2144,7 @@ class AttendanceApp {
     togglePasswordVisibility(inputId, btn) {
         const input = document.getElementById(inputId);
         if (!input) return;
-        
+
         const icon = btn.querySelector('i');
         if (input.type === 'password') {
             input.type = 'text';
@@ -2160,7 +2214,7 @@ class AttendanceApp {
                 const item = document.createElement('div');
                 item.className = 'suggestion-item';
                 item.dataset.username = u.username;
-                
+
                 // Find base name if any
                 let subtitle = '';
                 if (u.role === 'admin') subtitle = 'ผู้ดูแลระบบ';
@@ -2185,7 +2239,7 @@ class AttendanceApp {
                         input.dataset.selectedUsername = u.username;
                     }
                     container.style.display = 'none';
-                    
+
                     // Put focus on password field for quick navigation
                     const pwdInput = document.getElementById('login-password');
                     if (pwdInput) pwdInput.focus();
@@ -2283,7 +2337,7 @@ class AttendanceApp {
         }
         if (savedUser) {
             this.currentUser = JSON.parse(savedUser);
-            
+
             // Sync session user state with updated database values
             if (this.db && this.db.teachers) {
                 const dbUser = this.db.teachers.find(t => t.username === this.currentUser.username);
@@ -2293,9 +2347,9 @@ class AttendanceApp {
                     sessionStorage.setItem('school_current_user', JSON.stringify(dbUser));
                 }
             }
-            
+
             this.updateUserUI();
-            
+
             // Redirect teachers to checkin on load
             if (this.currentUser && this.currentUser.role === 'teacher') {
                 this.switchView('checkin');
@@ -2310,10 +2364,13 @@ class AttendanceApp {
 
     // Complete the login flow after successful auth and profile loading
     async completeLogin(userObj) {
+        if (firebase.auth().currentUser) {
+            userObj.uid = firebase.auth().currentUser.uid; // Map Firebase Auth UID
+        }
         this.currentUser = userObj;
         sessionStorage.setItem('school_current_user', JSON.stringify(userObj));
         localStorage.setItem('school_current_user', JSON.stringify(userObj));
-        
+
         if (this.useFirestore && userObj.role !== 'admin' && userObj.role !== 'director') {
             if (!userObj.isAuthCreated) {
                 userObj.isAuthCreated = true;
@@ -2327,7 +2384,7 @@ class AttendanceApp {
 
         this.updateUserUI();
         this.closeModal('login-modal');
-        
+
         // Auto redirect depending on role
         if (userObj.role === 'admin') {
             this.switchView('manage');
@@ -2365,7 +2422,7 @@ class AttendanceApp {
         if (this.currentUser) {
             if (nameLabel) nameLabel.textContent = this.currentUser.name;
             if (userProfileSection) userProfileSection.style.display = 'flex';
-            
+
             let avatarChar = this.currentUser.name.charAt(0);
             if (this.currentUser.name.startsWith('ครู')) {
                 avatarChar = this.currentUser.name.substring(3).charAt(0);
@@ -2391,7 +2448,7 @@ class AttendanceApp {
                 if (roleLabel) roleLabel.textContent = "ผู้ดูแลระบบ (Admin)";
                 if (menuDashboard) menuDashboard.style.display = 'block';
                 if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
-                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'none';
                 if (menuBases) menuBases.style.display = 'block';
                 if (menuRotation) menuRotation.style.display = 'block';
                 if (menuSearch) menuSearch.style.display = 'block';
@@ -2406,7 +2463,7 @@ class AttendanceApp {
                 if (roleLabel) roleLabel.textContent = this.currentUser.role === 'director' ? "ผู้บริหารโรงเรียน" : "ศึกษานิเทศก์/ผู้ประเมิน";
                 if (menuDashboard) menuDashboard.style.display = 'block';
                 if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
-                if (menuCalendar) menuCalendar.style.display = 'block';
+                if (menuCalendar) menuCalendar.style.display = 'none';
                 if (menuBases) menuBases.style.display = 'block';
                 if (menuRotation) menuRotation.style.display = 'block';
                 if (menuSearch) menuSearch.style.display = 'block';
@@ -2448,7 +2505,7 @@ class AttendanceApp {
             // Guest mode defaults
             if (menuDashboard) menuDashboard.style.display = 'block';
             if (menuSubjectCalendar) menuSubjectCalendar.style.display = 'none';
-            if (menuCalendar) menuCalendar.style.display = 'block';
+            if (menuCalendar) menuCalendar.style.display = 'none';
             if (menuBases) menuBases.style.display = 'block';
             if (menuRotation) menuRotation.style.display = 'block';
             if (menuSearch) menuSearch.style.display = 'block';
@@ -2494,7 +2551,7 @@ class AttendanceApp {
     // Retry profile load when login auth succeeded but database load was slow/failed
     async retryLoginProfileLoad(event) {
         if (event) event.preventDefault();
-        
+
         if (!this.pendingLoginUser) {
             console.warn("No pending login user found for profile load retry");
             return;
@@ -2502,7 +2559,7 @@ class AttendanceApp {
 
         const retryBtn = document.getElementById('btn-login-retry');
         const loadingText = document.getElementById('login-loading-text');
-        
+
         if (retryBtn) {
             retryBtn.disabled = true;
             retryBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังลองใหม่...';
@@ -2516,7 +2573,7 @@ class AttendanceApp {
             this.initFirestore();
             await this.loadDatabase(20000);
             console.log("[Login Flow] Retry profile load: SUCCESS");
-            
+
             if (retryBtn) {
                 retryBtn.disabled = false;
                 retryBtn.style.display = 'none';
@@ -2545,7 +2602,7 @@ class AttendanceApp {
     // Retry database loading for the check-in view on slow network
     async retryCheckinDataLoad(event) {
         if (event) event.preventDefault();
-        
+
         const retryBtn = document.getElementById('btn-checkin-retry');
         if (retryBtn) {
             retryBtn.disabled = true;
@@ -2558,7 +2615,7 @@ class AttendanceApp {
             this.useFirestore = true;
             await this.loadDatabase(20000);
             console.log("[Checkin Flow] Database load retry: SUCCESS");
-            
+
             this.renderCheckin();
         } catch (err) {
             console.error("[Checkin Flow] Database load retry failed:", err);
@@ -2580,8 +2637,8 @@ class AttendanceApp {
             // If they typed manually or browser autofilled:
             const rawVal = usernameInput.value.trim().toLowerCase();
             // Try to find by username first, then by name
-            const foundUser = this.db.teachers.find(t => 
-                t.username.toLowerCase() === rawVal || 
+            const foundUser = this.db.teachers.find(t =>
+                t.username.toLowerCase() === rawVal ||
                 t.name.toLowerCase() === rawVal ||
                 t.name.replace(/^(นาย|นางสาว|นาง|ครู)/, '').toLowerCase() === rawVal.replace(/^(นาย|นางสาว|นาง|ครู)/, '').toLowerCase()
             );
@@ -2610,7 +2667,7 @@ class AttendanceApp {
         console.log("[Login Flow] Browser Online Status:", navigator.onLine);
 
         const hasNetwork = navigator.onLine;
-        
+
         if (!hasNetwork) {
             this.showStatusModal('error', 'ไม่สามารถเข้าสู่ระบบได้', 'ไม่สามารถเข้าสู่ระบบแบบออฟไลน์ได้ กรุณาเชื่อมต่ออินเทอร์เน็ตเพื่อยืนยันตัวตน');
             return;
@@ -2632,7 +2689,7 @@ class AttendanceApp {
 
         // 6-second timeout helper for promises
         const withTimeout = (promise, ms, name) => {
-            const timeout = new Promise((_, reject) => 
+            const timeout = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error(`${name} timeout`)), ms)
             );
             return Promise.race([promise, timeout]);
@@ -2653,7 +2710,7 @@ class AttendanceApp {
                 let accountDoc = null;
                 let profileDoc = null;
                 const uid = firebase.auth().currentUser.uid;
-                
+
                 if (this.useFirestore && this.firestore) {
                     try {
                         const [accSnap, profSnap] = await Promise.all([
@@ -2670,7 +2727,7 @@ class AttendanceApp {
                 // Check if inactive or disabled
                 const isInactive = (accountDoc && (accountDoc.status === 'inactive' || accountDoc.disabled === true)) ||
                                    (profileDoc && (profileDoc.status === 'inactive' || profileDoc.disabled === true));
-                
+
                 if (isInactive) {
                     await firebase.auth().signOut().catch(() => {});
                     if (loginBtn) {
@@ -2688,9 +2745,9 @@ class AttendanceApp {
                 const isAccountMissing = !accountDoc;
                 const isProfileIncomplete = profileDoc && (!profileDoc.name || !profileDoc.email || !profileDoc.role || !profileDoc.status);
                 const isRoleInvalid = accountDoc && (!accountDoc.role || !['admin', 'director', 'teacher'].includes(accountDoc.role));
-                
+
                 const isUidMismatch = (profileDoc && profileDoc.uid !== uid) || (accountDoc && accountDoc.uid !== uid);
-                
+
                 const authEmail = (firebase.auth().currentUser.email || '').trim().toLowerCase();
                 const profEmail = profileDoc && profileDoc.email ? profileDoc.email.trim().toLowerCase() : '';
                 const accEmail = accountDoc && accountDoc.email ? accountDoc.email.trim().toLowerCase() : '';
@@ -2738,15 +2795,15 @@ class AttendanceApp {
                         const batch = this.firestore.batch();
                         const accRef = this.firestore.collection("userAccounts").doc(uid);
                         const profRef = this.firestore.collection("userProfiles").doc(uid);
-                        
+
                         const accUpdate = { lastLoginAt: nowStr, status: 'active' };
                         if (!accountDoc.activatedAt) accUpdate.activatedAt = nowStr;
                         batch.update(accRef, accUpdate);
-                        
+
                         const profUpdate = { lastLoginAt: nowStr, status: 'active' };
                         if (!profileDoc.activatedAt) profUpdate.activatedAt = nowStr;
                         batch.update(profRef, profUpdate);
-                        
+
                         await batch.commit();
                         console.log("[Login Flow] Login readiness timestamps successfully updated in Firestore");
                     } catch (e) {
@@ -2756,10 +2813,10 @@ class AttendanceApp {
             } else {
                 throw new Error("Firebase SDK not loaded");
             }
-            
+
             // 2. Auth succeeded, now load or restore Firestore connection
             if (loginBtn) loginBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> เข้าสู่ระบบสำเร็จ กำลังโหลดข้อมูลโปรไฟล์...';
-            
+
             if (loadingStatus) loadingStatus.style.display = 'block';
             if (loadingText) loadingText.textContent = 'กำลังโหลดข้อมูลผู้ใช้...';
             if (retryBtn) retryBtn.style.display = 'none';
@@ -2775,7 +2832,7 @@ class AttendanceApp {
                 this.initFirestore();
                 await this.loadDatabase(15000); // 15 seconds timeout for profile load
                 console.log("[Login Flow] Firestore User Profile Load: SUCCESS");
-                
+
                 clearTimeout(retryTimer);
                 if (loadingStatus) loadingStatus.style.display = 'none';
                 if (loginBtn) {
@@ -2792,14 +2849,14 @@ class AttendanceApp {
                     loginBtn.innerHTML = originalText;
                 }
                 this.pendingLoginUser = null;
-                
+
                 if (loadingStatus) loadingStatus.style.display = 'none';
-                
+
                 // Fallback to local database but complete login to unblock user
                 alert("เข้าสู่ระบบสำเร็จ (ใช้ฐานข้อมูลในเครื่องชั่วคราวเนื่องจากการเชื่อมต่อล่าช้า)");
                 await this.completeLogin(userObj);
             }
-            
+
         } catch (authErr) {
             console.error("[Login Flow] Cloud Auth Failed or Timed out. Error:", authErr);
             if (loginBtn) {
@@ -2808,16 +2865,16 @@ class AttendanceApp {
             }
 
             if (authErr.code === 'auth/wrong-password' || authErr.code === 'auth/invalid-credential') {
-                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ',
                     'รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบรหัสผ่านของคุณอีกครั้ง หรือคลิกปุ่ม "ลืมรหัสผ่าน?" เพื่อตั้งค่ารหัสผ่านใหม่');
             } else if (authErr.code === 'auth/user-not-found') {
-                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ',
                     'ไม่พบบัญชีผู้ใช้งานบนระบบคลาวด์ กรุณาติดต่อผู้ดูแลระบบเพื่อเปิดสิทธิ์การใช้งาน');
             } else if (authErr.code === 'auth/too-many-requests') {
-                this.showStatusModal('error', 'ระงับการเข้าสู่ระบบชั่วคราว', 
+                this.showStatusModal('error', 'ระงับการเข้าสู่ระบบชั่วคราว',
                     'บัญชีนี้ถูกระงับการเข้าสู่ระบบชั่วคราวเนื่องจากป้อนรหัสผ่านผิดพลาดหลายครั้ง กรุณารอสักครู่แล้วลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ');
             } else {
-                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ', 
+                this.showStatusModal('error', 'เข้าสู่ระบบไม่สำเร็จ',
                     'เกิดข้อผิดพลาดในการตรวจสอบบัญชีผู้ใช้ หรือการเชื่อมต่อเครือข่ายขัดข้อง: ' + authErr.message);
             }
         }
@@ -2845,10 +2902,10 @@ class AttendanceApp {
         document.getElementById('change-pwd-current').value = '';
         document.getElementById('change-pwd-new').value = '';
         document.getElementById('change-pwd-confirm').value = '';
-        
+
         const closeBtn = document.querySelector('#change-password-modal .modal-close');
         const cancelBtn = document.querySelector('#change-password-modal .modal-footer .btn-outline');
-        
+
         if (force) {
             if (closeBtn) closeBtn.style.display = 'none';
             if (cancelBtn) cancelBtn.style.display = 'none';
@@ -2858,7 +2915,7 @@ class AttendanceApp {
             if (cancelBtn) cancelBtn.style.display = 'block';
             this.forcePasswordChange = false;
         }
-        
+
         this.openModal('change-password-modal');
     }
 
@@ -2886,7 +2943,7 @@ class AttendanceApp {
         if (t) {
             const changePwdBtn = document.querySelector('#change-password-modal .btn-success');
             const originalText = changePwdBtn ? changePwdBtn.innerHTML : '';
-            
+
             if (this.useFirestore) {
                 if (changePwdBtn) {
                     changePwdBtn.disabled = true;
@@ -2922,16 +2979,16 @@ class AttendanceApp {
             // Remove any password fields to satisfy security constraints
             delete t.password;
             delete this.currentUser.password;
-            
+
             sessionStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
             localStorage.setItem('school_current_user', JSON.stringify(this.currentUser));
             this.saveDatabase(false);
-            
+
             if (changePwdBtn) {
                 changePwdBtn.disabled = false;
                 changePwdBtn.innerHTML = originalText;
             }
-            
+
             this.closeModal('change-password-modal');
             this.showStatusModal('success', 'เปลี่ยนรหัสผ่านสำเร็จ', 'เปลี่ยนรหัสผ่านผู้ใช้งานเรียบร้อยแล้ว!');
         }
@@ -2945,7 +3002,7 @@ class AttendanceApp {
         // Update week texts in Views
         const weekNum = this.currentWeekInfo ? this.currentWeekInfo.week : '-';
         const weekDates = this.currentWeekInfo ? this.currentWeekInfo.dates : 'อยู่นอกช่วงภาคเรียน';
-        
+
         const weekNumEl = document.getElementById('dash-week-num');
         if (weekNumEl) {
             weekNumEl.textContent = `Week ${weekNum}`;
@@ -2964,13 +3021,13 @@ class AttendanceApp {
         // Update Holiday/Special day banners
         const dashHolidayBanner = document.getElementById('dashboard-holiday-banner');
         const checkinHolidayBanner = document.getElementById('checkin-holiday-banner');
-        
+
         if (this.currentWeekInfo && this.currentWeekInfo.type && this.currentWeekInfo.type !== 'Normal') {
             const icon = this.currentWeekInfo.type === 'Holiday' ? 'fa-calendar-minus' : 'fa-star';
             const typeLabel = this.currentWeekInfo.type === 'Holiday' ? 'วันหยุดพิเศษ/วันหยุดเทศกาล' : 'วันกิจกรรมพิเศษ';
             const noteText = this.currentWeekInfo.note ? `: ${this.currentWeekInfo.note}` : '';
             const holidayHtml = `<i class="fa-solid ${icon}"></i> <span><strong>แจ้งเตือน:</strong> วันนี้เป็น${typeLabel}${noteText} (สัปดาห์ที่ ${weekNum})</span>`;
-            
+
             if (dashHolidayBanner) {
                 dashHolidayBanner.innerHTML = holidayHtml;
                 dashHolidayBanner.style.display = 'flex';
@@ -2983,7 +3040,7 @@ class AttendanceApp {
             if (dashHolidayBanner) dashHolidayBanner.style.display = 'none';
             if (checkinHolidayBanner) checkinHolidayBanner.style.display = 'none';
         }
-        
+
         if (this.currentView === 'dashboard') {
             this.renderDashboard();
         } else if (this.currentView === 'rotation') {
@@ -3019,15 +3076,15 @@ class AttendanceApp {
         const year = parseInt(parts[0]);
         const month = parseInt(parts[1]);
         const day = parseInt(parts[2]);
-        
+
         const thaiMonths = [
             'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
             'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
         ];
-        
+
         const thaiYearShort = (year + 543) % 100;
         const thaiMonthStr = thaiMonths[month - 1] || '';
-        
+
         return `${day} ${thaiMonthStr} ${thaiYearShort}`;
     }
 
@@ -3035,7 +3092,7 @@ class AttendanceApp {
     getWeekByDate(dateStr) {
         const date = new Date(dateStr);
         date.setHours(0,0,0,0);
-        
+
         // 1. Try to find match in schoolCalendar first
         if (this.db.schoolCalendar && this.db.schoolCalendar.length > 0) {
             const calMatch = this.db.schoolCalendar.find(s => {
@@ -3046,8 +3103,8 @@ class AttendanceApp {
                 return date >= start && date <= end;
             });
             if (calMatch) {
-                return { 
-                    week: parseInt(calMatch.week), 
+                return {
+                    week: parseInt(calMatch.week),
                     dates: `${this.formatThaiDateShort(calMatch.startDate)} - ${this.formatThaiDateShort(calMatch.endDate)}`,
                     type: calMatch.type || 'Normal',
                     note: calMatch.note || ''
@@ -3067,7 +3124,7 @@ class AttendanceApp {
         if (match) {
             return { week: match.week, dates: match.dates, type: 'Normal', note: '' };
         }
-        
+
         // Fallback or default to Week 6 if not matching
         return { week: 6, dates: "15 มิ.ย. - 21 มิ.ย. 69", type: 'Normal', note: '' };
     }
@@ -3079,19 +3136,24 @@ class AttendanceApp {
 
         // Get schedule rows for current week
         const todaySchedule = (this.db.rotation_schedule || []).filter(s => s.week === week);
-        
+
         // Calculate counts
         let checkedCount = 0;
         let totalStudentsCount = 0;
         let activeBasesCount = 0;
-        
+
         const baseStatuses = [];
 
         // Check each of the 7 bases
         todaySchedule.forEach(sch => {
             let groupStudents = [];
             if (!sch.isSpecial && !sch.isEmpty) {
-                groupStudents = (this.db.students || []).filter(st => sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${st.room}`));
+                groupStudents = (this.db.students || []).filter(st => {
+                    const currentSemester = this.db.activeSemesterId || "1-2569";
+                    const matchesSemester = st.semesterId === currentSemester || (!st.semesterId && currentSemester === "1-2569");
+                    if (!matchesSemester) return false;
+                    return sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${String(st.room).trim()}`);
+                });
                 totalStudentsCount += groupStudents.length;
                 activeBasesCount++;
             }
@@ -3100,7 +3162,7 @@ class AttendanceApp {
             const baseLogs = (this.db.attendance_logs || []).filter(
                 log => log.date === todayDate && log.baseId === sch.baseId
             );
-            
+
             const isChecked = baseLogs.length > 0;
             if (isChecked && !sch.isSpecial && !sch.isEmpty) checkedCount++;
 
@@ -3154,13 +3216,13 @@ class AttendanceApp {
         baseStatuses.forEach(item => {
             const sch = item.schedule;
             let statusBadge = '';
-            
+
             if (sch.isSpecial) {
                 statusBadge = `<span class="status-badge activity"><i class="fa-solid fa-star"></i> ${sch.classes}</span>`;
             } else if (sch.isEmpty) {
                 statusBadge = `<span class="status-badge pending"><i class="fa-solid fa-ban"></i> ว่าง (ไม่มีเรียน)</span>`;
             } else {
-                statusBadge = item.checked 
+                statusBadge = item.checked
                     ? '<span class="status-badge present"><i class="fa-solid fa-check"></i> เช็กแล้ว</span>'
                     : '<span class="status-badge pending"><i class="fa-solid fa-clock"></i> ยังไม่ได้เช็ก</span>';
             }
@@ -3199,9 +3261,9 @@ class AttendanceApp {
 
         // Initialize or Update Chart.js Doughnut
         if (this.dashChart) this.dashChart.destroy();
-        
+
         const ctx = document.getElementById('dashboard-attendance-chart').getContext('2d');
-        
+
         if (totalChecked === 0) {
             // Draw placeholder if no logs checked yet
             this.dashChart = new Chart(ctx, {
@@ -3262,19 +3324,19 @@ class AttendanceApp {
         const container = document.getElementById(containerId);
         if (!container) return;
 
-        
+
 
         // Filter and sort executives to match director, deputy1, deputy2 sequence
         const directorsList = (this.db.teachers || []).filter(t => t.role === 'director');
         const sortedDirectors = [];
-        
+
         const dir = directorsList.find(t => t.username === 'director');
         if (dir) sortedDirectors.push(dir);
         const dep1 = directorsList.find(t => t.username === 'deputy1');
         if (dep1) sortedDirectors.push(dep1);
         const dep2 = directorsList.find(t => t.username === 'deputy2');
         if (dep2) sortedDirectors.push(dep2);
-        
+
         // Add any other directors if they exist
         directorsList.forEach(t => {
             if (t.username !== 'director' && t.username !== 'deputy1' && t.username !== 'deputy2') {
@@ -3286,7 +3348,7 @@ class AttendanceApp {
         sortedDirectors.forEach(exec => {
             let roleTitle = 'ผู้บริหาร';
             let avatarBg = 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)';
-            
+
             if (exec.username === 'director') {
                 roleTitle = 'ผู้อำนวยการ';
                 avatarBg = 'linear-gradient(135deg, #1D4ED8 0%, #1E3A8A 100%)'; // Sleek dark blue
@@ -3373,12 +3435,12 @@ class AttendanceApp {
     // RENDER: Check-in page
     renderCheckin() {
         const checkinView = document.getElementById('view-checkin');
-        
+
         // Hide class selector by default
         const selectorCard = document.getElementById('checkin-class-selector-card');
         const buttonsContainer = document.getElementById('checkin-class-buttons-container');
         if (selectorCard) selectorCard.style.display = 'none';
-        
+
         // Hide duplicate warning banner by default
         const warningBanner = document.getElementById('checkin-duplicate-warning-banner');
         if (warningBanner) warningBanner.style.display = 'none';
@@ -3460,14 +3522,14 @@ class AttendanceApp {
         // Admin Base Selector Logic
         const adminCard = document.getElementById('checkin-admin-base-selector-card');
         const adminSelect = document.getElementById('checkin-admin-base-select');
-        
+
         let scheduleRow;
         if (this.currentUser.role === 'admin') {
             if (adminCard && adminSelect) {
                 adminCard.style.display = 'block';
                 if (adminSelect.children.length === 0) {
                     adminSelect.innerHTML = this.db.bases.map(b => `<option value="${b.id}">${b.name}</option>`).join('');
-                    
+
                     // Listen for base selection change
                     adminSelect.addEventListener('change', (e) => {
                         this.adminSelectedBaseId = e.target.value;
@@ -3554,7 +3616,7 @@ class AttendanceApp {
             document.getElementById('checkin-base-title').textContent = `ฐาน: ${scheduleRow.baseName}`;
             document.getElementById('checkin-base-info').innerHTML = `<i class="fa-solid fa-user"></i> ครูผู้สอน: ${scheduleRow.teacherName} | <i class="fa-solid fa-location-dot"></i> สถานที่สอน: ${scheduleRow.room}`;
             document.getElementById('checkin-classes-label').textContent = scheduleRow.classes;
-            
+
             const targetClassesEl = document.getElementById('checkin-target-classes');
             if (targetClassesEl) targetClassesEl.textContent = "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล";
 
@@ -3575,7 +3637,7 @@ class AttendanceApp {
                     </div>
                 `;
             }
-            
+
             // Disable search input and filter buttons
             const searchInput = document.getElementById('checkin-student-search');
             if (searchInput) searchInput.disabled = true;
@@ -3585,7 +3647,7 @@ class AttendanceApp {
             if (btnReset) btnReset.disabled = true;
             const btnSave = document.getElementById('btn-save-attendance');
             if (btnSave) btnSave.disabled = true;
-            
+
             this.updateCheckinCounters();
             return;
         }
@@ -3601,14 +3663,20 @@ class AttendanceApp {
         this._currentDraftToRestore = null;
 
         // Load all students under this rotation group
-        this.allRotationStudents = this.db.students.filter(
-            st => scheduleRow.attendingClasses && scheduleRow.attendingClasses.includes(`${st.grade}/${st.room}`)
-        );
+        this.allRotationStudents = this.db.students.filter(st => {
+            if (!scheduleRow.attendingClasses) return false;
+            const currentSemester = this.db.activeSemesterId || "1-2569";
+            const matchesSemester = st.semesterId === currentSemester || (!st.semesterId && currentSemester === "1-2569");
+            if (!matchesSemester) return false;
+            return scheduleRow.attendingClasses.includes(`${st.grade}/${String(st.room).trim()}`);
+        });
 
         // Sorting all students by Class room and then by Number
         this.allRotationStudents.sort((a, b) => {
             if (a.grade !== b.grade) return a.grade.localeCompare(b.grade);
-            if (a.room !== b.room) return a.room - b.room;
+            const aRoom = String(a.room).trim();
+            const bRoom = String(b.room).trim();
+            if (aRoom !== bRoom) return aRoom.localeCompare(bRoom, undefined, {numeric: true});
             return a.no - b.no;
         });
 
@@ -3629,8 +3697,8 @@ class AttendanceApp {
 
             if (scheduleRow.attendingClasses && scheduleRow.attendingClasses.length > 0) {
                 scheduleRow.attendingClasses.forEach(clsName => {
-                    const roomName = (scheduleRow.classRooms && scheduleRow.classRooms[clsName]) 
-                        ? scheduleRow.classRooms[clsName] 
+                    const roomName = (scheduleRow.classRooms && scheduleRow.classRooms[clsName])
+                        ? scheduleRow.classRooms[clsName]
                         : scheduleRow.room;
 
                     const btn = document.createElement('button');
@@ -3638,7 +3706,7 @@ class AttendanceApp {
                     btn.style.padding = '12px 20px';
                     btn.style.fontWeight = '700';
                     btn.innerHTML = `<i class="fa-solid fa-school text-primary"></i> ${clsName} <span style="font-size:13px; font-weight:normal; opacity:0.85; margin-left:4px;">(${roomName})</span>`;
-                    
+
                     btn.onclick = () => {
                         this.selectCheckinClass(clsName, btn);
                     };
@@ -3650,7 +3718,7 @@ class AttendanceApp {
         // Set selected class to null initially (forces user to choose first)
         this.selectedCheckinClass = null;
         this.currentCheckinStudents = [];
-        
+
         // Show placeholder message asking to choose class
         document.getElementById('checkin-target-classes').textContent = "กรุณาเลือกห้องเรียน";
         document.getElementById('student-attendance-list-container').innerHTML = `
@@ -3660,7 +3728,7 @@ class AttendanceApp {
                 <p style="font-size: 15px; max-width: 500px; margin: 0 auto;">กรุณาคลิกเลือกห้องเรียน/สถานที่ที่คุณครูจะเข้าสอนด้านบน เพื่อแสดงรายชื่อนักเรียนและเริ่มต้นเช็กชื่อเข้าเรียน</p>
             </div>
         `;
-        
+
         // Disable search input and filter buttons initially
         document.getElementById('checkin-student-search').disabled = true;
         document.getElementById('btn-check-all-present').disabled = true;
@@ -3694,7 +3762,7 @@ class AttendanceApp {
         filtered.forEach(st => {
             const currentStatus = this.attendanceState[st.studentId];
             const classKey = `${st.grade}/${st.room}`;
-            
+
             // Resolve student-specific room location mapping
             const roomLabel = (this.currentCheckinSchedule && this.currentCheckinSchedule.classRooms && this.currentCheckinSchedule.classRooms[classKey])
                 ? `${classKey} (${this.currentCheckinSchedule.classRooms[classKey]})`
@@ -3766,7 +3834,7 @@ class AttendanceApp {
             this._currentDraftToRestore = null;
         }
         this.selectedCheckinClass = clsName;
-        
+
         // Update active class button styles
         const buttonsContainer = document.getElementById('checkin-class-buttons-container');
         if (buttonsContainer) {
@@ -3782,15 +3850,15 @@ class AttendanceApp {
         // Filter students for the selected class room
         const parts = clsName.split('/');
         const grade = parts[0];
-        const room = parseInt(parts[1]);
+        const roomStr = String(parts[1] || "").trim();
 
         this.currentCheckinStudents = this.allRotationStudents.filter(
-            st => st.grade === grade && st.room === room
+            st => st.grade === grade && String(st.room).trim() === roomStr
         );
 
         // Update target classes labels
-        const roomName = (this.currentCheckinSchedule.classRooms && this.currentCheckinSchedule.classRooms[clsName]) 
-            ? this.currentCheckinSchedule.classRooms[clsName] 
+        const roomName = (this.currentCheckinSchedule.classRooms && this.currentCheckinSchedule.classRooms[clsName])
+            ? this.currentCheckinSchedule.classRooms[clsName]
             : this.currentCheckinSchedule.room;
 
         document.getElementById('checkin-target-classes').textContent = `${clsName} (${roomName})`;
@@ -3804,7 +3872,7 @@ class AttendanceApp {
             }
         }
         document.getElementById('checkin-base-info').innerHTML = `<i class="fa-solid fa-user"></i> ครูผู้สอน: ${teachersStr} | <i class="fa-solid fa-location-dot"></i> สถานที่สอน: ${roomName}`;
-        
+
         // Enable search input and filter buttons
         document.getElementById('checkin-student-search').disabled = false;
         document.getElementById('btn-check-all-present').disabled = false;
@@ -3816,11 +3884,11 @@ class AttendanceApp {
         const todayDate = this.systemDate;
         const baseId = this.currentCheckinSchedule ? this.currentCheckinSchedule.baseId : '';
         const teacherId = this.currentUser ? this.currentUser.username : '';
-        
+
         const hasDupToday = this._checkDuplicateAttendance(week, baseId, clsName, todayDate, teacherId);
         const warningBanner = document.getElementById('checkin-duplicate-warning-banner');
         const warningText = document.getElementById('checkin-duplicate-warning-text');
-        
+
         if (hasDupToday) {
             if (warningBanner && warningText) {
                 warningText.innerHTML = `<strong>แจ้งเตือน:</strong> ห้อง <strong>${clsName}</strong> มีการบันทึกการเช็กชื่อของวันนี้ในระบบแล้ว หากทำการบันทึกข้อมูลอีกครั้งระบบจะทำการบันทึกทับข้อมูลเดิม`;
@@ -3844,7 +3912,7 @@ class AttendanceApp {
 
     updateCheckinCounters() {
         let present = 0, absent = 0, leave = 0, late = 0, activity = 0;
-        
+
         // Filter student ids of the current checkin class to count correctly
         const studentIds = this.currentCheckinStudents ? this.currentCheckinStudents.map(st => st.studentId) : [];
 
@@ -3910,14 +3978,14 @@ class AttendanceApp {
         const label = document.getElementById('checkin-photo-filename-label');
         const previewContainer = document.getElementById('checkin-photo-preview-container');
         const preview = document.getElementById('checkin-photo-preview');
-        
+
         if (!file) {
             this.clearCheckinPhoto();
             return;
         }
 
         if (label) label.textContent = file.name;
-        
+
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
@@ -3925,10 +3993,10 @@ class AttendanceApp {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                
+
                 const MAX_WIDTH = 800;
                 const MAX_HEIGHT = 600;
-                
+
                 if (width > height) {
                     if (width > MAX_WIDTH) {
                         height *= MAX_WIDTH / width;
@@ -3940,16 +4008,16 @@ class AttendanceApp {
                         height = MAX_HEIGHT;
                     }
                 }
-                
+
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                
+
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
                 this.currentCheckinPhotoBase64 = compressedBase64;
                 this.currentCheckinPhotoName = file.name;
-                
+
                 if (preview) preview.src = compressedBase64;
                 if (previewContainer) previewContainer.style.display = 'block';
             };
@@ -3975,7 +4043,7 @@ class AttendanceApp {
     handleCheckinDocSelected(input) {
         const file = input.files[0];
         const label = document.getElementById('checkin-doc-filename-label');
-        
+
         if (!file) {
             this.currentCheckinDocBase64 = null;
             this.currentCheckinDocName = '';
@@ -3985,7 +4053,7 @@ class AttendanceApp {
         }
 
         if (label) label.textContent = file.name;
-        
+
         const reader = new FileReader();
         reader.onload = (e) => {
             this.currentCheckinDocBase64 = e.target.result;
@@ -4032,7 +4100,7 @@ class AttendanceApp {
 
         const studentIdsToSave = this.currentCheckinStudents.map(st => st.studentId);
         const timestamp = new Date().toISOString();
-        
+
         const teacherCheckboxes = document.querySelectorAll('input[name="checkin-teacher-checkbox"]:checked');
         let checkedTeachers = Array.from(teacherCheckboxes).map(cb => cb.value);
         if (checkedTeachers.length === 0 && this.currentUser && this.currentUser.role === 'teacher') {
@@ -4069,9 +4137,9 @@ class AttendanceApp {
                     studentAttendanceList,
                     semesterId: this.db.activeSemesterId || '1-2569'
                 });
-                
+
                 this.pendingAttendanceContext = tempCtx;
-                
+
                 const dupButtonsHtml = `
                     <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto;">
                         <button class="btn btn-primary" style="padding:11px 20px;font-size:15px;font-weight:600;border-radius:8px;"
@@ -4088,7 +4156,7 @@ class AttendanceApp {
                         </button>
                     </div>
                 `;
-                
+
                 this.showStatusModal(
                     'warning',
                     'พบบันทึกเช็กชื่อซ้ำ',
@@ -4220,7 +4288,7 @@ class AttendanceApp {
 
                 if (this.useFirestore) {
                     const batch = this.firestore.batch();
-                    
+
                     if (this.currentUser && this.currentUser.role === 'admin') {
                         studentIdsToSave.forEach(stId => {
                             const docId = `${todayDate}_${scheduleRow.baseId}_${stId}`;
@@ -4447,8 +4515,8 @@ class AttendanceApp {
 
         // Priority 1: exact attendanceLogId or sourceAttendanceLogId match
         if (ctx.attendanceLogId) {
-            const byId = logs.find(l => 
-                l.attendanceLogId === ctx.attendanceLogId || 
+            const byId = logs.find(l =>
+                l.attendanceLogId === ctx.attendanceLogId ||
                 l.sourceAttendanceLogId === ctx.attendanceLogId
             );
             if (byId) return byId;
@@ -4625,10 +4693,10 @@ class AttendanceApp {
             attendanceLogId: ctx.attendanceLogId,
             summaryHtml: ctx.attendanceSummary ? `
               <div class="attendance-summary-badge" style="margin-top: 8px; font-size: 13px; color: var(--text-secondary);">
-                สถิติการเช็กชื่อห้อง <strong>${ctx.className}</strong>: 
-                มา <strong style="color:var(--success);">${ctx.attendanceSummary.present}</strong> | 
-                ขาด <strong style="color:var(--danger);">${ctx.attendanceSummary.absent}</strong> | 
-                สาย <strong style="color:var(--warning);">${ctx.attendanceSummary.late}</strong> | 
+                สถิติการเช็กชื่อห้อง <strong>${ctx.className}</strong>:
+                มา <strong style="color:var(--success);">${ctx.attendanceSummary.present}</strong> |
+                ขาด <strong style="color:var(--danger);">${ctx.attendanceSummary.absent}</strong> |
+                สาย <strong style="color:var(--warning);">${ctx.attendanceSummary.late}</strong> |
                 ลา <strong style="color:var(--primary);">${ctx.attendanceSummary.leave}</strong>
                 (รวม ${ctx.attendanceSummary.total} คน)
               </div>
@@ -4655,7 +4723,7 @@ class AttendanceApp {
      */
     _checkDuplicateAttendance(week, baseId, classId, date, teacherId) {
         const liveLogs = this.db.base_activity_logs || [];
-        const isLiveDup = liveLogs.some(log => 
+        const isLiveDup = liveLogs.some(log =>
             String(log.week) === String(week) &&
             log.baseId === baseId &&
             log.classId === classId &&
@@ -4665,7 +4733,7 @@ class AttendanceApp {
         if (isLiveDup) return true;
 
         const draftLogs = this.db.staging_logs || [];
-        const isDraftDup = draftLogs.some(log => 
+        const isDraftDup = draftLogs.some(log =>
             String(log.week) === String(week) &&
             log.baseId === baseId &&
             log.classId === classId &&
@@ -4704,13 +4772,13 @@ class AttendanceApp {
         const completed = [];
         const logs = this.db.attendance_logs || [];
         const seen = new Set();
-        
+
         logs.forEach(log => {
             const week = log.week;
             const baseId = log.baseId;
             const roomId = log.classId; // classId is roomId
             const date = log.date;
-            
+
             const key = this._normalizeSlotKey(week, baseId, roomId, date);
             if (!seen.has(key)) {
                 seen.add(key);
@@ -4734,13 +4802,13 @@ class AttendanceApp {
     getMissingAttendanceSlots(targetWeek = null) {
         const expected = this.getExpectedAttendanceSlots();
         const completed = this.getCompletedAttendanceSlots();
-        
+
         // Build map/set of completed week_baseId_roomId slots (ignoring date to determine if completed at all for that week)
         const completedKeys = new Set(completed.map(c => `${c.week}_${c.baseId}_${c.roomId}`));
-        
+
         let targetWeeks = [];
         const currentWeek = this.currentWeekInfo ? this.currentWeekInfo.week : 1;
-        
+
         if (targetWeek === 'all') {
             for (let w = 1; w <= currentWeek; w++) {
                 targetWeeks.push(w);
@@ -4750,7 +4818,7 @@ class AttendanceApp {
         } else {
             targetWeeks.push(currentWeek);
         }
-        
+
         const missing = [];
         expected.forEach(exp => {
             if (targetWeeks.includes(exp.week)) {
@@ -5082,7 +5150,7 @@ class AttendanceApp {
 
     _aggregateTeachingLogs(filters = {}) {
         let logs = this.db.teaching_logs || [];
-        
+
         const { teacherId, semesterId } = filters;
 
         if (semesterId) {
@@ -5091,7 +5159,7 @@ class AttendanceApp {
 
         // Role-based filtering
         const isAdminOrDirector = this.currentUser && ['admin', 'director'].includes(this.currentUser.role);
-        
+
         if (!isAdminOrDirector && this.currentUser) {
             // Force teacher to only see their own logs
             logs = logs.filter(l => l.teacherId === this.currentUser.username);
@@ -5116,12 +5184,17 @@ class AttendanceApp {
 
         const parts = classId.split('/');
         const grade = parts[0];
-        const room = parseInt(parts[1]);
-        const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === semesterId);
+        const roomStr = String(parts[1] || "").trim();
+        const classStudents = this.db.students.filter(st =>
+            st.grade === grade &&
+            String(st.room).trim() === roomStr &&
+            (st.semesterId === semesterId || (!st.semesterId && semesterId === (this.db.activeSemesterId || "1-2569")))
+        );
         const studentIds = classStudents.map(st => st.studentId);
 
         this.db.attendance_logs = this.db.attendance_logs.filter(
-            al => !(al.date === todayDate && al.baseId === baseId && studentIds.includes(al.studentId) && al.semesterId === semesterId)
+            al => !(al.date === todayDate && al.baseId === baseId && studentIds.includes(al.studentId) &&
+                (al.semesterId === semesterId || (!al.semesterId && semesterId === (this.db.activeSemesterId || "1-2569"))))
         );
 
         const newAttendanceLogs = [];
@@ -5174,7 +5247,7 @@ class AttendanceApp {
         if (this.useFirestore) {
             try {
                 const batch = this.firestore.batch();
-                
+
                 studentIds.forEach(stId => {
                     const docId = `${todayDate}_${baseId}_${stId}`;
                     const docRef = this.firestore.collection('attendance_logs').doc(docId);
@@ -5256,12 +5329,17 @@ class AttendanceApp {
 
             const parts = classId.split('/');
             const grade = parts[0];
-            const room = parseInt(parts[1]);
-            const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === semesterId);
+            const roomStr = String(parts[1] || "").trim();
+            const classStudents = this.db.students.filter(st =>
+                st.grade === grade &&
+                String(st.room).trim() === roomStr &&
+                (st.semesterId === semesterId || (!st.semesterId && semesterId === (this.db.activeSemesterId || "1-2569")))
+            );
             const studentIds = classStudents.map(st => st.studentId);
 
             this.db.attendance_logs = this.db.attendance_logs.filter(
-                al => !(al.date === todayDate && al.baseId === baseId && studentIds.includes(al.studentId) && al.semesterId === semesterId)
+                al => !(al.date === todayDate && al.baseId === baseId && studentIds.includes(al.studentId) &&
+                    (al.semesterId === semesterId || (!al.semesterId && semesterId === (this.db.activeSemesterId || "1-2569"))))
             );
 
             const newAttendanceLogs = [];
@@ -5314,7 +5392,7 @@ class AttendanceApp {
             if (this.useFirestore) {
                 try {
                     const batch = this.firestore.batch();
-                    
+
                     studentIds.forEach(stId => {
                         const docId = `${todayDate}_${baseId}_${stId}`;
                         const docRef = this.firestore.collection('attendance_logs').doc(docId);
@@ -5373,12 +5451,12 @@ class AttendanceApp {
             const tr = document.createElement('tr');
             const formattedDate = this.formatThaiDate(log.date);
             const formattedTime = new Date(log.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-            
+
             const base = this.db.bases.find(b => b.id === log.baseId);
             const baseName = base ? base.name : log.baseId;
             const teacher = this.db.teachers.find(t => t.username === log.checkedBy);
             const teacherName = teacher ? teacher.name : log.checkedBy;
-            
+
             tr.innerHTML = `
                 <td><strong>${formattedDate}</strong> <small style="color:var(--text-secondary);">${formattedTime} น.</small></td>
                 <td>สัปดาห์ที่ ${log.week}</td>
@@ -5403,12 +5481,12 @@ class AttendanceApp {
         this.currentReviewStagingBatchId = batchId;
 
         document.getElementById('staging-detail-date').textContent = `${this.formatThaiDate(log.date)} (${new Date(log.timestamp).toLocaleTimeString('th-TH')} น.)`;
-        
+
         const base = this.db.bases.find(b => b.id === log.baseId);
         const baseName = base ? base.name : log.baseId;
         document.getElementById('staging-detail-base').textContent = baseName;
         document.getElementById('staging-detail-class').textContent = log.classId;
-        
+
         const teacher = this.db.teachers.find(t => t.username === log.checkedBy);
         const teacherName = teacher ? teacher.name : log.checkedBy;
         document.getElementById('staging-detail-teacher').textContent = teacherName;
@@ -5416,13 +5494,13 @@ class AttendanceApp {
         const studentListTbody = document.getElementById('staging-detail-student-list');
         if (studentListTbody) {
             studentListTbody.innerHTML = '';
-            
+
             if (log.students && log.students.length > 0) {
                 log.students.forEach((stItem) => {
                     const student = this.db.students.find(s => s.studentId === stItem.studentId);
                     const name = student ? student.name : `รหัส: ${stItem.studentId}`;
                     const no = student ? student.no : '-';
-                    
+
                     const statusLabels = {
                         present: '<span class="status-badge" style="background-color: var(--primary-light); color: white;">มาเรียน</span>',
                         absent: '<span class="status-badge" style="background-color: var(--danger); color: white;">ขาด</span>',
@@ -5430,7 +5508,7 @@ class AttendanceApp {
                         late: '<span class="status-badge" style="background-color: #4B5563; color: white;">สาย</span>',
                         activity: '<span class="status-badge" style="background-color: #8B5CF6; color: white;">กิจกรรม</span>'
                     };
-                    
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="text-align: center;">${no}</td>
@@ -5448,7 +5526,7 @@ class AttendanceApp {
         const extrasContainer = document.getElementById('staging-detail-extras');
         if (extrasContainer) {
             extrasContainer.innerHTML = '';
-            
+
             let teachersListStr = '-';
             if (log.teachers && log.teachers.length > 0) {
                 teachersListStr = log.teachers.map(tUsername => {
@@ -5456,7 +5534,7 @@ class AttendanceApp {
                     return t ? t.name : tUsername;
                 }).join(', ');
             }
-            
+
             let starsHtml = '';
             for (let i = 1; i <= 5; i++) {
                 if (i <= log.rating) {
@@ -5470,14 +5548,14 @@ class AttendanceApp {
                 <div style="background: var(--gray-light); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
                     <div><strong>ครูประจำฐานปฏิบัติหน้าที่:</strong> <span style="color: var(--text-primary);">${teachersListStr}</span></div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <strong>ประเมินผลกิจกรรม:</strong> 
+                        <strong>ประเมินผลกิจกรรม:</strong>
                         <span style="display: inline-flex;">${starsHtml}</span>
                         <span style="font-weight: 700; color: var(--accent); margin-left: 4px;">${log.rating.toFixed(1)}</span>
                     </div>
                     <div><strong>บันทึกเพิ่มเติม:</strong> <span style="font-style: italic; color: var(--text-primary);">${log.notes || 'ไม่มีบันทึกเพิ่มเติม'}</span></div>
                 </div>
             `;
-            
+
             if (log.photo) {
                 html += `
                     <div style="margin-top: 16px;">
@@ -5501,7 +5579,7 @@ class AttendanceApp {
                     </div>
                 `;
             }
-            
+
             extrasContainer.innerHTML = html;
         }
 
@@ -5543,14 +5621,14 @@ class AttendanceApp {
             const baseLogs = this.db.attendance_logs.filter(
                 l => l.date === todayDate && l.baseId === sch.baseId
             );
-            
+
             const isChecked = baseLogs.length > 0;
-            
+
             let groupStudents = [];
             if (!sch.isSpecial && !sch.isEmpty) {
                 groupStudents = this.db.students.filter(st => sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${st.room}`));
             }
-            
+
             let presentCount = 0;
             let absentCount = 0;
             let timeChecked = '-';
@@ -5572,7 +5650,7 @@ class AttendanceApp {
                 overallPresent += presentCount;
                 overallAbsent += absentCount;
                 overallTotalChecked += baseLogs.length;
-                
+
                 // Get checked time from log timestamp
                 const logTime = new Date(baseLogs[0].timestamp);
                 timeChecked = logTime.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
@@ -5620,14 +5698,14 @@ class AttendanceApp {
         });
 
         if (this.adminChart) this.adminChart.destroy();
-        
+
         const chartBackgroundColors = gradeRates.map(rate => {
             if (rate < 50) return '#B22222'; // Red
             if (rate < 75) return '#F97316'; // Orange
             if (rate < 95) return '#EAB308'; // Yellow
             return '#6F8F3D'; // Green
         });
-        
+
         const chartBorderColors = gradeRates.map(rate => {
             if (rate < 50) return '#8C1111';
             if (rate < 75) return '#C2410C';
@@ -5719,7 +5797,7 @@ class AttendanceApp {
                 optAll.value = 'all';
                 optAll.textContent = 'ทุกครูผู้สอน';
                 teacherSelect.appendChild(optAll);
-                
+
                 const teachersList = this.db.teachers || [];
                 teachersList.forEach(t => {
                     const opt = document.createElement('option');
@@ -5776,12 +5854,12 @@ class AttendanceApp {
         const selectedWeek = parseInt(document.getElementById('report-week-select').value) || 6;
         const selectedBase = document.getElementById('report-base-select').value;
         const selectedClass = document.getElementById('report-class-select').value;
-        
+
         const headerTitle = document.getElementById('report-header-title');
         const headerSubtitle = document.getElementById('report-header-subtitle');
         const datePrint = document.getElementById('report-header-date');
         const summaryStatsDiv = document.getElementById('report-summary-stats');
-        
+
         datePrint.textContent = `พิมพ์ ณ วันที่: ${this.formatThaiDate(new Date().toISOString().split('T')[0])} เวลา ${new Date().toLocaleTimeString('th-TH')}`;
 
         const tableHeader = document.getElementById('report-table-header');
@@ -5813,7 +5891,7 @@ class AttendanceApp {
             weekSched.forEach(sch => {
                 const logs = this.db.attendance_logs.filter(l => l.date === this.systemDate && l.baseId === sch.baseId);
                 const isChecked = logs.length > 0;
-                
+
                 let p = 0, a = 0, le = 0, la = 0, act = 0;
                 if (isChecked) {
                     logs.forEach(l => {
@@ -5881,7 +5959,7 @@ class AttendanceApp {
 
             weekSched.forEach(sch => {
                 const logs = this.db.attendance_logs.filter(l => l.week === selectedWeek && l.baseId === sch.baseId);
-                
+
                 let p = 0, a = 0, le = 0, la = 0, act = 0;
                 logs.forEach(l => {
                     if (l.status === 'present') p++;
@@ -6002,9 +6080,12 @@ class AttendanceApp {
             let totalOverallP = 0, totalOverallA = 0;
 
             grades.forEach(g => {
-                const classStudents = this.db.students.filter(s => s.grade === g);
+                const classStudents = this.db.students.filter(s =>
+                    s.grade === g &&
+                    (s.semesterId === (this.db.activeSemesterId || "1-2569") || (!s.semesterId && (this.db.activeSemesterId || "1-2569") === "1-2569"))
+                );
                 const studentIds = classStudents.map(s => s.studentId);
-                
+
                 const logs = this.db.attendance_logs.filter(l => studentIds.includes(l.studentId));
                 let p = 0, a = 0, le = 0, la = 0, act = 0;
                 logs.forEach(l => {
@@ -6057,10 +6138,12 @@ class AttendanceApp {
 
             // Find students of selectedClass
             const [selectedGrade, selectedRoomStr] = selectedClass.split('/');
-            const selectedRoom = parseInt(selectedRoomStr);
-            
-            const classStudents = this.db.students.filter(
-                s => s.grade === selectedGrade && s.room === selectedRoom
+            const roomStr = String(selectedRoomStr || "").trim();
+
+            const classStudents = this.db.students.filter(s =>
+                s.grade === selectedGrade &&
+                String(s.room).trim() === roomStr &&
+                (s.semesterId === (this.db.activeSemesterId || "1-2569") || (!s.semesterId && (this.db.activeSemesterId || "1-2569") === "1-2569"))
             );
             classStudents.sort((a,b) => a.no - b.no);
 
@@ -6079,7 +6162,7 @@ class AttendanceApp {
 
                 const stTotal = p + a + le + la + act;
                 const rate = stTotal > 0 ? Math.round((p / stTotal) * 100) + '%' : '0%';
-                
+
                 classP += p;
                 classTotal += stTotal;
 
@@ -6146,7 +6229,7 @@ class AttendanceApp {
                     if (l.teachingStatus === 'rescheduled') rescheduledCount++;
 
                     const tr = document.createElement('tr');
-                    
+
                     const statusLabels = {
                         taught_as_planned: '<span class="status-badge approved">สอนได้ตามแผนฯ</span>',
                         partially_taught: '<span class="status-badge pending">สอนได้บางส่วน</span>',
@@ -6183,7 +6266,7 @@ class AttendanceApp {
             const logs = this._aggregateTeachingLogs({ teacherId: selectedTeacher });
 
             headerTitle.textContent = `รายงานสรุปการเชื่อมโยงหลักปรัชญาของเศรษฐกิจพอเพียง (SEP)`;
-            
+
             let teacherDisplay = 'ทุกครูผู้สอน';
             if (selectedTeacher !== 'all') {
                 const tObj = (this.db.teachers || []).find(t => t.username === selectedTeacher);
@@ -6250,7 +6333,7 @@ class AttendanceApp {
 
                     Object.entries(catData).forEach(([key, count], index) => {
                         const tr = document.createElement('tr');
-                        
+
                         let categoryCell = '';
                         if (index === 0) {
                             const rowSpan = Object.keys(catData).length;
@@ -6258,7 +6341,7 @@ class AttendanceApp {
                         }
 
                         const percent = totalLogsWithFramework > 0 ? Math.round((count / totalLogsWithFramework) * 100) : 0;
-                        
+
                         tr.innerHTML = `
                             ${categoryCell}
                             <td style="font-weight:600;">${keysMap[key] || key}</td>
@@ -6288,7 +6371,7 @@ class AttendanceApp {
     exportReportToExcel() {
         const type = document.getElementById('report-type-select').value;
         const table = document.getElementById('reports-output-table');
-        
+
         if (!table) {
             alert("ไม่สามารถค้นหาข้อมูลตารางเพื่อนำออกได้!");
             return;
@@ -6607,10 +6690,10 @@ class AttendanceApp {
 
             const emailAddr = (profile && profile.email) || (account && account.email) || (user && user.email) || "N/A";
             const nameStr = (profile && profile.name) || "ครูประจำการ";
-            
-            const isInactiveAccount = (account && (account.status === 'inactive' || account.disabled === true)) || 
+
+            const isInactiveAccount = (account && (account.status === 'inactive' || account.disabled === true)) ||
                                      (profile && (profile.status === 'inactive' || profile.disabled === true));
-            
+
             const isNeverLoggedIn = (account && !account.lastLoginAt) || (profile && !profile.lastLoginAt);
 
             const isMissingReadiness = (account && !account.activatedAt) || (profile && !profile.activatedAt);
@@ -6684,7 +6767,7 @@ class AttendanceApp {
         if (!container) return;
 
         const sum = report.summary;
-        
+
         let html = `
             <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                 <div>
@@ -6967,34 +7050,34 @@ class AttendanceApp {
 
     async handleForgotPassword(event) {
         if (event) event.preventDefault();
-        
+
         const usernameInput = document.getElementById('login-username');
         const defaultUsername = usernameInput ? usernameInput.value.trim() : '';
-        
+
         const username = prompt("กรุณาระบุชื่อผู้ใช้งานของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน (เช่น teacher1):", defaultUsername);
         if (!username) return;
-        
+
         const userObj = this.db.teachers.find(t => t.username.toLowerCase() === username.toLowerCase().trim());
         if (!userObj) {
             this.showStatusModal('error', 'ไม่พบชื่อผู้ใช้งาน', `ไม่พบชื่อผู้ใช้งาน "${username}" ในระบบ กรุณาตรวจสอบชื่อผู้ใช้งาน หรือติดต่อผู้ดูแลระบบ`);
             return;
         }
-        
+
         const email = `${userObj.username}@paiwittyakarn.local`;
-        
+
         this.showStatusModal('info', 'กำลังดำเนินการ...', `ระบบกำลังส่งคำขอรีเซ็ตรหัสผ่านสำหรับอีเมลความปลอดภัย: ${email}`);
-        
+
         try {
             if (typeof firebase !== 'undefined' && firebase.auth) {
                 await firebase.auth().sendPasswordResetEmail(email);
-                this.showStatusModal('success', 'ส่งคำขอรีเซ็ตรหัสผ่านสำเร็จ', 
+                this.showStatusModal('success', 'ส่งคำขอรีเซ็ตรหัสผ่านสำเร็จ',
                     `ส่งลิงก์รีเซ็ตรหัสผ่านไปยังอีเมลความปลอดภัย ${email} เรียบร้อยแล้ว (หากระบบเมลภายในไม่ได้รับ กรุณาติดต่อผู้ดูแลระบบเพื่อรีเซ็ตรหัสผ่านให้คุณโดยตรง)`);
             } else {
                 throw new Error("Firebase Auth SDK not loaded");
             }
         } catch (err) {
             console.error("[Login Recovery] Failed to send password reset email:", err);
-            
+
             const errorMsg = err.message || err.code;
             const recoveryHtml = `
                 <div style="padding: 12px; font-size: 14px; line-height: 1.6; color: var(--text-primary);">
@@ -7014,7 +7097,7 @@ class AttendanceApp {
 
     showRecoveryActionModal(uid, name, email, statusType, issue) {
         const title = `แผนการกู้คืนสิทธิ์บัญชีผู้ใช้: ${name}`;
-        
+
         const steps = [
             `ตรวจสอบความถูกต้องของอีเมล: ${email}`,
             `แอดมินเข้าไปยังแผงควบคุม Firebase Console -> Authentication`,
@@ -7072,7 +7155,7 @@ class AttendanceApp {
 
     switchManageTab(tabId) {
         this.manageTab = tabId;
-        
+
         // Reset selections
         this.selectedStudents = [];
         this.selectedTeachers = [];
@@ -7088,7 +7171,7 @@ class AttendanceApp {
         tabs.forEach(t => {
             const btn = document.getElementById(`btn-tab-${t}`);
             const div = document.getElementById(`manage-sub-${t}`);
-            
+
             if (t === tabId) {
                 if (btn) btn.classList.add('btn-primary');
                 if (btn) btn.classList.remove('btn-outline');
@@ -7129,8 +7212,8 @@ class AttendanceApp {
         const query = document.getElementById('manage-student-search').value.trim().toLowerCase();
         return this.db.students.filter(st => {
             const classStr = `${st.grade}/${st.room}`;
-            return st.name.toLowerCase().includes(query) || 
-                   st.studentId.includes(query) || 
+            return st.name.toLowerCase().includes(query) ||
+                   st.studentId.includes(query) ||
                    classStr.includes(query) ||
                    st.grade.includes(query);
         });
@@ -7139,7 +7222,7 @@ class AttendanceApp {
     renderManageStudents() {
         const filtered = this.getFilteredStudents();
         const total = filtered.length;
-        
+
         // Sorting by Grade, Room, then Number
         filtered.sort((a, b) => {
             if (a.grade !== b.grade) return a.grade.localeCompare(b.grade);
@@ -7150,13 +7233,13 @@ class AttendanceApp {
         // Pagination calculations
         const totalPages = Math.ceil(total / this.pageSize);
         if (this.studentPage > totalPages) this.studentPage = Math.max(1, totalPages);
-        
+
         const start = (this.studentPage - 1) * this.pageSize;
         const end = Math.min(start + this.pageSize, total);
         const paginated = filtered.slice(start, end);
 
         // Update pagination labels
-        document.getElementById('student-pagination-info').textContent = total > 0 
+        document.getElementById('student-pagination-info').textContent = total > 0
             ? `แสดง ${start + 1} - ${end} จากทั้งหมด ${total} คน`
             : `ไม่พบข้อมูลนักเรียน`;
 
@@ -7300,7 +7383,7 @@ class AttendanceApp {
         } else {
             this.selectedStudents = this.selectedStudents.filter(id => id !== val);
         }
-        
+
         // Sync master checkbox state
         const master = document.getElementById('check-all-students');
         if (master) {
@@ -7320,7 +7403,7 @@ class AttendanceApp {
         } else {
             this.selectedTeachers = this.selectedTeachers.filter(username => username !== val);
         }
-        
+
         // Sync master checkbox state
         const master = document.getElementById('check-all-teachers');
         if (master) {
@@ -7362,28 +7445,28 @@ class AttendanceApp {
     async deleteSelectedStudents() {
         const count = this.selectedStudents.length;
         if (count === 0) return;
-        
+
         if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลนักเรียนที่เลือกทั้งหมดจำนวน ${count} คน ใช่หรือไม่?\n(ประวัติการเข้าเรียนของนักเรียนกลุ่มนี้จะถูกลบไปด้วย)`)) {
             // Filter out logs associated with these students too
             this.db.students = this.db.students.filter(st => !this.selectedStudents.includes(st.studentId));
             this.db.attendance_logs = this.db.attendance_logs.filter(log => !this.selectedStudents.includes(log.studentId));
-            
+
             if (this.useFirestore) {
                 try {
-                    const promises = this.selectedStudents.map(studentId => 
+                    const promises = this.selectedStudents.map(studentId =>
                         this.firestore.collection('attendance_logs').where('studentId', '==', studentId).get()
                     );
                     const snapshots = await Promise.all(promises);
                     const batch = this.firestore.batch();
                     let countOps = 0;
-                    
+
                     snapshots.forEach(snapshot => {
                         snapshot.docs.forEach(doc => {
                             batch.delete(doc.ref);
                             countOps++;
                         });
                     });
-                    
+
                     if (countOps > 0) {
                         await batch.commit();
                     }
@@ -7394,14 +7477,14 @@ class AttendanceApp {
 
             this.saveDatabase(false);
             this.logAudit(`Bulk deleted ${count} students`);
-            
+
             // Reset selection
             this.selectedStudents = [];
             this.updateStudentSelectionUI();
-            
+
             const master = document.getElementById('check-all-students');
             if (master) master.checked = false;
-            
+
             this.renderManageStudents();
             this.showStatusModal('success', 'ลบข้อมูลสำเร็จ', `ทำการลบข้อมูลนักเรียนจำนวน ${count} คน เรียบร้อยแล้ว`);
         }
@@ -7414,7 +7497,7 @@ class AttendanceApp {
         // Safety check to prevent deletion of protected system accounts
         const protectedUsernames = ['director', 'deputy1', 'deputy2', 'admin'];
         const selectedProtected = this.selectedTeachers.filter(username => protectedUsernames.includes(username));
-        
+
         if (selectedProtected.length > 0) {
             alert(`ไม่สามารถลบบัญชีผู้บริหารหรือผู้ดูแลระบบหลักได้! (${selectedProtected.join(', ')})`);
             return;
@@ -7423,17 +7506,17 @@ class AttendanceApp {
         if (confirm(`คุณแน่ใจว่าต้องการลบข้อมูลคุณครูที่เลือกทั้งหมดจำนวน ${count} ท่าน ใช่หรือไม่?`)) {
             // Remove teachers
             this.db.teachers = this.db.teachers.filter(t => !this.selectedTeachers.includes(t.username));
-            
+
             this.saveDatabase();
             this.logAudit(`Bulk deleted ${count} teachers`);
-            
+
             // Reset selection
             this.selectedTeachers = [];
             this.updateTeacherSelectionUI();
-            
+
             const master = document.getElementById('check-all-teachers');
             if (master) master.checked = false;
-            
+
             this.renderManageTeachers();
             this.showStatusModal('success', 'ลบข้อมูลสำเร็จ', `ทำการลบข้อมูลคุณครูจำนวน ${count} ท่าน เรียบร้อยแล้ว`);
         }
@@ -7500,8 +7583,8 @@ class AttendanceApp {
         }
 
         const selectedWeekVal = filterWeek.value;
-        const filtered = selectedWeekVal === 'all' 
-            ? this.db.rotation_schedule 
+        const filtered = selectedWeekVal === 'all'
+            ? this.db.rotation_schedule
             : this.db.rotation_schedule.filter(s => s.week === parseInt(selectedWeekVal));
 
         // Sort schedule by week, then base index
@@ -7619,7 +7702,7 @@ class AttendanceApp {
         if (confirm(`คุณแน่ใจว่าต้องการลบรายชื่อนักเรียน รหัส ${studentId} หรือไม่?`)) {
             this.db.students = this.db.students.filter(s => s.studentId !== studentId);
             this.db.attendance_logs = this.db.attendance_logs.filter(log => log.studentId !== studentId);
-            
+
             if (this.useFirestore) {
                 try {
                     const snapshot = await this.firestore.collection('attendance_logs').where('studentId', '==', studentId).get();
@@ -7644,7 +7727,7 @@ class AttendanceApp {
         document.getElementById('teacher-form-username').disabled = false;
         document.getElementById('teacher-form-name').value = "";
         document.getElementById('teacher-form-role').value = "teacher";
-        
+
         this.openModal('teacher-modal');
     }
 
@@ -7657,7 +7740,7 @@ class AttendanceApp {
         document.getElementById('teacher-form-username').disabled = true;
         document.getElementById('teacher-form-name').value = t.name;
         document.getElementById('teacher-form-role').value = t.role;
-        
+
         this.openModal('teacher-modal');
     }
 
@@ -7758,7 +7841,7 @@ class AttendanceApp {
         document.getElementById('base-form-id').value = b.id;
         document.getElementById('base-form-name').value = b.name;
         document.getElementById('base-form-room').value = b.defaultRoom;
-        
+
         this.openModal('base-modal');
         // Check the checkboxes for assigned teachers
         const teacherIds = (b.teacherId || "").split(',').map(x => x.trim());
@@ -7982,7 +8065,7 @@ class AttendanceApp {
         document.getElementById('schedule-form-dates').value = sch.dates;
         document.getElementById('schedule-form-classes').value = sch.classes;
         document.getElementById('schedule-form-room').value = sch.room;
-        
+
         this.openModal('schedule-modal');
         document.getElementById('schedule-form-base').value = sch.baseId;
         document.getElementById('schedule-form-teacher').value = sch.teacherName;
@@ -8011,7 +8094,7 @@ class AttendanceApp {
         // Derive start and end dates from week dates roughly or keep as week index start dates
         let startDate = `2026-05-11`;
         let endDate = `2026-05-17`;
-        
+
         // Map rough YYYY-MM-DD back based on standard arrays or match existing week schedule values
         const matchedWeek = this.db.rotation_schedule.find(s => s.week === week);
         if (matchedWeek) {
@@ -8058,14 +8141,14 @@ class AttendanceApp {
         reader.onload = (e) => {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            
+
             // Assuming first sheet
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            
+
             // Convert to JSON
             const jsonRows = XLSX.utils.sheet_to_json(sheet);
-            
+
             if (type === 'students') {
                 this.importStudents(jsonRows);
             } else if (type === 'teachers') {
@@ -8073,7 +8156,7 @@ class AttendanceApp {
             } else if (type === 'schedule') {
                 this.importSchedule(jsonRows);
             }
-            
+
             inputElement.value = ''; // clear file selector
         };
         reader.readAsArrayBuffer(file);
@@ -8188,7 +8271,7 @@ class AttendanceApp {
 
         // We overwrite schedule with new Excel records
         const newSchedule = [];
-        
+
         rows.forEach(row => {
             const schItem = {
                 week: parseInt(row.week),
@@ -8299,16 +8382,16 @@ class AttendanceApp {
     formatThaiDate(dateStr) {
         const dates = new Date(dateStr);
         if (isNaN(dates)) return dateStr;
-        
+
         const thaiMonths = [
             "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
             "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
         ];
-        
+
         const day = dates.getDate();
         const month = thaiMonths[dates.getMonth()];
         const year = dates.getFullYear() + 543; // to Buddhist Era
-        
+
         return `${day} ${month} พ.ศ. ${year}`;
     }
 
@@ -8351,7 +8434,7 @@ class AttendanceApp {
                 if (firstEntry.classes.includes('สอบ')) {
                     specialClass = 'week-exam';
                 }
-                
+
                 tr.innerHTML = `
                     <td style="font-weight: 700; text-align: center;">สัปดาห์ที่ ${wk}</td>
                     <td style="font-size: 12px; color: var(--text-secondary); text-align: center;">${firstEntry.dates}</td>
@@ -8480,10 +8563,14 @@ class AttendanceApp {
 
         const parts = clsName.split('/');
         const grade = parts[0];
-        const room = parseInt(parts[1]);
+        const roomStr = String(parts[1] || "").trim();
 
         // Filter and sort students
-        const students = this.db.students.filter(s => s.grade === grade && s.room === room);
+        const students = this.db.students.filter(s =>
+            s.grade === grade &&
+            String(s.room).trim() === roomStr &&
+            (s.semesterId === (this.db.activeSemesterId || "1-2569") || (!s.semesterId && (this.db.activeSemesterId || "1-2569") === "1-2569"))
+        );
         students.sort((a, b) => a.no - b.no);
 
         document.getElementById('rot-detail-student-count').textContent = `${students.length} คน`;
@@ -8523,7 +8610,7 @@ class AttendanceApp {
         if (!file) return;
 
         this.openModal('ocr-modal');
-        
+
         // Render blank draft first
         this.renderOcrReviewTable(null);
 
@@ -8531,7 +8618,7 @@ class AttendanceApp {
         const percentLabel = document.getElementById('ocr-loading-percent');
         const progressBar = document.getElementById('ocr-progress-bar');
         const rawTextArea = document.getElementById('ocr-raw-text');
-        
+
         statusLabel.textContent = "กำลังโหลดระบบอ่านเขียนอักษรภาษาไทย AI OCR...";
         percentLabel.textContent = "0%";
         progressBar.style.width = "0%";
@@ -8541,7 +8628,7 @@ class AttendanceApp {
         const canvas = document.getElementById('ocr-grid-canvas');
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
+
         const noImageText = document.getElementById('ocr-no-image-text');
         if (noImageText) noImageText.style.display = 'none';
 
@@ -8592,7 +8679,7 @@ class AttendanceApp {
 
             // Analyze text to extract schedule draft
             const parsedData = this.parseOcrTextToCalendar(text);
-            
+
             // Render draft to review table
             this.renderOcrReviewTable(parsedData);
 
@@ -8613,7 +8700,7 @@ class AttendanceApp {
     parseOcrTextToCalendar(text) {
         const lines = text.split('\n');
         const calendarDraft = {};
-        
+
         // Initialize empty draft for all weeks
         for (let w = 1; w <= 20; w++) {
             calendarDraft[w] = { base1: "", base2: "", base3: "", base4: "", base5: "", base6: "", base7: "" };
@@ -8626,7 +8713,7 @@ class AttendanceApp {
             // Search for week indicators (e.g. สัปดาห์ที่ 4, W4, Week 4, 4)
             let weekNum = null;
             const weekMatch = line.match(/^(?:สัปดาห์ที่|สัปดาห์|week|wk|w\.?)\s*(\d+)/i);
-            
+
             if (weekMatch) {
                 weekNum = parseInt(weekMatch[1]);
             } else {
@@ -8671,7 +8758,7 @@ class AttendanceApp {
         pairs.forEach(([w1, w2]) => {
             const hasW1 = Object.values(calendarDraft[w1]).some(v => v !== "");
             const hasW2 = Object.values(calendarDraft[w2]).some(v => v !== "");
-            
+
             if (hasW1 && !hasW2) {
                 calendarDraft[w2] = { ...calendarDraft[w1] };
             } else if (!hasW1 && hasW2) {
@@ -8716,7 +8803,7 @@ class AttendanceApp {
         for (let wk = 1; wk <= 20; wk++) {
             const tr = document.createElement('tr');
             const isSpecial = specialWeeks.includes(wk);
-            
+
             let html = `
                 <td style="font-weight: 700; text-align: center;">W${wk}</td>
                 <td style="font-size: 11px; color: var(--text-secondary);">${weekDatesMap[wk]}</td>
@@ -8738,7 +8825,7 @@ class AttendanceApp {
                 for (let b = 1; b <= 7; b++) {
                     const bId = `base${b}`;
                     const val = (parsedData && parsedData[wk]) ? parsedData[wk][bId] : "";
-                    
+
                     html += `
                         <td style="padding: 2px;">
                             <select class="ocr-cell-select" data-week="${wk}" data-base="${bId}" style="width: 100%; padding: 4px; font-size: 12px; font-family: inherit; border-radius: 4px; border: 1px solid var(--border-color);">
@@ -8820,7 +8907,7 @@ class AttendanceApp {
                 // Normal rotation week
                 for (let bIdx = 0; bIdx < 7; bIdx++) {
                     const b = this.db.bases[bIdx] || { id: `base${bIdx+1}`, name: `ฐาน ${bIdx+1}`, defaultRoom: "-" };
-                    
+
                     // Get grade from select input
                     const select = tbody.querySelector(`select[data-week="${wk}"][data-base="${b.id}"]`);
                     const grade = select ? select.value : "";
@@ -8892,18 +8979,45 @@ class AttendanceApp {
         return "";
     }
 
+    getActualClassrooms(grade) {
+        const roomsSet = new Set();
+
+        // Priority 1: Gather from existing student records
+        if (this.db && Array.isArray(this.db.students)) {
+            this.db.students.forEach(st => {
+                if (st.grade === grade && st.room) {
+                    roomsSet.add(String(st.room).trim());
+                }
+            });
+        }
+
+        // Priority 2: Gather from rotation/schedule data if no students detected
+        if (roomsSet.size === 0 && this.db && Array.isArray(this.db.rotation_schedule)) {
+            this.db.rotation_schedule.forEach(sch => {
+                if (Array.isArray(sch.attendingClasses)) {
+                    sch.attendingClasses.forEach(c => {
+                        const parts = c.split('/');
+                        if (parts[0] === grade && parts[1]) {
+                            roomsSet.add(parts[1].trim());
+                        }
+                    });
+                }
+            });
+        }
+
+        // Sort numerically
+        return Array.from(roomsSet).sort((a, b) => {
+            const aNum = parseInt(a) || 0;
+            const bNum = parseInt(b) || 0;
+            if (aNum !== bNum) return aNum - bNum;
+            return a.localeCompare(b);
+        });
+    }
+
     // Helper to map classrooms to bases dynamically
     getClassesForBaseAndGrade(baseId, grade, isWeekB) {
-        const allGradeClasses = {
-            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9", "ม.1/10"],
-            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9", "ม.2/10"],
-            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8", "ม.3/9", "ม.3/10"],
-            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7", "ม.4/8", "ม.4/9", "ม.4/10"],
-            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6", "ม.5/7", "ม.5/8", "ม.5/9", "ม.5/10"],
-            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6", "ม.6/7", "ม.6/8", "ม.6/9", "ม.6/10"]
-        };
-
-        const cls = allGradeClasses[grade] || [];
+        const rooms = this.getActualClassrooms(grade);
+        const cls = rooms.map(r => `${grade}/${r}`);
         const classRooms = {};
 
         if (baseId === 'base1') { // ไฟเบอร์ ทรงพลัง
@@ -8974,18 +9088,45 @@ class AttendanceApp {
             }
         });
 
-        // Let's create the label
-        const labelParts = [];
-        if (roomA) labelParts.push(`${grade}/1-${grade}/2 (${roomA})`);
-        if (roomB) labelParts.push(`${grade}/3-${grade}/5 (${roomB})`);
-        if (roomC) {
-            if (roomD) {
-                labelParts.push(`${grade}/6-${grade}/7 (${roomC})`);
-                labelParts.push(`${grade}/8-${grade}/10 (${roomD})`);
-            } else {
-                labelParts.push(`${grade}/6-${grade}/10 (${roomC})`);
+        // Build the labels dynamically based on mapped locations
+        const roomGroups = {};
+        cls.forEach(c => {
+            const loc = classRooms[c];
+            if (loc) {
+                if (!roomGroups[loc]) {
+                    roomGroups[loc] = [];
+                }
+                const rPart = c.split('/')[1];
+                roomGroups[loc].push(rPart);
             }
-        }
+        });
+
+        const orderedLocations = [];
+        [roomA, roomB, roomC, roomD].forEach(loc => {
+            if (loc && roomGroups[loc] && !orderedLocations.includes(loc)) {
+                orderedLocations.push(loc);
+            }
+        });
+        Object.keys(roomGroups).forEach(loc => {
+            if (!orderedLocations.includes(loc)) {
+                orderedLocations.push(loc);
+            }
+        });
+
+        const labelParts = [];
+        orderedLocations.forEach(loc => {
+            const roomsInGroup = roomGroups[loc];
+            if (roomsInGroup.length > 0) {
+                roomsInGroup.sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+                const minRoom = roomsInGroup[0];
+                const maxRoom = roomsInGroup[roomsInGroup.length - 1];
+                if (minRoom === maxRoom) {
+                    labelParts.push(`${grade}/${minRoom} (${loc})`);
+                } else {
+                    labelParts.push(`${grade}/${minRoom}-${grade}/${maxRoom} (${loc})`);
+                }
+            }
+        });
 
         return {
             classes: cls,
@@ -8997,34 +9138,25 @@ class AttendanceApp {
     ensureScheduleRowProperties(sch) {
         if (!sch || !sch.classes) return;
 
-        const expectedClasses = {
-            "ม.1": ["ม.1/1", "ม.1/2", "ม.1/3", "ม.1/4", "ม.1/5", "ม.1/6", "ม.1/7", "ม.1/8", "ม.1/9", "ม.1/10"],
-            "ม.2": ["ม.2/1", "ม.2/2", "ม.2/3", "ม.2/4", "ม.2/5", "ม.2/6", "ม.2/7", "ม.2/8", "ม.2/9", "ม.2/10"],
-            "ม.3": ["ม.3/1", "ม.3/2", "ม.3/3", "ม.3/4", "ม.3/5", "ม.3/6", "ม.3/7", "ม.3/8", "ม.3/9", "ม.3/10"],
-            "ม.4": ["ม.4/1", "ม.4/2", "ม.4/3", "ม.4/4", "ม.4/5", "ม.4/6", "ม.4/7", "ม.4/8", "ม.4/9", "ม.4/10"],
-            "ม.5": ["ม.5/1", "ม.5/2", "ม.5/3", "ม.5/4", "ม.5/5", "ม.5/6", "ม.5/7", "ม.5/8", "ม.5/9", "ม.5/10"],
-            "ม.6": ["ม.6/1", "ม.6/2", "ม.6/3", "ม.6/4", "ม.6/5", "ม.6/6", "ม.6/7", "ม.6/8", "ม.6/9", "ม.6/10"]
-        };
-
         if (Array.isArray(sch.attendingClasses) && sch.attendingClasses.length > 0) {
             return;
         }
 
         const classesRegex = /ม\.[1-6]\/\d+/g;
         const gradeRegex = /ม\.[1-6](?!\/\d+)/g;
-        
+
         let parsedClasses = [];
-        
+
         const gradeMatches = sch.classes.match(gradeRegex) || [];
         gradeMatches.forEach(g => {
-            if (expectedClasses[g]) {
-                parsedClasses.push(...expectedClasses[g]);
-            }
+            const rooms = this.getActualClassrooms(g);
+            const classes = rooms.map(r => `${g}/${r}`);
+            parsedClasses.push(...classes);
         });
-        
+
         const individualMatches = sch.classes.match(classesRegex) || [];
         parsedClasses.push(...individualMatches);
-        
+
         const uniqueClasses = [...new Set(parsedClasses)];
         sch.attendingClasses = uniqueClasses;
 
@@ -9033,12 +9165,12 @@ class AttendanceApp {
         parts.forEach(part => {
             const roomMatch = part.match(/\(([^)]+)\)/);
             const partRoom = roomMatch ? roomMatch[1] : (sch.room || '-');
-            
+
             const partClasses = part.match(classesRegex) || [];
             partClasses.forEach(cls => {
                 sch.classRooms[cls] = partRoom;
             });
-            
+
             const partGrades = part.match(gradeRegex) || [];
             partGrades.forEach(g => {
                 if (expectedClasses[g]) {
@@ -9048,7 +9180,7 @@ class AttendanceApp {
                 }
             });
         });
-        
+
         uniqueClasses.forEach(cls => {
             if (!sch.classRooms[cls]) {
                 sch.classRooms[cls] = sch.room || '-';
@@ -9059,7 +9191,7 @@ class AttendanceApp {
     // Validate attendance generation before displaying
     validateAttendanceGeneration(scheduleRow) {
         if (!scheduleRow) return { valid: false, missingClasses: ["ไม่พบข้อมูลตารางเรียน"] };
-        
+
         // Parse expected classrooms from the schedule row
         const uniqueExpected = scheduleRow.attendingClasses || [];
 
@@ -9069,8 +9201,12 @@ class AttendanceApp {
             const parts = clsName.split('/');
             if (parts.length < 2) return;
             const grade = parts[0];
-            const room = parseInt(parts[1]);
-            const studentsInClass = this.db.students.filter(st => st.grade === grade && st.room == room);
+            const roomStr = String(parts[1] || "").trim();
+            const studentsInClass = this.db.students.filter(st =>
+                st.grade === grade &&
+                String(st.room).trim() === roomStr &&
+                (st.semesterId === (this.db.activeSemesterId || "1-2569") || (!st.semesterId && (this.db.activeSemesterId || "1-2569") === "1-2569"))
+            );
             if (studentsInClass.length === 0) {
                 missingClasses.push(clsName);
             }
@@ -9629,7 +9765,7 @@ generateDefaultRotationSchedule(customBases = null) {
         container.innerHTML = items.slice(0, 50).map(s => {
             const color = baseColors[this.db.bases.findIndex(b => b.id === s.baseId) % baseColors.length] || '#2E7D32';
             return `<div class="card" style="border-left:4px solid ${color}; display:flex; align-items:center; gap:16px; padding:14px 18px; cursor:pointer;"
-                onclick="app.switchView('calendar')">
+                onclick="app.switchView('rotation')">
                 <div style="flex-shrink:0; width:48px; height:48px; border-radius:var(--radius-md); background:${color}20; display:flex; align-items:center; justify-content:center;">
                     <i class="fa-solid fa-school" style="color:${color}; font-size:20px;"></i>
                 </div>
@@ -9797,7 +9933,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
         sortedCal.forEach((item, idx) => {
             const tr = document.createElement('tr');
-            
+
             let typeBadge = '';
             if (item.type === 'Holiday') {
                 typeBadge = '<span class="status-badge" style="background-color: rgba(239, 68, 68, 0.1); color: var(--accent, #EF4444); border: 1px solid rgba(239, 68, 68, 0.2);">วันหยุด (Holiday)</span>';
@@ -9888,7 +10024,7 @@ generateDefaultRotationSchedule(customBases = null) {
         this.saveDatabase(false, ['schoolCalendar']);
         this.closeModal('school-calendar-wizard-modal');
         this.renderSchoolCalendar();
-        
+
         // Also update local cache view
         this.currentWeekInfo = this.getWeekByDate(this.systemDate);
         this.render();
@@ -9923,7 +10059,7 @@ generateDefaultRotationSchedule(customBases = null) {
             // Add Mode
             if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-calendar-plus text-primary"></i> เพิ่มวันหยุด / กิจกรรม';
             if (indexEl) indexEl.value = '';
-            
+
             // Default week number to next week index
             let nextWeek = 1;
             if (this.db.schoolCalendar && this.db.schoolCalendar.length > 0) {
@@ -10125,7 +10261,7 @@ generateDefaultRotationSchedule(customBases = null) {
             return ids.includes(this.currentUser.username);
         });
         const myBaseIds = myBases.map(b => b.id);
-        
+
         // Show base info in banner
         const baseInfoLabel = document.getElementById('teacher-history-base-info');
         if (baseInfoLabel) {
@@ -10254,14 +10390,18 @@ generateDefaultRotationSchedule(customBases = null) {
             } else {
                 const parts = log.classId.split('/');
                 const grade = parts[0];
-                const room = parseInt(parts[1]);
-                const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === log.semesterId);
+                const roomStr = String(parts[1] || "").trim();
+                const classStudents = this.db.students.filter(st =>
+                    st.grade === grade &&
+                    String(st.room).trim() === roomStr &&
+                    (st.semesterId === log.semesterId || (!st.semesterId && log.semesterId === (this.db.activeSemesterId || "1-2569")))
+                );
                 const studentIds = new Set(classStudents.map(st => st.studentId));
-                const sessionLogs = this.db.attendance_logs.filter(al => 
-                    al.date === log.date && 
-                    al.baseId === log.baseId && 
+                const sessionLogs = this.db.attendance_logs.filter(al =>
+                    al.date === log.date &&
+                    al.baseId === log.baseId &&
                     studentIds.has(al.studentId) &&
-                    al.semesterId === log.semesterId
+                    (al.semesterId === log.semesterId || (!al.semesterId && log.semesterId === (this.db.activeSemesterId || "1-2569")))
                 );
                 total = sessionLogs.length;
                 present = sessionLogs.filter(al => al.status === 'present' || al.status === 'late').length;
@@ -10269,7 +10409,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
             const pct = total > 0 ? Math.round((present / total) * 100) : 0;
             const pctColor = pct >= 80 ? 'var(--success)' : pct >= 60 ? '#D97706' : 'var(--danger)';
-            
+
             const teacherObj = this.db.teachers.find(t => t.username === log.checkedBy);
             const teacherName = teacherObj ? teacherObj.name : log.checkedBy;
 
@@ -10286,7 +10426,7 @@ generateDefaultRotationSchedule(customBases = null) {
             if (ratingVal > 0) starsHtml += ` <span style="font-size: 11px; font-weight:700; color: var(--accent);">${ratingVal.toFixed(1)}</span>`;
             else starsHtml = '<span style="color: var(--text-light); font-size:11px;">-</span>';
 
-            const statusBadge = log.isStaging 
+            const statusBadge = log.isStaging
                 ? '<span class="status-badge" style="background-color: #FFEEDB; color: #D97706; border: 1px solid #FCD34D; font-size:10px;">ร่าง (Staging)</span>'
                 : '<span class="status-badge" style="background-color: #E6F4EA; color: #137333; border: 1px solid #A8DAB5; font-size:10px;">Live</span>';
 
@@ -10325,12 +10465,12 @@ generateDefaultRotationSchedule(customBases = null) {
         if (!log) return;
 
         document.getElementById('history-detail-date').textContent = `${this.formatThaiDate(log.date)} (${new Date(log.timestamp).toLocaleTimeString('th-TH')} น.)`;
-        
+
         const base = this.db.bases.find(b => b.id === log.baseId);
         const baseName = base ? base.name : log.baseId;
         document.getElementById('history-detail-base').textContent = baseName;
         document.getElementById('history-detail-class').textContent = log.classId;
-        
+
         const teacher = this.db.teachers.find(t => t.username === log.checkedBy);
         const teacherName = teacher ? teacher.name : log.checkedBy;
         document.getElementById('history-detail-teacher').textContent = teacherName;
@@ -10338,7 +10478,7 @@ generateDefaultRotationSchedule(customBases = null) {
         const studentListTbody = document.getElementById('history-detail-student-list');
         if (studentListTbody) {
             studentListTbody.innerHTML = '';
-            
+
             let studentsList = [];
             if (isStaging) {
                 studentsList = log.students || [];
@@ -10346,17 +10486,21 @@ generateDefaultRotationSchedule(customBases = null) {
                 // Live: fetch from attendance_logs
                 const parts = log.classId.split('/');
                 const grade = parts[0];
-                const room = parseInt(parts[1]);
-                const classStudents = this.db.students.filter(st => st.grade === grade && st.room === room && st.semesterId === log.semesterId);
-                const studentIds = new Set(classStudents.map(st => st.studentId));
-                
-                const sessionLogs = this.db.attendance_logs.filter(al => 
-                    al.date === log.date && 
-                    al.baseId === log.baseId && 
-                    studentIds.has(al.studentId) &&
-                    al.semesterId === log.semesterId
+                const roomStr = String(parts[1] || "").trim();
+                const classStudents = this.db.students.filter(st =>
+                    st.grade === grade &&
+                    String(st.room).trim() === roomStr &&
+                    (st.semesterId === log.semesterId || (!st.semesterId && log.semesterId === (this.db.activeSemesterId || "1-2569")))
                 );
-                
+                const studentIds = new Set(classStudents.map(st => st.studentId));
+
+                const sessionLogs = this.db.attendance_logs.filter(al =>
+                    al.date === log.date &&
+                    al.baseId === log.baseId &&
+                    studentIds.has(al.studentId) &&
+                    (al.semesterId === log.semesterId || (!al.semesterId && log.semesterId === (this.db.activeSemesterId || "1-2569")))
+                );
+
                 studentsList = sessionLogs.map(al => ({
                     studentId: al.studentId,
                     status: al.status
@@ -10368,7 +10512,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     const student = this.db.students.find(s => s.studentId === stItem.studentId);
                     const name = student ? student.name : `รหัส: ${stItem.studentId}`;
                     const no = student ? student.no : '-';
-                    
+
                     const statusLabels = {
                         present: '<span class="status-badge" style="background-color: var(--primary-light); color: white;">มาเรียน</span>',
                         absent: '<span class="status-badge" style="background-color: var(--danger); color: white;">ขาด</span>',
@@ -10376,7 +10520,7 @@ generateDefaultRotationSchedule(customBases = null) {
                         late: '<span class="status-badge" style="background-color: #4B5563; color: white;">สาย</span>',
                         activity: '<span class="status-badge" style="background-color: #8B5CF6; color: white;">กิจกรรม</span>'
                     };
-                    
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td style="text-align: center;">${no}</td>
@@ -10394,7 +10538,7 @@ generateDefaultRotationSchedule(customBases = null) {
         const extrasContainer = document.getElementById('history-detail-extras');
         if (extrasContainer) {
             extrasContainer.innerHTML = '';
-            
+
             let teachersListStr = '-';
             if (log.teachers && log.teachers.length > 0) {
                 teachersListStr = log.teachers.map(tUsername => {
@@ -10402,7 +10546,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     return t ? t.name : tUsername;
                 }).join(', ');
             }
-            
+
             let starsHtml = '';
             const ratingVal = log.rating || 0;
             for (let i = 1; i <= 5; i++) {
@@ -10417,14 +10561,14 @@ generateDefaultRotationSchedule(customBases = null) {
                 <div style="background: var(--gray-light); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
                     <div><strong>ครูประจำฐานปฏิบัติหน้าที่:</strong> <span style="color: var(--text-primary);">${teachersListStr}</span></div>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <strong>ประเมินผลกิจกรรม:</strong> 
+                        <strong>ประเมินผลกิจกรรม:</strong>
                         <span style="display: inline-flex;">${starsHtml}</span>
                         <span style="font-weight: 700; color: var(--accent); margin-left: 4px;">${ratingVal.toFixed(1)}</span>
                     </div>
                     <div><strong>บันทึกเพิ่มเติม:</strong> <span style="font-style: italic; color: var(--text-primary);">${log.notes || 'ไม่มีบันทึกเพิ่มเติม'}</span></div>
                 </div>
             `;
-            
+
             if (log.photo) {
                 html += `
                     <div style="margin-top: 16px;">
@@ -10448,7 +10592,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     </div>
                 `;
             }
-            
+
             extrasContainer.innerHTML = html;
         }
 
@@ -10487,18 +10631,18 @@ generateDefaultRotationSchedule(customBases = null) {
 
         try {
             let calendars = [];
-            
+
             if (this.useFirestore && this.firestore) {
                 let query = this.firestore.collection('subjectCalendars');
-                
+
                 // Scoping queries: teacher can read own own, admins/directors/supervisors read all
                 if (this.currentUser && this.currentUser.role === 'teacher') {
                     query = query.where('teacherUid', '==', this.currentUser.uid || this.currentUser.username);
                 }
-                
+
                 const snapshot = await query.orderBy('createdAt', 'desc').get();
                 calendars = snapshot.docs.map(doc => ({ calendarId: doc.id, ...doc.data() }));
-                
+
                 // Sync with local memory cache
                 this.db.subjectCalendars = calendars;
                 localStorage.setItem('school_subject_calendars', JSON.stringify(calendars));
@@ -10507,7 +10651,7 @@ generateDefaultRotationSchedule(customBases = null) {
                 calendars = this.db.subjectCalendars || [];
                 // Sort by createdAt descending
                 calendars.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                
+
                 if (this.currentUser && this.currentUser.role === 'teacher') {
                     const teacherId = this.currentUser.uid || this.currentUser.username;
                     calendars = calendars.filter(c => c.teacherUid === teacherId);
@@ -10560,8 +10704,8 @@ generateDefaultRotationSchedule(customBases = null) {
 
         // 3. Subject Query (code or name)
         if (subjectQuery) {
-            filtered = filtered.filter(c => 
-                (c.subjectCode && c.subjectCode.toLowerCase().includes(subjectQuery)) || 
+            filtered = filtered.filter(c =>
+                (c.subjectCode && c.subjectCode.toLowerCase().includes(subjectQuery)) ||
                 (c.subjectName && c.subjectName.toLowerCase().includes(subjectQuery))
             );
         }
@@ -10573,8 +10717,8 @@ generateDefaultRotationSchedule(customBases = null) {
 
         // 5. Teacher (Admin Only)
         if (teacherQuery && this.currentUser && this.currentUser.role === 'admin') {
-            filtered = filtered.filter(c => 
-                (c.teacherName && c.teacherName.toLowerCase().includes(teacherQuery)) || 
+            filtered = filtered.filter(c =>
+                (c.teacherName && c.teacherName.toLowerCase().includes(teacherQuery)) ||
                 (c.teacherUid && c.teacherUid.toLowerCase().includes(teacherQuery))
             );
         }
@@ -10634,12 +10778,12 @@ generateDefaultRotationSchedule(customBases = null) {
 
         tbody.innerHTML = calendars.map(cal => {
             const dateRange = `${this.formatThaiDateShort(cal.startDate)} - ${this.formatThaiDateShort(cal.endDate)}`;
-            
+
             // Delete action for admin, view action for all
-            const deleteBtn = (this.currentUser && this.currentUser.role === 'admin') 
+            const deleteBtn = (this.currentUser && this.currentUser.role === 'admin')
                 ? `<button class="btn btn-outline btn-xs" style="color: var(--danger); border-color: var(--danger); margin-left: 6px;" onclick="app.deleteCalendar('${cal.calendarId}')"><i class="fa-solid fa-trash"></i> ลบ</button>`
                 : '';
-                
+
             return `
                 <tr>
                     <td style="font-weight: 700; color: var(--primary);">${cal.subjectCode} <span style="font-weight: 500; color: var(--text-primary); font-size: 13px;">${cal.subjectName}</span></td>
@@ -10660,32 +10804,32 @@ generateDefaultRotationSchedule(customBases = null) {
     // Open wizard modal
     openCalendarWizard() {
         this.wizardStep = 1;
-        
+
         // Reset forms
         const yearInput = document.getElementById('wizard-academic-year');
         const semSelect = document.getElementById('wizard-semester');
         const startInput = document.getElementById('wizard-start-date');
         const endInput = document.getElementById('wizard-end-date');
-        
+
         const subName = document.getElementById('wizard-subject-name');
         const subCode = document.getElementById('wizard-subject-code');
         const periods = document.getElementById('wizard-periods-week');
-        
+
         if (yearInput) yearInput.value = "2569";
         if (semSelect) semSelect.value = "1";
-        
+
         // Default dates: based on default semester starts if available
         if (startInput) startInput.value = "2026-05-16";
         if (endInput) endInput.value = "2026-10-02";
-        
+
         if (subName) subName.value = "";
         if (subCode) subCode.value = "";
         if (periods) periods.value = "1";
-        
+
         // Clear weekly schedule rows
         const schedContainer = document.getElementById('wizard-schedule-rows-container');
         if (schedContainer) schedContainer.innerHTML = '';
-        
+
         // Add 1 default row
         this.addWizardScheduleRow();
 
@@ -10727,7 +10871,7 @@ generateDefaultRotationSchedule(customBases = null) {
             if (panel) {
                 panel.style.display = (i === step) ? 'block' : 'none';
             }
-            
+
             const node = document.querySelector(`.wizard-step-node[data-step="${i}"]`);
             if (node) {
                 if (i === step) {
@@ -10749,11 +10893,11 @@ generateDefaultRotationSchedule(customBases = null) {
         // Footer buttons
         const prevBtn = document.getElementById('wizard-btn-prev');
         const nextBtn = document.getElementById('wizard-btn-next');
-        
+
         if (prevBtn) {
             prevBtn.style.display = (step > 1) ? 'block' : 'none';
         }
-        
+
         if (nextBtn) {
             if (step === 5) {
                 nextBtn.textContent = "ยืนยันและสร้างปฏิทิน";
@@ -10767,20 +10911,20 @@ generateDefaultRotationSchedule(customBases = null) {
         // Run preview generation on entering Step 5
         if (step === 5) {
             const info = this.generatePreviewLessons();
-            
+
             // Set text elements
             document.getElementById('rev-subject-code-name').textContent = `${document.getElementById('wizard-subject-code').value.trim()} - ${document.getElementById('wizard-subject-name').value.trim()}`;
             document.getElementById('rev-grade-level').textContent = document.getElementById('wizard-grade-level').value;
             document.getElementById('rev-classrooms').textContent = info.selectedClassrooms.join(', ');
             document.getElementById('rev-classroom-count').textContent = `${info.selectedClassrooms.length} ห้อง`;
-            
+
             document.getElementById('rev-semester-year').textContent = `ภาคเรียนที่ ${document.getElementById('wizard-semester').value}/${document.getElementById('wizard-academic-year').value}`;
-            
+
             const startStr = this.formatThaiDate(document.getElementById('wizard-start-date').value);
             const endStr = this.formatThaiDate(document.getElementById('wizard-end-date').value);
             document.getElementById('rev-dates').textContent = `${startStr} ถึง ${endStr}`;
             document.getElementById('rev-total-lessons').textContent = `${info.totalLessonsCount} คาบเรียน`;
-            
+
             // Render first 5 generated dates
             const previewList = document.getElementById('rev-preview-dates-list');
             if (previewList) {
@@ -10825,7 +10969,7 @@ generateDefaultRotationSchedule(customBases = null) {
         if (!typeEl) return;
         const type = typeEl.value;
         const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]');
-        
+
         if (type === 'whole') {
             checkboxes.forEach(cb => {
                 cb.checked = true;
@@ -10844,7 +10988,7 @@ generateDefaultRotationSchedule(customBases = null) {
     onWizardClassroomSelectionChange(event) {
         const typeEl = document.querySelector('input[name="classroom-select-type"]:checked');
         if (!typeEl || typeEl.value !== 'single') return;
-        
+
         const activeCheckbox = event.target;
         if (activeCheckbox.checked) {
             const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]');
@@ -10908,7 +11052,7 @@ generateDefaultRotationSchedule(customBases = null) {
             const yearInput = document.getElementById('wizard-academic-year');
             const startInput = document.getElementById('wizard-start-date');
             const endInput = document.getElementById('wizard-end-date');
-            
+
             if (!yearInput || !yearInput.value) {
                 alert("กรุณากรอกปีการศึกษา!");
                 return false;
@@ -10921,7 +11065,7 @@ generateDefaultRotationSchedule(customBases = null) {
                 alert("กรุณาระบุวันที่สิ้นสุดภาคเรียน!");
                 return false;
             }
-            
+
             const start = new Date(startInput.value);
             const end = new Date(endInput.value);
             if (start > end) {
@@ -10930,12 +11074,12 @@ generateDefaultRotationSchedule(customBases = null) {
             }
             return true;
         }
-        
+
         if (step === 2) {
             const nameInput = document.getElementById('wizard-subject-name');
             const codeInput = document.getElementById('wizard-subject-code');
             const periodsInput = document.getElementById('wizard-periods-week');
-            
+
             if (!nameInput || !nameInput.value.trim()) {
                 alert("กรุณากรอกชื่อวิชา!");
                 return false;
@@ -10950,7 +11094,7 @@ generateDefaultRotationSchedule(customBases = null) {
             }
             return true;
         }
-        
+
         if (step === 3) {
             const checkboxes = document.querySelectorAll('input[name="wizard-classrooms"]:checked');
             if (checkboxes.length === 0) {
@@ -10959,7 +11103,7 @@ generateDefaultRotationSchedule(customBases = null) {
             }
             return true;
         }
-        
+
         if (step === 4) {
             const container = document.getElementById('wizard-schedule-rows-container');
             const rows = container.querySelectorAll('.schedule-row-item');
@@ -10967,13 +11111,13 @@ generateDefaultRotationSchedule(customBases = null) {
                 alert("กรุณาเพิ่มตารางเรียนรายสัปดาห์อย่างน้อย 1 แถว!");
                 return false;
             }
-            
+
             let valid = true;
             rows.forEach((row, idx) => {
                 const period = row.querySelector('.wizard-row-period').value;
                 const start = row.querySelector('.wizard-row-start').value;
                 const end = row.querySelector('.wizard-row-end').value;
-                
+
                 if (!period || parseInt(period) <= 0) {
                     alert(`แถวที่ ${idx + 1}: กรุณากรอกคาบเรียนให้ถูกต้อง!`);
                     valid = false;
@@ -11009,9 +11153,9 @@ generateDefaultRotationSchedule(customBases = null) {
         const subjectName = document.getElementById('wizard-subject-name').value.trim();
         const subjectCode = document.getElementById('wizard-subject-code').value.trim();
         const gradeLevel = document.getElementById('wizard-grade-level').value;
-        
+
         const selectedClassrooms = Array.from(document.querySelectorAll('input[name="wizard-classrooms"]:checked')).map(cb => cb.value);
-        
+
         const scheduleRows = document.querySelectorAll('#wizard-schedule-rows-container .schedule-row-item');
         const weeklySchedule = Array.from(scheduleRows).map(row => {
             return {
@@ -11026,20 +11170,20 @@ generateDefaultRotationSchedule(customBases = null) {
         let start = new Date(startDate + "T00:00:00");
         let end = new Date(endDate + "T00:00:00");
         const thaiDays = ["วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"];
-        
+
         const lessons = [];
-        
+
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const currentDayThai = thaiDays[d.getDay()];
             const matchingSlots = weeklySchedule.filter(slot => slot.dayOfWeek === currentDayThai);
-            
+
             if (matchingSlots.length > 0) {
                 let diffTime = d.getTime() - start.getTime();
                 let diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
                 let weekNum = Math.floor(diffDays / 7) + 1;
-                
+
                 let lessonDateStr = d.toISOString().split('T')[0];
-                
+
                 matchingSlots.forEach(slot => {
                     selectedClassrooms.forEach(room => {
                         lessons.push({
@@ -11090,7 +11234,7 @@ generateDefaultRotationSchedule(customBases = null) {
             const subjectName = document.getElementById('wizard-subject-name').value.trim();
             const subjectCode = document.getElementById('wizard-subject-code').value.trim();
             const gradeLevel = document.getElementById('wizard-grade-level').value;
-            
+
             const calendarId = 'cal-' + Math.random().toString(36).substring(2, 15) + '-' + Date.now();
             const nowIso = new Date().toISOString();
 
@@ -11144,7 +11288,7 @@ generateDefaultRotationSchedule(customBases = null) {
             if (this.useFirestore && this.firestore) {
                 // 1. Set Calendar
                 await this.firestore.collection('subjectCalendars').doc(calendarId).set(calendarObj);
-                
+
                 // 2. Commit Lessons in batches of 400
                 const BATCH_LIMIT = 400;
                 for (let i = 0; i < lessonsToCommit.length; i += BATCH_LIMIT) {
@@ -11156,21 +11300,21 @@ generateDefaultRotationSchedule(customBases = null) {
                     });
                     await batch.commit();
                 }
-                
+
                 // Update local memory cache with new data
                 this.db.subjectCalendars = this.db.subjectCalendars || [];
                 this.db.subjectCalendars.push(calendarObj);
-                
+
                 this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
                 this.db.subjectCalendarLessons.push(...lessonsToCommit);
-                
+
                 localStorage.setItem('school_subject_calendars', JSON.stringify(this.db.subjectCalendars));
                 localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
             } else {
                 // Offline fallback
                 this.db.subjectCalendars = this.db.subjectCalendars || [];
                 this.db.subjectCalendars.push(calendarObj);
-                
+
                 this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
                 this.db.subjectCalendarLessons.push(...lessonsToCommit);
 
@@ -11180,7 +11324,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
             this.closeCalendarWizard();
             this.showStatusModal('success', 'บันทึกตารางเรียบร้อย', `สร้างปฏิทินรายวิชา ${subjectCode} และคาบเรียนจำนวน ${info.totalLessonsCount} คาบสำเร็จแล้ว!`);
-            
+
             // Reload table
             await this.loadSubjectCalendars();
         } catch (e) {
@@ -11203,7 +11347,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
         // Show/hide makeup button based on ownership/admin role
         const isAuthorized = this.currentUser && (
-            cal.teacherUid === (this.currentUser.uid || this.currentUser.username) || 
+            cal.teacherUid === (this.currentUser.uid || this.currentUser.username) ||
             this.currentUser.role === 'admin'
         );
         const makeupBtn = document.getElementById('btn-add-makeup-lesson');
@@ -11214,7 +11358,7 @@ generateDefaultRotationSchedule(customBases = null) {
         const detailCard = document.getElementById('subject-lessons-list-card');
         const tbody = document.getElementById('subject-lessons-table-body');
         const filterSelect = document.getElementById('lesson-classroom-filter');
-        
+
         if (!detailCard || !tbody) return;
 
         document.getElementById('selected-calendar-title').innerHTML = `<i class="fa-solid fa-list-check text-primary"></i> คาบเรียนวิชา: ${cal.subjectCode} - ${cal.subjectName}`;
@@ -11247,7 +11391,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     .orderBy('periodNumber', 'asc')
                     .get();
                 lessons = snapshot.docs.map(doc => ({ ...doc.data() }));
-                
+
                 // Merge/Sync to cache local lessons for this calendar
                 this.db.subjectCalendarLessons = this.db.subjectCalendarLessons || [];
                 // Remove existing cached lessons of this calendar
@@ -11279,7 +11423,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
         tbody.innerHTML = lessons.map(les => {
             const dateStr = this.formatThaiDateShort(les.lessonDate);
-            
+
             let statusBadge = '';
             if (les.status === 'taught') {
                 statusBadge = '<span class="status-badge success"><i class="fa-solid fa-circle-check"></i> สอนแล้ว</span>';
@@ -11295,7 +11439,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
             // Status toggling controls (allowed for owner teacher or admin)
             const isAuthorized = this.currentUser && (
-                les.teacherUid === (this.currentUser.uid || this.currentUser.username) || 
+                les.teacherUid === (this.currentUser.uid || this.currentUser.username) ||
                 this.currentUser.role === 'admin'
             );
 
@@ -11381,7 +11525,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     updatedAt: lesson.updatedAt
                 });
             }
-            
+
             // Sync with local memory and save local cache
             localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
 
@@ -11411,15 +11555,15 @@ generateDefaultRotationSchedule(customBases = null) {
             if (this.useFirestore && this.firestore) {
                 // Delete calendars doc
                 await this.firestore.collection('subjectCalendars').doc(calendarId).delete();
-                
+
                 // Query and delete all lessons of this calendar
                 const snapshot = await this.firestore.collection('subjectCalendarLessons')
                     .where('calendarId', '==', calendarId).get();
-                
+
                 const BATCH_LIMIT = 400;
                 let currentBatch = this.firestore.batch();
                 let count = 0;
-                
+
                 for (const doc of snapshot.docs) {
                     currentBatch.delete(doc.ref);
                     count++;
@@ -11437,13 +11581,13 @@ generateDefaultRotationSchedule(customBases = null) {
             // Sync local storage
             this.db.subjectCalendars = (this.db.subjectCalendars || []).filter(c => c.calendarId !== calendarId);
             this.db.subjectCalendarLessons = (this.db.subjectCalendarLessons || []).filter(l => l.calendarId !== calendarId);
-            
+
             localStorage.setItem('school_subject_calendars', JSON.stringify(this.db.subjectCalendars));
             localStorage.setItem('school_subject_calendar_lessons', JSON.stringify(this.db.subjectCalendarLessons));
 
             this.closeLessonsView();
             await this.loadSubjectCalendars();
-            
+
             this.showStatusModal('success', 'ลบปฏิทินรายวิชาสำเร็จ', 'ได้ลบปฏิทินรายวิชาและคาบเรียนทั้งหมดเรียบร้อยแล้ว');
         } catch (e) {
             console.error("Failed to delete subject calendar:", e);
@@ -11660,13 +11804,13 @@ generateDefaultRotationSchedule(customBases = null) {
 
         const cal = (this.db.subjectCalendars || []).find(c => c.calendarId === this.selectedCalendarId);
         const subjectCode = cal ? cal.subjectCode : 'subject';
-        
+
         // Prepare file name
         const filename = `lessons_report_${subjectCode}_${new Date().toISOString().split('T')[0]}.json`;
 
         // Format content
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.currentLessonsCache, null, 2));
-        
+
         // Trigger download
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
@@ -11691,7 +11835,7 @@ generateDefaultRotationSchedule(customBases = null) {
         this.rotationBuilderStep = 1;
         this.rotationBuilderBases = JSON.parse(JSON.stringify(this.db.bases || []));
         this.rotationBuilderIsEdit = isEdit;
-        
+
         // Populate inputs in Step 1
         const yearInput = document.getElementById('rot-builder-year');
         const semesterInput = document.getElementById('rot-builder-semester');
@@ -11707,11 +11851,11 @@ generateDefaultRotationSchedule(customBases = null) {
             if (yearInput) yearInput.value = parts[1] || '2569';
             if (semesterInput) semesterInput.value = parts[0] || '1';
             if (dateInput) dateInput.value = first.startDate || '';
-            
+
             const uniqueWeeks = [...new Set(this.db.rotation_schedule.map(s => s.week))];
             if (weekCountInput) weekCountInput.value = uniqueWeeks.length;
             if (nameInput) nameInput.value = "ตารางแก้ไขหมุนเวียนฐานการเรียนรู้";
-            
+
             // Go straight to Step 5 (Preview & Manual Edit)
             this.rotationBuilderStep = 5;
             this.rotationBuilderTempSchedule = JSON.parse(JSON.stringify(this.db.rotation_schedule));
@@ -11739,18 +11883,18 @@ generateDefaultRotationSchedule(customBases = null) {
     // Render Wizard step UI
     renderRotationBuilderStep() {
         const step = this.rotationBuilderStep;
-        
+
         // Update panel visibility
         for (let i = 1; i <= 5; i++) {
             const panel = document.getElementById(`rot-panel-${i}`);
             if (panel) panel.style.display = (i === step) ? 'block' : 'none';
-            
+
             const node = document.getElementById(`rot-step-node-${i}`);
             if (node) {
                 node.className = 'wizard-step-node' + (i === step ? ' active' : '') + (i < step ? ' completed' : '');
             }
         }
-        
+
         // Update progress line width
         const progressLine = document.getElementById('rot-wizard-active-line');
         if (progressLine) {
@@ -11872,7 +12016,7 @@ generateDefaultRotationSchedule(customBases = null) {
     moveBuilderBaseRow(idx, direction) {
         const targetIdx = idx + direction;
         if (targetIdx < 0 || targetIdx >= this.rotationBuilderBases.length) return;
-        
+
         // Swap elements
         const temp = this.rotationBuilderBases[idx];
         this.rotationBuilderBases[idx] = this.rotationBuilderBases[targetIdx];
@@ -11902,7 +12046,7 @@ generateDefaultRotationSchedule(customBases = null) {
             div.style.padding = '12px';
             div.style.borderRadius = 'var(--radius-sm)';
             div.style.border = '1px solid var(--border-color)';
-            
+
             // Try to pre-guess a default grade based on standard index:
             const idx = this.rotationBuilderBases.indexOf(b);
             const defaultGrade = grades[idx % grades.length];
@@ -11946,17 +12090,17 @@ generateDefaultRotationSchedule(customBases = null) {
     getWeekDates(startDateVal, weekNum) {
         const start = new Date(startDateVal);
         start.setDate(start.getDate() + (weekNum - 1) * 7);
-        
+
         const end = new Date(start);
         end.setDate(end.getDate() + 6);
-        
+
         const startStr = start.toISOString().split('T')[0];
         const endStr = end.toISOString().split('T')[0];
-        
+
         // Tuesday of that week is the target activity display date (start + 3 days)
         const tue = new Date(start);
         tue.setDate(tue.getDate() + 3);
-        
+
         const thaiMonths = [
             'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
@@ -11965,7 +12109,7 @@ generateDefaultRotationSchedule(customBases = null) {
         const month = thaiMonths[tue.getMonth()];
         const year = tue.getFullYear() + 543;
         const label = `${day} ${month} ${year}`;
-        
+
         return {
             dates: label,
             start: startStr,
@@ -11976,7 +12120,7 @@ generateDefaultRotationSchedule(customBases = null) {
     // Generate rotated weekly base grades
     calculateRotation(initialGrades, weekCount, startDate, bases) {
         const schedule = [];
-        
+
         // Gather bases with active non-ว่าง grades
         const activeBases = [];
         const activeGrades = [];
@@ -12065,7 +12209,7 @@ generateDefaultRotationSchedule(customBases = null) {
             const tr = document.createElement('tr');
             const weekEntries = this.rotationBuilderTempSchedule.filter(s => s.week === wk);
             const first = weekEntries[0] || {};
-            
+
             let html = `
                 <td style="font-weight: 700; text-align: center;">W${wk}</td>
                 <td style="font-size: 11px; color: var(--text-secondary);">${first.dates}</td>
@@ -12274,7 +12418,7 @@ generateDefaultRotationSchedule(customBases = null) {
         });
 
         // Generate base selection options
-        const baseOptions = (this.db.bases || []).map(base => 
+        const baseOptions = (this.db.bases || []).map(base =>
             `<option value="${base.id}" ${this.lessonPlanFilters.baseId === base.id ? 'selected' : ''}>${base.name}</option>`
         ).join('');
 
@@ -12291,7 +12435,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     <div class="sidebar-header">
                         <h3><i class="fas fa-filter"></i> ค้นหาและกรองข้อมูล</h3>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="filter-plan-base"><i class="fas fa-university"></i> ฐานการเรียนรู้</label>
                         <select id="filter-plan-base" class="form-control-sleek">
@@ -12359,10 +12503,10 @@ generateDefaultRotationSchedule(customBases = null) {
                                 }
 
                                 const dateStr = plan.updatedAt ? new Date(plan.updatedAt).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : 'ไม่ระบุวันที่';
-                                
+
                                 // Can edit if admin, or creator
                                 const canEdit = this.currentUser.role === 'admin' || this.currentUser.username === plan.creator;
-                                
+
                                 return `
                                     <div class="plan-card card-sleek animate-fade-in" data-id="${plan.id}">
                                         <div>
@@ -12462,6 +12606,13 @@ generateDefaultRotationSchedule(customBases = null) {
                 const planId = btn.getAttribute('data-id');
                 if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบแผนกิจกรรมพอเพียงนี้?')) {
                     this.db.lesson_plans = this.db.lesson_plans.filter(p => p.id !== planId);
+                    if (this.useFirestore) {
+                        try {
+                            await this.firestore.collection('lesson_plans').doc(planId).delete();
+                        } catch (e) {
+                            console.warn("Failed to delete lesson plan from Firestore:", e);
+                        }
+                    }
                     await this.saveDatabase(false, ['lesson_plans']);
                     this.renderLessonPlanner();
                 }
@@ -12499,7 +12650,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
         const isNew = !this.currentLessonPlan;
 
-        const baseOptions = (this.db.bases || []).map(base => 
+        const baseOptions = (this.db.bases || []).map(base =>
             `<option value="${base.id}" ${plan.baseId === base.id ? 'selected' : ''}>${base.name}</option>`
         ).join('');
 
@@ -12778,6 +12929,7 @@ generateDefaultRotationSchedule(customBases = null) {
                 status,
                 creator: isNew ? this.currentUser.username : plan.creator,
                 creatorName: isNew ? this.currentUser.name : plan.creatorName,
+                teacherUid: isNew ? (this.currentUser ? (this.currentUser.uid || '') : '') : (plan.teacherUid || ''),
                 createdAt: isNew ? new Date().toISOString() : plan.createdAt,
                 updatedAt: new Date().toISOString(),
                 comments: plan.comments || []
@@ -12876,7 +13028,7 @@ generateDefaultRotationSchedule(customBases = null) {
             }
         };
 
-        const hasFramework = 
+        const hasFramework =
             (plan.framework.conditions && plan.framework.conditions.length > 0) ||
             (plan.framework.principles && plan.framework.principles.length > 0) ||
             (plan.framework.dimensions && plan.framework.dimensions.length > 0) ||
@@ -13050,7 +13202,7 @@ generateDefaultRotationSchedule(customBases = null) {
                         <!-- Comment / Approval Section -->
                         <div class="card-sleek mb-4 sticky-sidebar">
                             <h3 class="section-title-sleek"><i class="fas fa-comments"></i> ความเห็นและสถานะการอนุมัติ</h3>
-                            
+
                             <!-- Comment feed -->
                             <div class="comments-feed">
                                 ${(!plan.comments || plan.comments.length === 0) ? `
@@ -13060,7 +13212,7 @@ generateDefaultRotationSchedule(customBases = null) {
                                     return `
                                         <div class="comment-item">
                                             <div class="comment-meta">
-                                                <strong>${c.userName}</strong> 
+                                                <strong>${c.userName}</strong>
                                                 <span class="role-tag">${c.userRole === 'director' ? 'ผู้บริหาร' : c.userRole === 'supervisor' ? 'ศึกษานิเทศก์' : 'ผู้ดูแล'}</span>
                                             </div>
                                             <p class="comment-text">${c.text}</p>
@@ -13074,7 +13226,7 @@ generateDefaultRotationSchedule(customBases = null) {
                                 <div class="approval-form mt-4 pt-3 border-top">
                                     <label for="approval-comment" class="mb-2 d-block">เขียนความคิดเห็น / ข้อเสนอแนะ</label>
                                     <textarea id="approval-comment" class="form-control-sleek" rows="3" placeholder="ระบุความเห็นหรือคำแนะนำเพื่อพัฒนา..."></textarea>
-                                    
+
                                     <div class="d-flex gap-2 mt-3">
                                         <button id="btn-reject-plan" class="btn-danger-sleek flex-1">
                                             <i class="fas fa-undo"></i> ส่งกลับแก้ไข
@@ -13107,10 +13259,10 @@ generateDefaultRotationSchedule(customBases = null) {
         // Bind Approval / Rejection
         if (canApprove) {
             const commentTextarea = container.querySelector('#approval-comment');
-            
+
             const submitApproval = async (newStatus) => {
                 const commentText = commentTextarea.value.trim();
-                
+
                 // Add comment if text exists
                 if (commentText) {
                     plan.comments = plan.comments || [];
@@ -13136,7 +13288,7 @@ generateDefaultRotationSchedule(customBases = null) {
                 await this.saveDatabase(false, ['lesson_plans']);
                 this.lessonPlanSubView = 'detail'; // Refresh detail view
                 this.renderLessonPlanner();
-                
+
                 alert(newStatus === 'approved' ? 'อนุมัติแผนการสอนเสร็จสิ้น!' : 'ส่งกลับให้ครูแก้ไขแผนเรียบร้อยแล้ว!');
             };
 
@@ -13161,9 +13313,9 @@ generateDefaultRotationSchedule(customBases = null) {
 
         const activeSemester = this.db.activeSemesterId || "1-2569";
         const filename = `Rotation_Schedule_${activeSemester}_${new Date().toISOString().split('T')[0]}.json`;
-        
+
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.db.rotation_schedule, null, 2));
-        
+
         const downloadAnchor = document.createElement('a');
         downloadAnchor.setAttribute("href", dataStr);
         downloadAnchor.setAttribute("download", filename);
@@ -13253,7 +13405,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     <div class="sidebar-header">
                         <h3><i class="fas fa-filter"></i> ค้นหาและกรองข้อมูล</h3>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="filter-log-year"><i class="fas fa-calendar"></i> ปีการศึกษา</label>
                         <select id="filter-log-year" class="form-control-sleek">
@@ -13353,9 +13505,9 @@ generateDefaultRotationSchedule(customBases = null) {
                                 const statusInfo = statusLabels[log.teachingStatus] || { text: log.teachingStatus, class: 'special' };
                                 const dateStr = log.logDate ? new Date(log.logDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : 'ไม่ระบุ';
                                 const baseName = log.baseName || 'ไม่ใช่สอนประจำฐาน';
-                                
+
                                 const canEdit = this.currentUser && (this.currentUser.role === 'admin' || this.currentUser.username === log.teacherId);
-                                
+
                                 return `
                                     <div class="plan-card card-sleek animate-fade-in" data-id="${log.logId}">
                                         <div>
@@ -13744,7 +13896,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     <div class="card-sleek mb-4">
                         <h3 class="section-title-sleek"><i class="fas fa-leaf"></i> กรอบการบูรณาการหลักปรัชญาของเศรษฐกิจพอเพียง (2-3-4-3-4)</h3>
                         <p class="text-muted" style="font-size: 13px; margin-bottom: 20px;">กรุณาติ๊กเลือกองค์ประกอบพอเพียงที่บูรณาการจริงในการจัดการเรียนรู้นี้</p>
-                        
+
                         <div class="framework-grid">
                             <!-- Conditions -->
                             <div class="framework-card conditions">
@@ -13931,8 +14083,8 @@ generateDefaultRotationSchedule(customBases = null) {
         const form = document.getElementById('teaching-log-form');
         if (!form) return;
 
-        const isNew = !this.currentTeachingLog || 
-                      !this.currentTeachingLog.logId || 
+        const isNew = !this.currentTeachingLog ||
+                      !this.currentTeachingLog.logId ||
                       !(this.db.teaching_logs || []).some(l => l.logId === this.currentTeachingLog.logId);
         const logId = isNew ? (this.currentTeachingLog && this.currentTeachingLog.logId ? this.currentTeachingLog.logId : 'tl_' + Date.now()) : this.currentTeachingLog.logId;
 
@@ -13974,7 +14126,7 @@ generateDefaultRotationSchedule(customBases = null) {
             sourceAttendanceLogId: this.currentTeachingLog ? (this.currentTeachingLog.sourceAttendanceLogId || this.currentTeachingLog.attendanceLogId || null) : null,
             sourceType: this.currentTeachingLog ? (this.currentTeachingLog.sourceType || (this.currentTeachingLog.attendanceLogId ? 'attendance' : null)) : null,
             attendanceSummary: this.currentTeachingLog ? (this.currentTeachingLog.attendanceSummary || null) : null,
-            
+
             teacherUid: this.currentUser ? (this.currentUser.uid || '') : '',
             teacherId: this.currentUser ? this.currentUser.username : '',
             teacherName: this.currentUser ? this.currentUser.name : '',
@@ -14114,11 +14266,11 @@ generateDefaultRotationSchedule(customBases = null) {
                                 ${log.subjectName} ${log.subjectCode ? `(${log.subjectCode})` : ''}
                             </h2>
                             <p style="margin: 8px 0 0 0; color: var(--text-light); font-size: 14px;">
-                                <i class="fas fa-user-circle"></i> โดย: <strong>${log.teacherName || log.teacherId}</strong> | 
+                                <i class="fas fa-user-circle"></i> โดย: <strong>${log.teacherName || log.teacherId}</strong> |
                                 <i class="fas fa-school"></i> ฐานเรียนรู้: <strong>${log.baseName || 'ไม่ใช่การจัดกิจกรรมประจำฐาน'}</strong>
                             </p>
                         </div>
-                        
+
                         ${linkedPlan ? `
                             <button id="btn-open-linked-plan" class="btn btn-outline btn-sm" style="border-color: #2E7D32; color: #2E7D32;">
                                 <i class="fas fa-book-open"></i> เปิดแผนพอเพียงที่เกี่ยวข้อง
@@ -14150,7 +14302,7 @@ generateDefaultRotationSchedule(customBases = null) {
 
                 <div class="card-sleek mb-4">
                     <h3 class="section-title-sleek" style="border-bottom: 2px solid #2E7D32; padding-bottom: 6px; color: #2E7D32;"><i class="fas fa-list-check"></i> รายละเอียดผลสัมฤทธิ์และการจัดการเรียนรู้</h3>
-                    
+
                     <div style="margin-bottom: 20px;">
                         <h4 style="font-weight: 700; color: var(--text-dark); font-size: 15px; margin-bottom: 6px;">สรุปเนื้อหา / กิจกรรมที่จัดจริง:</h4>
                         <p style="white-space: pre-wrap; font-size: 14px; color: var(--text-dark); line-height: 1.6; background: rgba(0,0,0,0.01); padding: 12px; border-radius: var(--radius-sm); border-left: 3px solid #2E7D32;">${log.taughtContent || '-'}</p>
@@ -14210,7 +14362,7 @@ generateDefaultRotationSchedule(customBases = null) {
                                     </div>
                                 </div>
                             ` : ''}
-                            
+
                             ${(log.linkedFramework.principles && log.linkedFramework.principles.length > 0) ? `
                                 <div>
                                     <h4 style="font-size: 13px; color: var(--text-light); margin-bottom: 6px; font-weight: 600;">3 หลักการ:</h4>
