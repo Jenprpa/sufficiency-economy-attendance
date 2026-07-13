@@ -9173,11 +9173,11 @@ class AttendanceApp {
 
             const partGrades = part.match(gradeRegex) || [];
             partGrades.forEach(g => {
-                if (expectedClasses[g]) {
-                    expectedClasses[g].forEach(cls => {
-                        sch.classRooms[cls] = partRoom;
-                    });
-                }
+                // Sprint RC1.1: Use dynamic classrooms from student data (replaced hardcoded expectedClasses)
+                const dynamicClasses = this.getActualClassrooms(g).map(r => `${g}/${r}`);
+                dynamicClasses.forEach(cls => {
+                    sch.classRooms[cls] = partRoom;
+                });
             });
         });
 
@@ -12388,8 +12388,11 @@ generateDefaultRotationSchedule(customBases = null) {
     renderLessonPlanList(container) {
         // Filter visible plans based on user role: teacher sees only own plans, admin/director/supervisor sees all
         const visiblePlans = (this.db.lesson_plans || []).filter(plan => {
-            if (this.currentUser && this.currentUser.role === 'teacher' && plan.creator !== this.currentUser.username) {
-                return false;
+            if (this.currentUser && this.currentUser.role === 'teacher') {
+                // Sprint RC1.1: Match by teacherUid (primary) or creator username (legacy fallback)
+                const matchUid = this.currentUser.uid && plan.teacherUid === this.currentUser.uid;
+                const matchUsername = plan.creator === this.currentUser.username;
+                if (!matchUid && !matchUsername) return false;
             }
             return true;
         });
@@ -13677,7 +13680,10 @@ generateDefaultRotationSchedule(customBases = null) {
         // Fetch lesson plans for selection (filter by current user if teacher)
         const myPlans = (this.db.lesson_plans || []).filter(plan => {
             if (this.currentUser && this.currentUser.role === 'teacher') {
-                return plan.creator === this.currentUser.username;
+                // Sprint RC1.1: Match by teacherUid (primary) or creator username (legacy fallback)
+                const matchUid = this.currentUser.uid && plan.teacherUid === this.currentUser.uid;
+                const matchUsername = plan.creator === this.currentUser.username;
+                return matchUid || matchUsername;
             }
             return true;
         });
