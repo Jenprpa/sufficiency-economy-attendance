@@ -5765,7 +5765,7 @@ class AttendanceApp {
             // General school grade breakdown
         } else if (type === 'class') {
             if (classGroup) classGroup.style.display = 'flex';
-        } else if (type === 'teaching-summary' || type === 'teaching-framework') {
+        } else if (type === 'teaching-summary') {
             if (teacherGroup) teacherGroup.style.display = 'flex';
         }
     }
@@ -6104,7 +6104,8 @@ class AttendanceApp {
                 <div class="card stat-card" style="padding:16px;"><div class="stat-info"><h3>ร้อยละมาเรียนห้องเฉลี่ย</h3><p style="color:var(--success)">${percent}%</p></div></div>
             `;
         } else if (type === 'teaching-summary') {
-            const selectedTeacher = document.getElementById('report-teacher-select') ? document.getElementById('report-teacher-select').value : 'all';
+            const isAdminOrDirector = this.currentUser && ['admin', 'director'].includes(this.currentUser.role);
+            const selectedTeacher = isAdminOrDirector ? 'all' : (this.currentUser ? this.currentUser.username : 'all');
             const logs = this._aggregateTeachingLogs({ teacherId: selectedTeacher });
 
             let teacherDisplay = 'ทุกครูผู้สอน';
@@ -6177,7 +6178,8 @@ class AttendanceApp {
             }
 
         } else if (type === 'teaching-framework') {
-            const selectedTeacher = document.getElementById('report-teacher-select') ? document.getElementById('report-teacher-select').value : 'all';
+            const isAdminOrDirector = this.currentUser && ['admin', 'director'].includes(this.currentUser.role);
+            const selectedTeacher = isAdminOrDirector ? 'all' : (this.currentUser ? this.currentUser.username : 'all');
             const logs = this._aggregateTeachingLogs({ teacherId: selectedTeacher });
 
             headerTitle.textContent = `รายงานสรุปการเชื่อมโยงหลักปรัชญาของเศรษฐกิจพอเพียง (SEP)`;
