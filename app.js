@@ -1622,14 +1622,11 @@ class AttendanceApp {
         const firstNames = ["สมชาย", "วิชัย", "กิตติ", "พงศ์ธร", "ธีรพงษ์", "อภิสิทธิ์", "ณัฐพล", "เกียรติศักดิ์", "สิทธิพล", "จิรายุ", "วรรณนา", "นงนุช", "วิไล", "สุภาภรณ์", "นภา", "สิริพร", "รัตนา", "จิราภรณ์", "พัชรา", "ยลดา", "มาลี", "กัญญารัตน์", "ธัญญารัตน์", "เปรมิกา", "สุจิตรา", "วรัญญา", "ชลลดา", "ศิริวรรณ", "นันทนา", "ลัดดา"];
         const lastNames = ["ใจดี", "รักชาติ", "มั่งคั่ง", "รุ่งเรือง", "ดีเลิศ", "แก้วมณี", "ยิ้มแย้ม", "สุขใจ", "เกื้อกูล", "เงาดี", "ประเสริฐ", "ชูใจ", "แสนดี", "โชคดี", "วงศ์วิริยะ", "ศรีสุข", "เลิศอนันต์", "ดวงแก้ว", "สุขแสน", "ทองคำ", "เจริญศรี", "พัฒนา", "ภักดี", "สิงห์โต", "พิทักษ์", "บำรุง", "จิตรดี", "มั่นเหมาะ", "ชื่นบาน", "ธรรมรักษา"];
 
-        const studentClasses = [
-            { grade: "ม.1", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-            { grade: "ม.2", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-            { grade: "ม.3", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-            { grade: "ม.4", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-            { grade: "ม.5", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] },
-            { grade: "ม.6", rooms: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] }
-        ];
+        const grades = ["ม.1", "ม.2", "ม.3", "ม.4", "ม.5", "ม.6"];
+        const studentClasses = grades.map(g => ({
+            grade: g,
+            rooms: this.getActualClassrooms(g)
+        }));
 
         const students = [];
         let idCounter = 25001;
@@ -3055,8 +3052,6 @@ class AttendanceApp {
             this.renderTeacherHistory();
         } else if (this.currentView === 'manage') {
             this.renderManage();
-        } else if (this.currentView === 'calendar') {
-            this.renderCalendar();
         } else if (this.currentView === 'bases') {
             this.renderBases();
         } else if (this.currentView === 'search') {
@@ -10951,7 +10946,8 @@ generateDefaultRotationSchedule(customBases = null) {
 
         const grade = gradeSelect.value;
         let html = '';
-        for (let room = 1; room <= 10; room++) {
+        const rooms = this.getActualClassrooms(grade);
+        rooms.forEach(room => {
             const classVal = `${grade}/${room}`;
             html += `
                 <label class="classroom-checkbox-label">
@@ -10959,7 +10955,7 @@ generateDefaultRotationSchedule(customBases = null) {
                     <span>${classVal}</span>
                 </label>
             `;
-        }
+        });
         container.innerHTML = html;
         this.onWizardClassroomTypeChange();
     }
@@ -12356,6 +12352,20 @@ generateDefaultRotationSchedule(customBases = null) {
         }
     }
 
+    openLessonPlanModal() {
+        this.currentLessonPlan = null;
+        this.lessonPlanSubView = 'form';
+        this.switchView('lesson-planner');
+        this.renderLessonPlanner();
+    }
+
+    openTeachingLogModal() {
+        this.currentTeachingLog = null;
+        this.teachingLogSubView = 'form';
+        this.switchView('teaching-log');
+        this.renderTeachingLog();
+    }
+
     // --- Lesson Planner Module ---
     renderLessonPlanner() {
         const container = document.getElementById('view-lesson-planner');
@@ -13373,8 +13383,16 @@ generateDefaultRotationSchedule(customBases = null) {
         const searchQuery = (this.teachingLogFilters.searchQuery || '').toLowerCase().trim();
 
         const filteredLogs = visibleLogs.filter(log => {
-            if (yearFilter !== 'All' && log.academicYear !== yearFilter) return false;
-            if (semFilter !== 'All' && log.semester !== semFilter) return false;
+            if (yearFilter !== 'All') {
+                const logYear = (log.academicYear || '').toString();
+                const semId = (log.semesterId || '').toString();
+                if (logYear !== yearFilter && !semId.endsWith(yearFilter)) return false;
+            }
+            if (semFilter !== 'All') {
+                const logSem = (log.semester || '').toString().split('-')[0];
+                const semId = (log.semesterId || '').toString();
+                if (log.semester !== semFilter && logSem !== semFilter && !semId.startsWith(semFilter)) return false;
+            }
             if (statusFilter !== 'All' && log.teachingStatus !== statusFilter) return false;
             if (searchQuery) {
                 const matchSubject = (log.subjectName || '').toLowerCase().includes(searchQuery);
