@@ -3124,10 +3124,31 @@ class AttendanceApp {
         return { week: 6, dates: "15 มิ.ย. - 21 มิ.ย. 69", type: 'Normal', note: '' };
     }
 
+    // Helper: Build indexed lookup map for students by grade/room (O(1) lookup)
+    buildStudentIndexMap() {
+        const map = new Map();
+        const currentSemester = this.db.activeSemesterId || "1-2569";
+        (this.db.students || []).forEach(st => {
+            const matchesSemester = st.semesterId === currentSemester || (!st.semesterId && currentSemester === "1-2569");
+            if (!matchesSemester) return;
+            const key = `${st.grade}/${String(st.room).trim()}`;
+            if (!map.has(key)) {
+                map.set(key, []);
+            }
+            map.get(key).push(st);
+        });
+        this.studentsByClassMap = map;
+    }
+
     // RENDER: Dashboard view
     renderDashboard() {
         const week = this.currentWeekInfo.week;
         const todayDate = this.systemDate;
+
+        // Ensure student index map exists for fast O(1) lookup
+        if (!this.studentsByClassMap) {
+            this.buildStudentIndexMap();
+        }
 
         // Get schedule rows for current week
         const todaySchedule = (this.db.rotation_schedule || []).filter(s => s.week === week);
@@ -3139,17 +3160,17 @@ class AttendanceApp {
 
         const baseStatuses = [];
 
-        // Check each of the 7 bases
+        // Check each of the 7 bases (Optimized with O(1) class map lookup)
         todaySchedule.forEach(sch => {
-            let groupStudents = [];
+            let groupStudentsCount = 0;
             if (!sch.isSpecial && !sch.isEmpty) {
-                groupStudents = (this.db.students || []).filter(st => {
-                    const currentSemester = this.db.activeSemesterId || "1-2569";
-                    const matchesSemester = st.semesterId === currentSemester || (!st.semesterId && currentSemester === "1-2569");
-                    if (!matchesSemester) return false;
-                    return sch.attendingClasses && sch.attendingClasses.includes(`${st.grade}/${String(st.room).trim()}`);
-                });
-                totalStudentsCount += groupStudents.length;
+                if (sch.attendingClasses && Array.isArray(sch.attendingClasses)) {
+                    sch.attendingClasses.forEach(clsKey => {
+                        const classSts = this.studentsByClassMap.get(clsKey);
+                        if (classSts) groupStudentsCount += classSts.length;
+                    });
+                }
+                totalStudentsCount += groupStudentsCount;
                 activeBasesCount++;
             }
 
@@ -3164,7 +3185,7 @@ class AttendanceApp {
             baseStatuses.push({
                 schedule: sch,
                 checked: isChecked,
-                studentCount: groupStudents.length,
+                studentCount: groupStudentsCount,
                 logs: baseLogs
             });
         });
@@ -3204,37 +3225,40 @@ class AttendanceApp {
             weekTextEl.textContent = `สัปดาห์เรียนที่ ${week} | ${this.currentWeekInfo.dates}`;
         }
 
-        // Render bases table
+        // Render bases table using DocumentFragment for single DOM update
         const tbody = document.getElementById('dash-bases-table-body');
-        tbody.innerHTML = '';
+        if (tbody) {
+            const fragment = document.createDocumentFragment();
+            baseStatuses.forEach(item => {
+                const sch = item.schedule;
+                let statusBadge = '';
 
-        baseStatuses.forEach(item => {
-            const sch = item.schedule;
-            let statusBadge = '';
+                if (sch.isSpecial) {
+                    statusBadge = `<span class="status-badge activity"><i class="fa-solid fa-star"></i> ${sch.classes}</span>`;
+                } else if (sch.isEmpty) {
+                    statusBadge = `<span class="status-badge pending"><i class="fa-solid fa-ban"></i> ว่าง (ไม่มีเรียน)</span>`;
+                } else {
+                    statusBadge = item.checked
+                        ? '<span class="status-badge present"><i class="fa-solid fa-check"></i> เช็กแล้ว</span>'
+                        : '<span class="status-badge pending"><i class="fa-solid fa-clock"></i> ยังไม่ได้เช็ก</span>';
+                }
 
-            if (sch.isSpecial) {
-                statusBadge = `<span class="status-badge activity"><i class="fa-solid fa-star"></i> ${sch.classes}</span>`;
-            } else if (sch.isEmpty) {
-                statusBadge = `<span class="status-badge pending"><i class="fa-solid fa-ban"></i> ว่าง (ไม่มีเรียน)</span>`;
-            } else {
-                statusBadge = item.checked
-                    ? '<span class="status-badge present"><i class="fa-solid fa-check"></i> เช็กแล้ว</span>'
-                    : '<span class="status-badge pending"><i class="fa-solid fa-clock"></i> ยังไม่ได้เช็ก</span>';
-            }
+                const baseObj = this.db.bases.find(b => b.id === sch.baseId);
+                const displayTeacherName = baseObj ? baseObj.defaultTeacher : sch.teacherName;
 
-            const baseObj = this.db.bases.find(b => b.id === sch.baseId);
-            const displayTeacherName = baseObj ? baseObj.defaultTeacher : sch.teacherName;
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="font-weight: 700; color: var(--primary-dark);">${sch.baseName}</td>
-                <td><span class="status-badge info">${sch.isSpecial ? 'ทุกระดับชั้น' : sch.classes}</span></td>
-                <td><i class="fa-solid fa-location-dot text-light"></i> ${sch.room}</td>
-                <td><i class="fa-solid fa-chalkboard-user text-light"></i> ${displayTeacherName}</td>
-                <td>${statusBadge}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight: 700; color: var(--primary-dark);">${sch.baseName}</td>
+                    <td><span class="status-badge info">${sch.isSpecial ? 'ทุกระดับชั้น' : sch.classes}</span></td>
+                    <td><i class="fa-solid fa-location-dot text-light"></i> ${sch.room}</td>
+                    <td><i class="fa-solid fa-chalkboard-user text-light"></i> ${displayTeacherName}</td>
+                    <td>${statusBadge}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+            tbody.innerHTML = '';
+            tbody.appendChild(fragment);
+        }
 
         // Chart calculations
         // Get all logs of today
