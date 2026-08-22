@@ -695,6 +695,7 @@ class AttendanceApp {
 
             this.isDemoData = false; // Real data loaded from localStorage - clear demo flag
             this.runMigrationChecks();
+            this.buildStudentIndexMap();
         }
         this.populateLoginSuggestions();
     }
@@ -3278,54 +3279,48 @@ class AttendanceApp {
         const presentRateEl = document.getElementById('dash-present-rate');
         if (presentRateEl) presentRateEl.textContent = `${presentRate}%`;
 
-        // Initialize or Update Chart.js Doughnut
-        if (this.dashChart) this.dashChart.destroy();
+        // Initialize or Update Chart.js Doughnut smoothly without recreation lag
+        const chartCanvas = document.getElementById('dashboard-attendance-chart');
+        if (chartCanvas && typeof Chart !== 'undefined') {
+            const ctx = chartCanvas.getContext('2d');
+            const isPlaceholder = totalChecked === 0;
+            const labels = isPlaceholder ? ['ยังไม่มีข้อมูลเช็กชื่อ'] : ['มาเรียน', 'ขาดเรียน', 'ลา', 'สาย', 'กิจกรรม'];
+            const data = isPlaceholder ? [1] : [present, absent, leave, late, activity];
+            const colors = isPlaceholder ? ['#E5E7EB'] : ['#6F8F3D', '#B22222', '#EAB308', '#8C6A2B', '#A89B8D'];
 
-        const ctx = document.getElementById('dashboard-attendance-chart').getContext('2d');
-
-        if (totalChecked === 0) {
-            // Draw placeholder if no logs checked yet
-            this.dashChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['ยังไม่มีข้อมูลเช็กชื่อ'],
-                    datasets: [{
-                        data: [1],
-                        backgroundColor: ['#E5E7EB']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom' } }
-                }
-            });
-        } else {
-            this.dashChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: ['มาเรียน', 'ขาดเรียน', 'ลา', 'สาย', 'กิจกรรม'],
-                    datasets: [{
-                        data: [present, absent, leave, late, activity],
-                        backgroundColor: ['#6F8F3D', '#B22222', '#EAB308', '#8C6A2B', '#A89B8D'],
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                font: { family: 'Sarabun', size: 12 }
-                            }
-                        }
+            if (this.dashChart) {
+                this.dashChart.data.labels = labels;
+                this.dashChart.data.datasets[0].data = data;
+                this.dashChart.data.datasets[0].backgroundColor = colors;
+                this.dashChart.update('none'); // Instant update without animation delay
+            } else {
+                this.dashChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors,
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
                     },
-                    cutout: '65%'
-                }
-            });
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: { family: 'Sarabun', size: 12 }
+                                }
+                            }
+                        },
+                        cutout: '65%'
+                    }
+                });
+            }
         }
         this.renderExecutiveCards('dash-executives-container');
 
@@ -4765,11 +4760,12 @@ class AttendanceApp {
     /**
      * Get all expected attendance slots based on rotation_schedule.
      */
-    getExpectedAttendanceSlots() {
+    getExpectedAttendanceSlots(targetWeeks = null) {
         const expected = [];
         const schedule = this.db.rotation_schedule || [];
         schedule.forEach(row => {
             if (row.isEmpty || row.isSpecial) return;
+            if (targetWeeks && !targetWeeks.includes(row.week)) return;
             const attending = row.attendingClasses || [];
             attending.forEach(cls => {
                 expected.push({
@@ -4819,12 +4815,6 @@ class AttendanceApp {
      * Can filter by targetWeek (defaults to current week if null, or 'all' for all weeks up to now).
      */
     getMissingAttendanceSlots(targetWeek = null) {
-        const expected = this.getExpectedAttendanceSlots();
-        const completed = this.getCompletedAttendanceSlots();
-
-        // Build map/set of completed week_baseId_roomId slots (ignoring date to determine if completed at all for that week)
-        const completedKeys = new Set(completed.map(c => `${c.week}_${c.baseId}_${c.roomId}`));
-
         let targetWeeks = [];
         const currentWeek = this.currentWeekInfo ? this.currentWeekInfo.week : 1;
 
@@ -4837,6 +4827,10 @@ class AttendanceApp {
         } else {
             targetWeeks.push(currentWeek);
         }
+
+        const expected = this.getExpectedAttendanceSlots(targetWeeks);
+        const completed = this.getCompletedAttendanceSlots();
+        const completedKeys = new Set(completed.map(c => `${c.week}_${c.baseId}_${c.roomId}`));
 
         const missing = [];
         expected.forEach(exp => {
